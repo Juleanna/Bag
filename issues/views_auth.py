@@ -2,7 +2,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_protect
 from django.middleware.csrf import get_token
-from django.contrib.auth import authenticate, login as dj_login, logout as dj_logout
+from django.contrib.auth import authenticate, login as dj_login, logout as dj_logout, get_user_model
 
 
 @require_GET
@@ -36,10 +36,19 @@ def login(request):
         payload = json.loads(request.body or b"{}")
     except Exception:
         payload = {}
-    username = payload.get("username", "")
+    identifier = (payload.get("username", "") or "").strip()
     password = payload.get("password", "")
 
-    user = authenticate(request, username=username, password=password)
+    if not identifier or not password:
+        return JsonResponse({"ok": False, "error": "Укажите логин/почту и пароль"}, status=400)
+
+    # Пытаемся аутентифицировать по username; если не получилось — по email
+    user = authenticate(request, username=identifier, password=password)
+    if user is None and "@" in identifier:
+        User = get_user_model()
+        found = User.objects.filter(email__iexact=identifier).first()
+        if found:
+            user = authenticate(request, username=getattr(found, User.USERNAME_FIELD, found.username), password=password)
     if user is None:
         return JsonResponse({"ok": False, "error": "Неверные учетные данные"}, status=400)
     dj_login(request, user)
@@ -51,4 +60,3 @@ def login(request):
 def logout(request):
     dj_logout(request)
     return JsonResponse({"ok": True})
-

@@ -31,6 +31,18 @@ function card(title: string, body: Node) {
   )
 }
 
+// Safe children replace helper (на случай отсутствия replaceChildren)
+function setChildren(el: Element | null, ...children: (Node | string)[]) {
+  if (!el) return
+  const nodes = children.map((c) => (c instanceof Node ? c : document.createTextNode(String(c))))
+  // @ts-ignore
+  if (typeof (el as any).replaceChildren === 'function') (el as any).replaceChildren(...nodes)
+  else {
+    while (el.firstChild) el.removeChild(el.firstChild)
+    for (const n of nodes) el.appendChild(n)
+  }
+}
+
 // Tooltip helper (DaisyUI)
 function tooltip(el: HTMLElement, tip: string) {
   const wrap = document.createElement('div')
@@ -38,6 +50,23 @@ function tooltip(el: HTMLElement, tip: string) {
   ;(wrap as any).dataset.tip = tip
   wrap.appendChild(el)
   return wrap
+}
+
+// Toast helper (DaisyUI) — глобальная функция чтобы исключить коллизии имён
+;(window as any).__bt_toast = function (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success', timeout = 2500) {
+  let container = document.querySelector('.toast.toast-end') as HTMLElement | null
+  if (!container) {
+    container = document.createElement('div')
+    container.className = 'toast toast-end'
+    document.body.appendChild(container)
+  }
+  const alert = document.createElement('div')
+  alert.className = `alert alert-${type}`
+  const span = document.createElement('span')
+  span.textContent = message
+  alert.appendChild(span)
+  container.appendChild(alert)
+  setTimeout(() => alert.remove(), timeout)
 }
 
 // Modal helpers (DaisyUI)
@@ -280,9 +309,9 @@ function IssueItem(
       container.className = `border rounded-lg p-3 flex items-start gap-3 ${statusColor(issue.status)}`
       const badge = container.querySelector('span.badge') as HTMLSpanElement
       if (badge) {
-        badge.className = statusBadge(issue.status)
-        badge.replaceChildren(svgIcon('status', issue.status), document.createTextNode(issue.status_display ?? issue.status))
+        badge.className = statusBadge(issue.status)setChildren(svgIcon('status', issue.status), document.createTextNode(issue.status_display ?? issue.status))
       }
+      (window as any).__bt_toast('Статус обновлён', 'success')
     } catch (e: any) {
       console.error(e)
       alert('Не удалось обновить статус: ' + (e?.message || e))
@@ -305,9 +334,9 @@ function IssueItem(
       issue.priority_display = updated.priority_display
       const pb = container.querySelectorAll('span.badge')[1] as HTMLSpanElement
       if (pb) {
-        pb.className = priorityBadge(issue.priority)
-        pb.replaceChildren(svgIcon('priority', issue.priority), document.createTextNode(issue.priority_display ?? issue.priority))
+        pb.className = priorityBadge(issue.priority)setChildren(svgIcon('priority', issue.priority), document.createTextNode(issue.priority_display ?? issue.priority))
       }
+      (window as any).__bt_toast('Приоритет обновлён', 'success')
     } catch (e: any) {
       console.error(e)
       alert('Не удалось обновить приоритет: ' + (e?.message || e))
@@ -384,6 +413,7 @@ function IssueItem(
       const updated = await fetchJSON(`/api/issues/${issue.id}/`, { method: 'PATCH', body: JSON.stringify(payload) })
       closeEdit()
       onUpdated(updated, issue.project)
+      (window as any).__bt_toast('Изменения сохранены', 'success')
     } catch (e: any) {
       alert('Не удалось сохранить изменения: ' + (e?.message || e))
     }
@@ -417,7 +447,8 @@ function priorityBadge(priority: string) {
   return `badge ${m[priority] ?? 'badge-ghost'}`
 }
 
-function IssueForm(projects: any[], onCreated: (issue: any, projectId: number) => void) {
+// Новый вариант формы создания задачи (для модального окна)
+function NewIssueForm(projects: any[], onCreated: (issue: any, projectId: number) => void) {
   const title = h('input', { class: `input input-bordered ${baseField}`, placeholder: 'Заголовок', required: true }) as HTMLInputElement
   const desc = h('textarea', { class: `textarea textarea-bordered ${baseField}`, placeholder: 'Описание' }) as HTMLTextAreaElement
   const project = h('select', { class: `select select-bordered ${baseField}` }) as HTMLSelectElement
@@ -435,7 +466,7 @@ function IssueForm(projects: any[], onCreated: (issue: any, projectId: number) =
     h('option', { value: 'medium' }, 'Средний'),
     h('option', { value: 'high' }, 'Высокий'),
   )
-  const submit = h('button', { class: 'btn btn-primary mt-3' }, 'Создать') as HTMLButtonElement
+  const submit = h('button', { class: 'btn btn-primary mt-3', type: 'button' }, 'Создать') as HTMLButtonElement
 
   const form = h('div', { class: 'space-y-2' },
     h('label', { class: 'form-control' }, h('div', { class: 'label' }, 'Проект'), project),
@@ -449,6 +480,8 @@ function IssueForm(projects: any[], onCreated: (issue: any, projectId: number) =
   submit.addEventListener('click', async () => {
     if (!title.value.trim()) return
     try {
+      try { await fetchJSON('/api/auth/csrf/') } catch {}
+      submit.disabled = true
       const payload = {
         project: Number(project.value),
         title: title.value.trim(),
@@ -460,9 +493,12 @@ function IssueForm(projects: any[], onCreated: (issue: any, projectId: number) =
       title.value = ''
       desc.value = ''
       onCreated(created, Number(project.value))
+      (window as any).__bt_toast('Задача создана', 'success')
     } catch (e) {
-      modalAlert('Ошибка при создании задачи. Убедитесь, что вы вошли в систему.', 'Ошибка')
+      const msg = (e as any)?.message || 'Ошибка при создании задачи.'
+      modalAlert(msg, 'Ошибка')
     }
+    finally { submit.disabled = false }
   })
 
   return form
@@ -473,19 +509,32 @@ async function renderApp() {
 
   const container = h('div', { class: 'container py-6 space-y-6' })
   const adminUrl = `${location.protocol}//${location.hostname}:8000/admin/`
+  // Тема из localStorage
+  const savedTheme = localStorage.getItem('theme') || 'corporate'
+  document.documentElement.setAttribute('data-theme', savedTheme)
+
   const header = h(
     'div',
     { class: 'navbar bg-base-100 rounded-xl shadow' },
     h('div', { class: 'flex-1' }, h('a', { class: 'btn btn-ghost text-xl' }, 'BugTracker')),
     h('div', { class: 'flex-none space-x-2' },
       tooltip(h('a', { class: 'btn btn-outline btn-primary rounded-xl shadow-sm', href: adminUrl, target: '_blank' }, 'Admin'), 'Админка'),
+      tooltip(h('button', { class: 'btn rounded-xl shadow-sm', id: 'themeToggle' }, 'Тема'), 'Переключить тему'),
       tooltip(h('button', { class: 'btn btn-primary rounded-xl shadow-sm', id: 'logoutBtn' }, 'Выйти'), 'Завершить сессию')
     )
   )
+  header.querySelector<HTMLButtonElement>('#themeToggle')!.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'corporate'
+    const next = current === 'corporate' ? 'business' : 'corporate'
+    document.documentElement.setAttribute('data-theme', next)
+    localStorage.setItem('theme', next)
+    (window as any).__bt_toast(`Тема: ${next}`, 'info')
+  })
   header.querySelector<HTMLButtonElement>('#logoutBtn')!.addEventListener('click', async () => {
     try {
       await fetchJSON('/api/auth/csrf/')
       await fetchJSON('/api/auth/logout/', { method: 'POST' })
+      (window as any).__bt_toast('Вы вышли из системы', 'info')
     } catch (e) {
       console.warn('Logout error:', e)
       modalAlert('Не удалось выйти из системы', 'Ошибка')
@@ -504,11 +553,31 @@ async function renderApp() {
 
   const projectListCard = card('Проекты', ProjectList(projects))
   const issuesListCard = card('Задачи', document.createElement('div'))
-  const rerenderIssues = () => {
-    issuesListCard.querySelector('.card-body')!.replaceChildren(
+  // Заготовки для панелей (переопределяются ниже)
+  let modeBar: HTMLElement = document.createElement('div')
+  let filtersBar: HTMLElement = document.createElement('div')
+  let currentMode: 'list' | 'board' = 'list'
+  const renderListInside = () => {
+    const filtered = applyFilters()
+    issuesListCard.querySelector('.card-body')setChildren(
       h('h2', { class: 'card-title' }, 'Задачи'),
-      IssueList(issues, projects, onUpdated, onDeleted)
+      modeBar,
+      filtersBar,
+      IssueList(filtered, projects, onUpdated, onDeleted)
     )
+  }
+  const renderBoardInside = () => {
+    issuesListCard.querySelector('.card-body')setChildren(
+      h('h2', { class: 'card-title' }, 'Задачи'),
+      modeBar,
+      filtersBar,
+      boardHolder
+    )
+    renderBoard(applyFilters())
+  }
+  const rerenderIssues = () => {
+    if (currentMode === 'list') renderListInside()
+    else renderBoardInside()
   }
   const onUpdated = (updated: any, prevProjectId: number) => {
     const idx = issues.findIndex((x: any) => x.id === updated.id)
@@ -519,7 +588,7 @@ async function renderApp() {
       if (prev && typeof prev.issues_count === 'number') prev.issues_count = Math.max(0, prev.issues_count - 1)
       const next = projects.find((p: any) => p.id === updated.project)
       if (next) next.issues_count = (next.issues_count ?? 0) + 1
-      projectListCard.querySelector('.card-body')!.replaceChildren(
+      projectListCard.querySelector('.card-body')setChildren(
         h('h2', { class: 'card-title' }, 'Проекты'),
         ProjectList(projects)
       )
@@ -531,32 +600,171 @@ async function renderApp() {
     if (idx >= 0) issues.splice(idx, 1)
     const proj = projects.find((p: any) => p.id === removed.project)
     if (proj && typeof proj.issues_count === 'number') proj.issues_count = Math.max(0, proj.issues_count - 1)
-    projectListCard.querySelector('.card-body')!.replaceChildren(
+    projectListCard.querySelector('.card-body')setChildren(
       h('h2', { class: 'card-title' }, 'Проекты'),
       ProjectList(projects)
     )
     rerenderIssues()
-    modalAlert('Задача удалена', 'Готово')
+    (window as any).__bt_toast('Задача удалена', 'success')
   }
-  rerenderIssues()
+  // отрисовка выполнится после инициализации панелей (см. ниже)
 
-  const createCard = card('Новая задача', IssueForm(projects, (i, projId) => {
-    issues.unshift(i)
-    rerenderIssues()
-    const found = projects.find((p) => p.id === projId)
-    if (found) found.issues_count = (found.issues_count ?? 0) + 1
-    projectListCard.querySelector('.card-body')!.replaceChildren(
-      h('h2', { class: 'card-title' }, 'Проекты'),
-      ProjectList(projects)
-    )
-  }))
+  // Открыть модальное окно создания задачи
+  function openCreateIssue() {
+    const box = document.createElement('div')
+    box.className = 'space-y-2'
+    const form = NewIssueForm(projects, (i, projId) => {
+      issues.unshift(i)
+      rerenderIssues()
+      const found = projects.find((p) => p.id === projId)
+      if (found) found.issues_count = (found.issues_count ?? 0) + 1
+      projectListCard.querySelector('.card-body')setChildren(
+        h('h2', { class: 'card-title' }, 'Проекты'),
+        ProjectList(projects)
+      )
+      (window as any).__bt_toast('Задача создана', 'success')
+      // Закрыть модалку
+      (box.closest('dialog') as HTMLDialogElement | null)?.close()
+      ;(box.closest('dialog') as HTMLDialogElement | null)?.remove()
+    })
+    box.append(form)
+    // Сгенерируем модалку с заголовком
+    const dlg = document.createElement('dialog')
+    dlg.className = 'modal'
+    dlg.innerHTML = `
+      <div class="modal-box max-w-3xl">
+        <h3 class="font-bold text-lg mb-2">Новая задача</h3>
+        <div id="modal-content"></div>
+        <div class="modal-action">
+          <button class="btn">Закрыть</button>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>close</button></form>`
+    ;(dlg.querySelector('#modal-content') as HTMLElement).appendChild(box)
+    dlg.querySelector('.modal-action .btn')!.addEventListener('click', () => { (dlg as any).close(); dlg.remove() })
+    document.body.appendChild(dlg)
+    ;(dlg as any).showModal()
+  }
 
   projectsCol.append(projectListCard)
-  issuesCol.append(createCard, issuesListCard)
+  // Панель переключения режима + кнопка создания
+  modeBar = h('div', { class: 'flex items-center justify-between mb-2' },
+    h('div', { class: 'join' },
+      tooltip(h('button', { class: 'btn btn-sm join-item', id: 'listBtn' }, 'Список'), 'Список'),
+      tooltip(h('button', { class: 'btn btn-sm join-item', id: 'boardBtn' }, 'Доска'), 'Канбан‑доска'),
+    ),
+    tooltip(h('button', { class: 'btn btn-sm btn-primary', id: 'createIssueBtn' }, 'Новая задача'), 'Создать задачу')
+  )
+  // Панель фильтров (показывается только в режиме доски)
+  filtersBar = h('div', { class: 'flex gap-2 mb-2' },
+    h('input', { class: 'input input-bordered input-sm', placeholder: 'Поиск…', id: 'searchInput' }),
+    h('select', { class: 'select select-bordered select-sm', id: 'statusFilter' },
+      h('option', { value: '' }, 'Все статусы'),
+      h('option', { value: 'open' }, 'В работе'),
+      h('option', { value: 'in_progress' }, 'В процессе'),
+      h('option', { value: 'done' }, 'Готово'),
+      h('option', { value: 'cancelled' }, 'Отменено'),
+    ),
+    h('select', { class: 'select select-bordered select-sm', id: 'priorityFilter' },
+      h('option', { value: '' }, 'Любой приоритет'),
+      h('option', { value: 'low' }, 'Низкий'),
+      h('option', { value: 'medium' }, 'Средний'),
+      h('option', { value: 'high' }, 'Высокий'),
+    ),
+  )
+
+  const boardHolder = document.createElement('div')
+  function renderBoard(filtered: any[]) {
+    const cols: { key: string; title: string }[] = [
+      { key: 'open', title: 'В работе' },
+      { key: 'in_progress', title: 'В процессе' },
+      { key: 'done', title: 'Готово' },
+      { key: 'cancelled', title: 'Отменено' },
+    ]
+    const grid = h('div', { class: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4' })
+    for (const c of cols) {
+      const col = h('div', { class: 'bg-base-100 border border-base-300 rounded-xl p-3 min-h-40', 'data-status': c.key })
+      col.append(h('h3', { class: 'font-semibold mb-2' }, c.title))
+      const zone = h('div', { class: 'space-y-2', 'data-dropzone': '1' })
+      col.append(zone)
+      grid.append(col)
+    }
+    // map issues
+    for (const it of filtered) {
+      const cardEl = IssueItem(it, projects, onUpdated, onDeleted)
+      cardEl.setAttribute('draggable', 'true')
+      cardEl.addEventListener('dragstart', (e) => {
+        e.dataTransfer?.setData('text/plain', String(it.id))
+        e.dataTransfer?.setDragImage(cardEl, 20, 20)
+      })
+      const target = grid.querySelector(`div[data-status="${it.status}"] [data-dropzone]`)
+      target?.appendChild(cardEl)
+    }
+    // dnd handlers
+    grid.querySelectorAll('[data-dropzone]').forEach((z) => {
+      z.addEventListener('dragover', (e) => e.preventDefault())
+      z.addEventListener('drop', async (e) => {
+        e.preventDefault()
+        const id = Number((e.dataTransfer?.getData('text/plain') || 0))
+        const newStatus = (z.parentElement as HTMLElement)?.getAttribute('data-status') || 'open'
+        const item = issues.find((x: any) => x.id === id)
+        if (!item || item.status === newStatus) return
+        try { await fetchJSON('/api/auth/csrf/') } catch {}
+        const updated = await fetchJSON(`/api/issues/${id}/`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) })
+        const idx = issues.findIndex((x: any) => x.id === id)
+        if (idx >= 0) issues[idx] = updated
+        renderBoard(applyFilters())
+        (window as any).__bt_toast('Статус обновлён', 'success')
+      })
+    })setChildren(grid)
+  }
+
+  function applyFilters(): any[] {
+    const q = (filtersBar.querySelector('#searchInput') as HTMLInputElement).value.trim().toLowerCase()
+    const st = (filtersBar.querySelector('#statusFilter') as HTMLSelectElement).value
+    const pr = (filtersBar.querySelector('#priorityFilter') as HTMLSelectElement).value
+    return issues.filter((i: any) => {
+      if (st && i.status !== st) return false
+      if (pr && i.priority !== pr) return false
+      if (q && !(`${i.title} ${i.description}`.toLowerCase().includes(q))) return false
+      return true
+    })
+  }
+
+  function updateByFilters() {
+    if (currentMode === 'board') renderBoardInside()
+    else renderListInside()
+  }
+
+  function setToggleState(mode: 'list' | 'board') {
+    const lb = modeBar.querySelector('#listBtn') as HTMLButtonElement
+    const bb = modeBar.querySelector('#boardBtn') as HTMLButtonElement
+    lb.classList.toggle('btn-primary', mode === 'list')
+    bb.classList.toggle('btn-primary', mode === 'board')
+  }
+  function showList() {
+    currentMode = 'list'
+    setToggleState('list')
+    renderListInside()
+  }
+  function showBoard() {
+    currentMode = 'board'
+    setToggleState('board')
+    renderBoardInside()
+  }
+
+  ;(modeBar.querySelector('#listBtn') as HTMLButtonElement).addEventListener('click', showList)
+  ;(modeBar.querySelector('#boardBtn') as HTMLButtonElement).addEventListener('click', showBoard)
+  filtersBar.querySelectorAll('input,select').forEach((el) => el.addEventListener('input', updateByFilters))
+
+  // По умолчанию: список (кнопки и список внутри карточки)
+  issuesCol.append(issuesListCard)
+  showList()
+
+  ;(modeBar.querySelector('#createIssueBtn') as HTMLButtonElement).addEventListener('click', openCreateIssue)
   content.append(projectsCol, issuesCol)
 
-  container.append(header, content)
-  app.replaceChildren(container)
+  container.append(header, content)setChildren(container)
 }
 
 async function renderLogin() {
@@ -573,7 +781,7 @@ async function renderLogin() {
         { class: 'card-body space-y-4' },
         h('h2', { class: 'card-title justify-center' }, 'Вход в BugTracker'),
         (() => {
-          const u = h('input', { class: `input input-bordered ${baseField}`, placeholder: 'Логин' }) as HTMLInputElement
+          const u = h('input', { class: `input input-bordered ${baseField}`, placeholder: 'Логин или e‑mail' }) as HTMLInputElement
           const p = h('input', { class: `input input-bordered ${baseField}`, placeholder: 'Пароль', type: 'password' }) as HTMLInputElement
           const err = h('div', { class: 'text-error text-sm min-h-5' })
           const btn = h('button', { class: 'btn btn-primary w-full' }, 'Войти') as HTMLButtonElement
@@ -582,19 +790,23 @@ async function renderLogin() {
             try {
               await fetchJSON('/api/auth/login/', {
                 method: 'POST',
-                body: JSON.stringify({ username: u.value, password: p.value }),
+                body: JSON.stringify({ username: u.value.trim(), password: p.value }),
               })
               await renderApp()
             } catch (e) {
-              err.textContent = 'Неверный логин или пароль'
+              try {
+                const msg = typeof e === 'string' ? e : (e as any)?.message || ''
+                err.textContent = /учетн|логин|парол/i.test(msg) ? 'Неверный логин/почта или пароль' : 'Ошибка входа'
+              } catch {
+                err.textContent = 'Ошибка входа'
+              }
             }
           })
           return h('div', { class: 'space-y-3' }, u, p, err, btn)
         })()
       )
     )
-  )
-  app.replaceChildren(box)
+  )setChildren(box)
 }
 
 async function bootstrap() {

@@ -1,6 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views_api import ProjectViewSet, IssueViewSet, CommentViewSet, LabelViewSet
+from .views_api import (
+    ProjectViewSet,
+    IssueViewSet,
+    CommentViewSet,
+    LabelViewSet,
+    AttachmentViewSet,
+    ProjectMembershipViewSet,
+    InvitationViewSet,
+)
 from . import views_auth as auth
 
 
@@ -9,6 +17,9 @@ router.register(r"projects", ProjectViewSet)
 router.register(r"issues", IssueViewSet)
 router.register(r"comments", CommentViewSet)
 router.register(r"labels", LabelViewSet)
+router.register(r"attachments", AttachmentViewSet)
+router.register(r"memberships", ProjectMembershipViewSet)
+router.register(r"invitations", InvitationViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),

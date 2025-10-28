@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Project, Issue, Comment, Label
+from .models import Project, Issue, Comment, Label, Attachment, ProjectMembership, Invitation
 
 
 User = get_user_model()
@@ -82,3 +82,37 @@ class CommentSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data["author"] = self.context["request"].user
         return super().create(validated_data)
+
+class AttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Attachment
+        fields = ["id", "issue", "name", "file", "url", "uploader", "created_at"]
+        read_only_fields = ["uploader", "url", "created_at"]
+
+    def get_url(self, obj: Attachment) -> str:
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url
+
+    def create(self, validated_data):
+        validated_data["uploader"] = self.context["request"].user
+        return super().create(validated_data)
+
+
+class ProjectMembershipSerializer(serializers.ModelSerializer):
+    user = UserShortSerializer(read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(source="user", queryset=User.objects.all(), write_only=True)
+
+    class Meta:
+        model = ProjectMembership
+        fields = ["id", "project", "user", "user_id", "role", "created_at"]
+
+
+class InvitationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Invitation
+        fields = ["id", "project", "email", "role", "token", "accepted", "created_at"]
+        read_only_fields = ["token", "accepted", "created_at"]
