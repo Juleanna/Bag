@@ -1,0 +1,14 @@
+{% load django_vite %}
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BugTracker</title>
+    {% vite_hmr_client %}
+    {% vite_asset 'src/main.ts' %}
+  </head>
+  <body class="bg-gray-50 text-slate-900">
+    <div id="root"></div>
+  </body>
+</html>

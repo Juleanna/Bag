@@ -1,0 +1,39 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Небольшие утилиты для контейнеров */
+.container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Красивый фокус у полей ввода (без чёрной обводки) */
+.input,
+.textarea,
+.select {
+  @apply rounded-lg border border-base-300 bg-base-100 text-base-content outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60;
+}
+
+/* На всякий случай полностью убираем системные обводки */
+.input:focus,
+.input:focus-visible,
+.select:focus,
+.select:focus-visible,
+.textarea:focus,
+.textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Кнопки: без чёрной обводки, аккуратный фокус */
+.btn:focus,
+.btn:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.btn-outline {
+  @apply border-base-300 text-base-content;
+}
+/* Для outline-кнопки с оттенком primary — делаем заливку и светлый текст при hover */
+.btn-outline.btn-primary:hover {
+  @apply bg-primary text-primary-content border-primary;
+}
