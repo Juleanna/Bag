@@ -1,5 +1,5 @@
 /**
- * API клиент для BugTracker
+ * API клиент для BugTracker с поддержкой CSRF
  */
 
 export interface Project {
@@ -39,41 +39,64 @@ export interface AuthState {
 export class ApiClient {
   private baseUrl = '/api'
 
+  /** Получаем CSRF-токен из cookie */
+  private getCsrfToken(): string {
+    const match = document.cookie.match(/csrftoken=([^;]+)/)
+    return match ? match[1] : ''
+  }
+
+  /** Универсальный GET */
   async get<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`)
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      credentials: 'include',
+    })
     if (!response.ok) throw new Error(`API error: ${response.statusText}`)
     return response.json()
   }
 
+  /** Универсальный POST */
   async post<T>(endpoint: string, data: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': this.getCsrfToken(),
+      },
+      credentials: 'include',
       body: JSON.stringify(data),
     })
     if (!response.ok) throw new Error(`API error: ${response.statusText}`)
     return response.json()
   }
 
+  /** Универсальный PUT */
   async put<T>(endpoint: string, data: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': this.getCsrfToken(),
+      },
+      credentials: 'include',
       body: JSON.stringify(data),
     })
     if (!response.ok) throw new Error(`API error: ${response.statusText}`)
     return response.json()
   }
 
+  /** Универсальный DELETE */
   async delete(endpoint: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, { method: 'DELETE' })
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'X-CSRFToken': this.getCsrfToken(),
+      },
+      credentials: 'include',
+    })
     if (!response.ok) throw new Error(`API error: ${response.statusText}`)
   }
 
-  // Auth методы
-  async getCsrfToken(): Promise<{ csrfToken: string }> {
-    return this.get('/auth/csrf/')
-  }
+  // ===== Auth методы =====
 
   async getWhoami(): Promise<AuthState> {
     return this.get('/auth/whoami/')
@@ -87,7 +110,13 @@ export class ApiClient {
     return this.post('/auth/logout/', {})
   }
 
-  async register(username: string, email: string, password: string, firstName?: string, lastName?: string): Promise<any> {
+  async register(
+    username: string,
+    email: string,
+    password: string,
+    firstName?: string,
+    lastName?: string
+  ): Promise<AuthState> {
     return this.post('/auth/register/', {
       username,
       email,

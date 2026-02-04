@@ -146,11 +146,13 @@ DJANGO_VITE_MANIFEST_PATH = DJANGO_VITE_ASSETS_PATH / "manifest.json"
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
     default=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
+        "http://localhost:5176",
+        "http://127.0.0.1:5176",
     ],
 )
 
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = ['http://localhost:5176']
 # Медиа (вложения)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
