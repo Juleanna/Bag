@@ -148,7 +148,7 @@
 
 /* Градиенты */
 .gradient-primary {
-  @apply bg-gradient-to-r from-primary via-primary-focus to-primary;
+  @apply bg-gradient-to-r from-primary to-primary;
 }
 
 .gradient-text {

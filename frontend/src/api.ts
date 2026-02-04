@@ -24,7 +24,7 @@ export interface Issue {
   updated_at: string
 }
 
-class ApiClient {
+export class ApiClient {
   private baseUrl = '/api'
 
   async get<T>(endpoint: string): Promise<T> {

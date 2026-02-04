@@ -26,7 +26,8 @@ import {
   EmptyState,
   showToast,
 } from './components'
-import { api, Project, Issue } from './api'
+import { api } from './api.ts'
+import type { Project, Issue } from './api.ts'
 
 // ============ Состояние приложения ============
 
@@ -41,7 +42,8 @@ const app = document.querySelector<HTMLDivElement>('#app')!
 
 async function loadProjects() {
   try {
-    projects = await api.get<Project[]>('/projects/')
+    const response = await api.get<any>('/projects/')
+    projects = response.results || response
     render()
   } catch (error) {
     console.error('Failed to load projects:', error)
@@ -51,7 +53,8 @@ async function loadProjects() {
 
 async function loadIssues(projectId: number) {
   try {
-    issues = await api.get<Issue[]>(`/issues/?project=${projectId}`)
+    const response = await api.get<any>(`/issues/?project=${projectId}`)
+    issues = response.results || response
     render()
   } catch (error) {
     console.error('Failed to load issues:', error)
@@ -178,7 +181,7 @@ function renderProjectsList() {
                 h(
                   'div',
                   { class: 'flex justify-between items-center pt-4' },
-                  Badge({ variant: 'primary' }, `${3} задач`),
+                  Badge({ variant: 'primary', children: `${3} задач` }),
                   h('small', { class: 'text-base-content/50' }, 'Нажмите для открытия')
                 )
               )
