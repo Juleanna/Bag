@@ -27,18 +27,102 @@ import {
   showToast,
 } from './components'
 import { api } from './api.ts'
-import type { Project, Issue } from './api.ts'
+import type { Project, Issue, User } from './api.ts'
 
 // ============ Состояние приложения ============
 
 let projects: Project[] = []
 let issues: Issue[] = []
-let currentPage = 'projects'
+let currentUser: User | null = null
+let currentPage = 'login' // Начинаем со страницы входа
 let selectedProject: Project | null = null
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 
 // ============ Загрузка данных ============
+
+async function checkAuth() {
+  try {
+    const auth = await api.getWhoami()
+    if (auth.isAuthenticated && auth.user) {
+      currentUser = auth.user
+      currentPage = 'projects'
+      loadProjects()
+    } else {
+      currentPage = 'login'
+      render()
+    }
+  } catch (error) {
+    console.error('Failed to check auth:', error)
+    currentPage = 'login'
+    render()
+  }
+}
+
+async function handleLogin(formData: FormData) {
+  const username = formData.get('username') as string
+  const password = formData.get('password') as string
+
+  if (!username.trim() || !password.trim()) {
+    showToast('Заполните все поля', 'warning')
+    return
+  }
+
+  try {
+    const auth = await api.login(username, password)
+    if (auth.isAuthenticated && auth.user) {
+      currentUser = auth.user
+      currentPage = 'projects'
+      loadProjects()
+      showToast(`Добро пожаловать, ${auth.user.username}!`, 'success')
+    } else {
+      showToast('Ошибка входа', 'error')
+    }
+  } catch (error) {
+    console.error('Login failed:', error)
+    showToast('Неверный логин или пароль', 'error')
+  }
+}
+
+async function handleRegister(formData: FormData) {
+  const username = formData.get('username') as string
+  const email = formData.get('email') as string
+  const password = formData.get('password') as string
+  const confirmPassword = formData.get('confirmPassword') as string
+
+  if (!username.trim() || !email.trim() || !password.trim()) {
+    showToast('Заполните все поля', 'warning')
+    return
+  }
+
+  if (password !== confirmPassword) {
+    showToast('Пароли не совпадают', 'warning')
+    return
+  }
+
+  try {
+    await api.register(username, email, password)
+    showToast('Регистрация успешна! Войдите в аккаунт', 'success')
+    currentPage = 'login'
+    render()
+  } catch (error) {
+    console.error('Register failed:', error)
+    showToast('Ошибка регистрации. Возможно, пользователь уже существует', 'error')
+  }
+}
+
+async function handleLogout() {
+  try {
+    await api.logout()
+    currentUser = null
+    currentPage = 'login'
+    showToast('Вы вышли из аккаунта', 'success')
+    render()
+  } catch (error) {
+    console.error('Logout failed:', error)
+    showToast('Ошибка выхода', 'error')
+  }
+}
 
 async function loadProjects() {
   try {
@@ -119,7 +203,8 @@ function renderNavbar() {
     NavbarItem({ class: 'flex-1' }, h('a', { class: 'text-xl font-bold text-primary' }, '🐛 BugTracker')),
     NavbarItem(
       { class: 'gap-2' },
-      h(
+      currentUser && h('span', { class: 'text-sm text-base-content/70' }, `👤 ${currentUser.username}`),
+      currentUser && h(
         'button',
         {
           class: `btn btn-sm ${currentPage === 'projects' ? 'btn-primary' : 'btn-ghost'}`,
@@ -130,7 +215,7 @@ function renderNavbar() {
         },
         'Проекты'
       ),
-      h(
+      currentUser && h(
         'button',
         {
           class: `btn btn-sm ${currentPage === 'issues' && selectedProject ? 'btn-primary' : 'btn-ghost'}`,
@@ -142,6 +227,25 @@ function renderNavbar() {
           },
         },
         'Задачи'
+      ),
+      currentUser && h(
+        'button',
+        {
+          class: `btn btn-sm ${currentPage === 'profile' ? 'btn-primary' : 'btn-ghost'}`,
+          onClick: () => {
+            currentPage = 'profile'
+            render()
+          },
+        },
+        'Профиль'
+      ),
+      currentUser && h(
+        'button',
+        {
+          class: 'btn btn-sm btn-ghost',
+          onClick: handleLogout,
+        },
+        'Выход'
       )
     )
   )
@@ -388,14 +492,243 @@ function renderIssuesList() {
 
 // ============ Главный рендер ============
 
+function renderLogin() {
+  return Container(
+    { class: 'py-12 flex items-center justify-center min-h-screen' },
+    h('div', { class: 'w-full max-w-md' },
+      h('div', { class: 'text-center mb-8' },
+        h('h1', { class: 'text-4xl font-bold text-primary mb-2' }, '🐛 BugTracker'),
+        h('p', { class: 'text-base-content/70' }, 'Управляйте проектами и задачами')
+      ),
+
+      Card(
+        { class: 'shadow-lg' },
+        '',
+        h('div', {},
+          h('h2', { class: 'text-2xl font-bold mb-6 text-center' }, 'Вход'),
+
+          Form(
+            {
+              onSubmit: (e) => {
+                const formData = new FormData(e.currentTarget as HTMLFormElement)
+                handleLogin(formData)
+                ;(e.currentTarget as HTMLFormElement).reset()
+              },
+            },
+            FormGroup(
+              {},
+              Label({}, 'Логин или почта'),
+              Input({ 
+                name: 'username', 
+                placeholder: 'Введите логин или почту', 
+                class: 'mt-2',
+                type: 'text'
+              })
+            ),
+
+            FormGroup(
+              { class: 'mt-4' },
+              Label({}, 'Пароль'),
+              Input({ 
+                name: 'password', 
+                placeholder: 'Введите пароль', 
+                class: 'mt-2',
+                type: 'password'
+              })
+            ),
+
+            h(
+              'div',
+              { class: 'mt-6 flex flex-col gap-3' },
+              PrimaryButton({ 
+                children: 'Войти', 
+                type: 'submit',
+                class: 'w-full'
+              }),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  class: 'btn btn-ghost w-full',
+                  onClick: () => {
+                    currentPage = 'register'
+                    render()
+                  }
+                },
+                'Создать аккаунт'
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+}
+
+function renderRegister() {
+  return Container(
+    { class: 'py-12 flex items-center justify-center min-h-screen' },
+    h('div', { class: 'w-full max-w-md' },
+      h('div', { class: 'text-center mb-8' },
+        h('h1', { class: 'text-4xl font-bold text-primary mb-2' }, '🐛 BugTracker'),
+        h('p', { class: 'text-base-content/70' }, 'Создайте аккаунт для начала')
+      ),
+
+      Card(
+        { class: 'shadow-lg' },
+        '',
+        h('div', {},
+          h('h2', { class: 'text-2xl font-bold mb-6 text-center' }, 'Регистрация'),
+
+          Form(
+            {
+              onSubmit: (e) => {
+                const formData = new FormData(e.currentTarget as HTMLFormElement)
+                handleRegister(formData)
+                ;(e.currentTarget as HTMLFormElement).reset()
+              },
+            },
+            FormGroup(
+              {},
+              Label({}, 'Логин'),
+              Input({ 
+                name: 'username', 
+                placeholder: 'Придумайте логин', 
+                class: 'mt-2',
+                type: 'text'
+              })
+            ),
+
+            FormGroup(
+              { class: 'mt-4' },
+              Label({}, 'Почта'),
+              Input({ 
+                name: 'email', 
+                placeholder: 'Ваша почта', 
+                class: 'mt-2',
+                type: 'email'
+              })
+            ),
+
+            FormGroup(
+              { class: 'mt-4' },
+              Label({}, 'Пароль'),
+              Input({ 
+                name: 'password', 
+                placeholder: 'Придумайте пароль', 
+                class: 'mt-2',
+                type: 'password'
+              })
+            ),
+
+            FormGroup(
+              { class: 'mt-4' },
+              Label({}, 'Повторите пароль'),
+              Input({ 
+                name: 'confirmPassword', 
+                placeholder: 'Повторите пароль', 
+                class: 'mt-2',
+                type: 'password'
+              })
+            ),
+
+            h(
+              'div',
+              { class: 'mt-6 flex flex-col gap-3' },
+              PrimaryButton({ 
+                children: 'Создать аккаунт', 
+                type: 'submit',
+                class: 'w-full'
+              }),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  class: 'btn btn-ghost w-full',
+                  onClick: () => {
+                    currentPage = 'login'
+                    render()
+                  }
+                },
+                'Уже есть аккаунт? Войти'
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+}
+
+function renderProfile() {
+  if (!currentUser) return h('div')
+
+  return Container(
+    { class: 'py-8' },
+    h(
+      'div',
+      { class: 'mb-6' },
+      h(
+        'button',
+        {
+          class: 'btn btn-ghost btn-sm mb-4',
+          onClick: () => {
+            currentPage = 'projects'
+            render()
+          },
+        },
+        '← Назад к проектам'
+      )
+    ),
+    
+    PageHeader('Мой профиль', 'Информация о вашем аккаунте'),
+
+    Card(
+      {},
+      'Информация профиля',
+      h('div', { class: 'space-y-4' },
+        h('div', {},
+          h('label', { class: 'text-sm text-base-content/70' }, 'Логин'),
+          h('p', { class: 'text-lg font-semibold mt-1' }, currentUser.username)
+        ),
+        h('div', {},
+          h('label', { class: 'text-sm text-base-content/70' }, 'Имя'),
+          h('p', { class: 'text-lg font-semibold mt-1' }, currentUser.first_name || 'Не указано')
+        ),
+        h('div', {},
+          h('label', { class: 'text-sm text-base-content/70' }, 'Фамилия'),
+          h('p', { class: 'text-lg font-semibold mt-1' }, currentUser.last_name || 'Не указано')
+        ),
+        h('div', { class: 'pt-4 border-t border-base-300' },
+          h(
+            'button',
+            {
+              class: 'btn btn-error btn-outline w-full',
+              onClick: handleLogout,
+            },
+            '🚪 Выход из аккаунта'
+          )
+        )
+      )
+    )
+  )
+}
+
 function render() {
-  const content = currentPage === 'projects' ? renderProjectsList() : renderIssuesList()
+  const content = 
+    currentPage === 'login' ? renderLogin() :
+    currentPage === 'register' ? renderRegister() :
+    currentPage === 'profile' ? renderProfile() :
+    currentPage === 'projects' ? renderProjectsList() : 
+    renderIssuesList()
 
   app.innerHTML = ''
-  app.appendChild(renderNavbar())
+  if (currentPage !== 'login' && currentPage !== 'register') {
+    app.appendChild(renderNavbar())
+  }
   app.appendChild(content)
 }
 
 // ============ Инициализация ============
 
-loadProjects()
+checkAuth()

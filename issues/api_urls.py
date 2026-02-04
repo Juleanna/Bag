@@ -27,5 +27,6 @@ urlpatterns = [
     path("auth/csrf/", auth.csrf, name="auth-csrf"),
     path("auth/whoami/", auth.whoami, name="auth-whoami"),
     path("auth/login/", auth.login, name="auth-login"),
+    path("auth/register/", auth.register, name="auth-register"),
     path("auth/logout/", auth.logout, name="auth-logout"),
 ]
