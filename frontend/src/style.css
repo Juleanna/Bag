@@ -1,19 +1,33 @@
 @import "tailwindcss";
+
+/* Включаем DaisyUI плагин */
 @plugin "daisyui";
 
-/* Небольшие утилиты для контейнеров */
+/* ======================== БАЗОВЫЕ УТИЛИТЫ ======================== */
+
+/* Контейнер */
 .container {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
 }
 
-/* Красивый фокус у полей ввода (без чёрной обводки) */
+/* ======================== СТИЛИ ФОРМ ======================== */
+
+/* Единый стиль для всех полей ввода */
 .input,
 .textarea,
 .select {
-  @apply rounded-lg border border-base-300 bg-base-100 text-base-content outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60;
+  @apply w-full rounded-lg border border-base-300 bg-base-100 text-base-content;
+  @apply focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary;
+  @apply transition-all duration-200;
 }
 
-/* На всякий случай полностью убираем системные обводки */
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  @apply bg-base-200 text-base-content/50 cursor-not-allowed;
+}
+
+/* Убираем системные обводки */
 .input:focus,
 .input:focus-visible,
 .select:focus,
@@ -24,16 +38,163 @@
   box-shadow: none !important;
 }
 
-/* Кнопки: без чёрной обводки, аккуратный фокус */
+/* ======================== КНОПКИ ======================== */
+
+.btn {
+  @apply transition-all duration-200;
+}
+
+/* Убираем обводку с фокуса */
 .btn:focus,
 .btn:focus-visible {
   outline: none !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1) !important;
 }
+
+/* Outline кнопки */
 .btn-outline {
-  @apply border-base-300 text-base-content;
+  @apply border border-base-300 text-base-content;
+  @apply hover:bg-base-100 hover:border-base-300;
 }
-/* Для outline-кнопки с оттенком primary — делаем заливку и светлый текст при hover */
+
+.btn-outline.btn-primary {
+  @apply border-primary/50 text-primary;
+}
+
 .btn-outline.btn-primary:hover {
-  @apply bg-primary text-primary-content border-primary;
+  @apply bg-primary/10 border-primary;
+}
+
+/* ======================== КАРТОЧКИ ======================== */
+
+.card {
+  @apply rounded-xl border border-base-200 bg-base-100 shadow-sm;
+  @apply hover:shadow-md transition-shadow duration-200;
+}
+
+.card-body {
+  @apply p-6;
+}
+
+.card-title {
+  @apply text-lg font-semibold text-base-content;
+}
+
+/* ======================== НАВИГАЦИЯ ======================== */
+
+.navbar {
+  @apply sticky top-0 z-50 bg-base-100 border-b border-base-200 shadow-sm;
+}
+
+.navbar-end {
+  @apply flex items-center gap-2;
+}
+
+/* ======================== ТАБЫ ======================== */
+
+.tabs {
+  @apply flex gap-2 border-b border-base-200;
+}
+
+.tab {
+  @apply px-4 py-3 font-medium text-base-content/60 cursor-pointer;
+  @apply border-b-2 border-transparent hover:text-base-content;
+  @apply transition-colors duration-200;
+}
+
+.tab.active {
+  @apply text-primary border-primary text-base-content;
+}
+
+/* ======================== БЕЙДЖИ ======================== */
+
+.badge {
+  @apply inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.badge-primary {
+  @apply bg-primary/10 text-primary;
+}
+
+.badge-success {
+  @apply bg-success/10 text-success;
+}
+
+.badge-warning {
+  @apply bg-warning/10 text-warning;
+}
+
+.badge-error {
+  @apply bg-error/10 text-error;
+}
+
+/* ======================== МОДАЛЬНЫЕ ОКНА ======================== */
+
+.modal {
+  @apply fixed inset-0 z-50 flex items-center justify-center;
+  @apply bg-black/50 backdrop-blur-sm;
+}
+
+.modal.hidden {
+  @apply pointer-events-none opacity-0;
+}
+
+.modal-content {
+  @apply bg-base-100 rounded-xl shadow-lg max-w-md w-full mx-4;
+  @apply transition-opacity duration-200;
+}
+
+/* ======================== УТИЛИТЫ ======================== */
+
+/* Градиенты */
+.gradient-primary {
+  @apply bg-gradient-to-r from-primary via-primary-focus to-primary;
+}
+
+.gradient-text {
+  @apply bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent;
+}
+
+/* Тени */
+.shadow-sm {
+  @apply shadow-sm;
+}
+
+.shadow-md {
+  @apply shadow-md;
+}
+
+.shadow-lg {
+  @apply shadow-lg;
+}
+
+/* Анимации */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Скелетоны для loading состояний */
+.skeleton {
+  @apply bg-base-200 rounded animate-pulse;
+}
+
+/* Hover эффекты */
+.hover-lift {
+  @apply hover:shadow-lg hover:-translate-y-1 transition-all duration-200;
+}
+
+/* Состояние disabled */
+.disabled {
+  @apply opacity-50 cursor-not-allowed pointer-events-none;
 }

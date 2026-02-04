@@ -13,13 +13,13 @@ from . import views_auth as auth
 
 
 router = DefaultRouter()
-router.register(r"projects", ProjectViewSet)
-router.register(r"issues", IssueViewSet)
-router.register(r"comments", CommentViewSet)
-router.register(r"labels", LabelViewSet)
-router.register(r"attachments", AttachmentViewSet)
-router.register(r"memberships", ProjectMembershipViewSet)
-router.register(r"invitations", InvitationViewSet)
+router.register(r"projects", ProjectViewSet, basename="project")
+router.register(r"issues", IssueViewSet, basename="issue")
+router.register(r"comments", CommentViewSet, basename="comment")
+router.register(r"labels", LabelViewSet, basename="label")
+router.register(r"attachments", AttachmentViewSet, basename="attachment")
+router.register(r"memberships", ProjectMembershipViewSet, basename="membership")
+router.register(r"invitations", InvitationViewSet, basename="invitation")
 
 urlpatterns = [
     path("", include(router.urls)),
