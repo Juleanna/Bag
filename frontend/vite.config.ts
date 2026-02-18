@@ -10,7 +10,6 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
       },
     },
   },
@@ -18,17 +17,7 @@ export default defineConfig({
     manifest: true,
     outDir: 'dist',
     emptyOutDir: true,
-    minify: 'terser',
+    minify: 'esbuild',
     sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['daisyui'],
-        },
-      },
-    },
-  },
-  optimizeDeps: {
-    include: ['daisyui'],
   },
 })

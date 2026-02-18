@@ -1,12 +1,21 @@
 /**
- * API клиент для BugTracker с поддержкой CSRF
+ * API client for BugTracker with CSRF support
  */
+
+export interface UserShort {
+  id: number
+  username: string
+  first_name: string
+  last_name: string
+}
 
 export interface Project {
   id: number
   name: string
   description: string
-  owner: number
+  owner: UserShort
+  members: UserShort[]
+  issues_count: number
   created_at: string
   updated_at: string
 }
@@ -17,44 +26,82 @@ export interface Issue {
   description: string
   project: number
   status: 'open' | 'in_progress' | 'done' | 'cancelled'
+  status_display: string
   priority: 'low' | 'medium' | 'high'
+  priority_display: string
   assignee: number | null
-  reporter: number
+  reporter: UserShort
+  labels: number[]
+  due_date: string | null
   created_at: string
   updated_at: string
 }
 
-export interface User {
+export interface Comment {
   id: number
-  username: string
-  first_name: string
-  last_name: string
+  issue: number
+  author: UserShort
+  body: string
+  created_at: string
+}
+
+export interface Label {
+  id: number
+  name: string
+  color: string
+}
+
+export interface ProjectMembership {
+  id: number
+  project: number
+  user: UserShort
+  role: string
+  created_at: string
+}
+
+export interface Invitation {
+  id: number
+  project: number
+  email: string
+  role: string
+  token: string
+  accepted: boolean
+  created_at: string
 }
 
 export interface AuthState {
+  ok?: boolean
   isAuthenticated: boolean
-  user?: User
+  user?: UserShort
+  error?: string
+}
+
+export interface PaginatedResponse<T> {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
 }
 
 export class ApiClient {
   private baseUrl = '/api'
 
-  /** Получаем CSRF-токен из cookie */
   private getCsrfToken(): string {
     const match = document.cookie.match(/csrftoken=([^;]+)/)
     return match ? match[1] : ''
   }
 
-  /** Универсальный GET */
   async get<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       credentials: 'include',
     })
-    if (!response.ok) throw new Error(`API error: ${response.statusText}`)
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.detail || data.error || response.statusText)
+    }
     return response.json()
   }
 
-  /** Универсальный POST */
   async post<T>(endpoint: string, data: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
@@ -65,11 +112,13 @@ export class ApiClient {
       credentials: 'include',
       body: JSON.stringify(data),
     })
-    if (!response.ok) throw new Error(`API error: ${response.statusText}`)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.detail || err.error || response.statusText)
+    }
     return response.json()
   }
 
-  /** Универсальный PUT */
   async put<T>(endpoint: string, data: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'PUT',
@@ -80,11 +129,30 @@ export class ApiClient {
       credentials: 'include',
       body: JSON.stringify(data),
     })
-    if (!response.ok) throw new Error(`API error: ${response.statusText}`)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.detail || err.error || response.statusText)
+    }
     return response.json()
   }
 
-  /** Универсальный DELETE */
+  async patch<T>(endpoint: string, data: any): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': this.getCsrfToken(),
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.detail || err.error || response.statusText)
+    }
+    return response.json()
+  }
+
   async delete(endpoint: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'DELETE',
@@ -93,10 +161,29 @@ export class ApiClient {
       },
       credentials: 'include',
     })
-    if (!response.ok) throw new Error(`API error: ${response.statusText}`)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.detail || err.error || response.statusText)
+    }
   }
 
-  // ===== Auth методы =====
+  async uploadFile<T>(endpoint: string, formData: FormData): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': this.getCsrfToken(),
+      },
+      credentials: 'include',
+      body: formData,
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.detail || err.error || response.statusText)
+    }
+    return response.json()
+  }
+
+  // ===== Auth =====
 
   async getWhoami(): Promise<AuthState> {
     return this.get('/auth/whoami/')

@@ -1,11 +1,16 @@
 /**
- * Компоненты UI для BugTracker с Tailwind + DaisyUI
+ * UI components for BugTracker with Tailwind + DaisyUI
  */
 
 export type ElementProps = Record<string, any>
 
+// Props that should NOT be set as HTML attributes
+const INTERNAL_PROPS = new Set([
+  'children', 'variant', 'options', 'columns', 'active', 'isOpen', 'onSubmit',
+])
+
 /**
- * JSX-подобная функция для создания элементов
+ * JSX-like function for creating DOM elements
  */
 export function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -13,8 +18,9 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   ...children: (Node | string | null | undefined)[]
 ): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag)
-  
+
   for (const [k, v] of Object.entries(props)) {
+    if (INTERNAL_PROPS.has(k)) continue
     if (k === 'class') {
       el.className = v
     } else if (k.startsWith('on') && typeof v === 'function') {
@@ -24,17 +30,17 @@ export function h<K extends keyof HTMLElementTagNameMap>(
       el.setAttribute(k, String(v))
     }
   }
-  
+
   for (const c of children) {
     if (c == null) continue
     el.append(c instanceof Node ? c : document.createTextNode(String(c)))
   }
-  
+
   return el
 }
 
 /**
- * Кнопка
+ * Button
  */
 export function Button(props: ElementProps & { children: string }, onClick?: () => void) {
   return h(
@@ -49,14 +55,28 @@ export function Button(props: ElementProps & { children: string }, onClick?: () 
 }
 
 /**
- * Первичная кнопка
+ * Primary button
  */
 export function PrimaryButton(props: ElementProps & { children: string }, onClick?: () => void) {
-  return Button({ ...props, class: 'btn btn-primary' }, onClick)
+  return Button({ ...props, class: `btn btn-primary ${props.class || ''}` }, onClick)
 }
 
 /**
- * Карточка
+ * Secondary button
+ */
+export function SecondaryButton(props: ElementProps & { children: string }, onClick?: () => void) {
+  return Button({ ...props, class: `btn btn-outline ${props.class || ''}` }, onClick)
+}
+
+/**
+ * Danger button
+ */
+export function DangerButton(props: ElementProps & { children: string }, onClick?: () => void) {
+  return Button({ ...props, class: `btn btn-error btn-outline ${props.class || ''}` }, onClick)
+}
+
+/**
+ * Card
  */
 export function Card(props: ElementProps, title: string, body: Node) {
   return h(
@@ -65,21 +85,21 @@ export function Card(props: ElementProps, title: string, body: Node) {
     h(
       'div',
       { class: 'card-body' },
-      h('h2', { class: 'card-title text-xl font-bold mb-4' }, title),
+      title ? h('h2', { class: 'card-title text-xl font-bold mb-4' }, title) : null,
       body
     )
   )
 }
 
 /**
- * Контейнер
+ * Container
  */
 export function Container(props: ElementProps, ...children: (Node | string | null)[]) {
   return h('div', { ...props, class: `container ${props.class || ''}` }, ...children)
 }
 
 /**
- * Хедер страницы
+ * Page header
  */
 export function PageHeader(title: string, subtitle?: string) {
   return h(
@@ -91,7 +111,7 @@ export function PageHeader(title: string, subtitle?: string) {
 }
 
 /**
- * Навбар
+ * Navbar
  */
 export function Navbar(props: ElementProps, ...children: (Node | string | null)[]) {
   return h(
@@ -105,14 +125,14 @@ export function Navbar(props: ElementProps, ...children: (Node | string | null)[
 }
 
 /**
- * Navbar элемент
+ * Navbar item
  */
 export function NavbarItem(props: ElementProps, ...children: (Node | string | null)[]) {
   return h('div', { ...props, class: `navbar-item ${props.class || ''}` }, ...children)
 }
 
 /**
- * Инпут
+ * Input
  */
 export function Input(props: ElementProps) {
   return h('input', {
@@ -123,25 +143,25 @@ export function Input(props: ElementProps) {
 }
 
 /**
- * Селект
+ * Select — renders options from the options prop
  */
 export function Select(
   props: ElementProps & { options: { value: string; label: string }[] }
 ) {
+  const { options, ...rest } = props
   const select = h(
     'select',
     {
-      ...props,
+      ...rest,
       class: `select ${props.class || ''}`,
     },
-    h('option', { value: '', disabled: true }, 'Выберите...'),
-    ...props.options.map((opt) => h('option', { value: opt.value }, opt.label))
+    ...options.map((opt) => h('option', { value: opt.value }, opt.label))
   )
   return select
 }
 
 /**
- * Текстовое поле
+ * Textarea
  */
 export function Textarea(props: ElementProps) {
   return h('textarea', {
@@ -151,20 +171,21 @@ export function Textarea(props: ElementProps) {
 }
 
 /**
- * Бейдж
+ * Badge
  */
 export function Badge(
-  props: ElementProps & { variant?: 'primary' | 'success' | 'warning' | 'error' }
+  props: ElementProps & { variant?: 'primary' | 'success' | 'warning' | 'error'; children?: string },
+  text?: string
 ) {
   const variant = props.variant || 'primary'
+  const content = text || props.children || ''
   return h('span', {
-    ...props,
     class: `badge badge-${variant} ${props.class || ''}`,
-  })
+  }, content)
 }
 
 /**
- * Таб
+ * Tab
  */
 export function Tab(props: ElementProps & { active?: boolean }, ...children: (Node | string)[]) {
   const isActive = props.active
@@ -179,17 +200,17 @@ export function Tab(props: ElementProps & { active?: boolean }, ...children: (No
 }
 
 /**
- * Лоадер
+ * Loader
  */
 export function Loader() {
-  return h('div', { class: 'flex items-center justify-center gap-2' },
+  return h('div', { class: 'flex items-center justify-center gap-2 py-12' },
     h('span', { class: 'loading loading-spinner loading-sm' }),
-    h('span', { class: 'text-base-content/60' }, 'Загрузка...')
+    h('span', { class: 'text-base-content/60' }, 'Loading...')
   )
 }
 
 /**
- * Алерт
+ * Alert
  */
 export function Alert(
   props: ElementProps & { variant?: 'info' | 'success' | 'warning' | 'error' },
@@ -207,7 +228,7 @@ export function Alert(
 }
 
 /**
- * Модальное окно
+ * Modal
  */
 export function Modal(
   props: ElementProps & { isOpen: boolean },
@@ -224,14 +245,7 @@ export function Modal(
 }
 
 /**
- * Таблица
- */
-export function Table(props: ElementProps, ...rows: Node[]) {
-  return h('table', { ...props, class: `table ${props.class || ''}` }, ...rows)
-}
-
-/**
- * Форма
+ * Form
  */
 export function Form(
   props: ElementProps & { onSubmit?: (e: SubmitEvent) => void },
@@ -251,14 +265,14 @@ export function Form(
 }
 
 /**
- * Группа формы (для выравнивания)
+ * Form group
  */
 export function FormGroup(props: ElementProps, ...children: (Node | string | null)[]) {
   return h('div', { ...props, class: `form-control w-full ${props.class || ''}` }, ...children)
 }
 
 /**
- * Лейбл
+ * Label
  */
 export function Label(props: ElementProps, ...children: (Node | string)[]) {
   return h(
@@ -272,62 +286,66 @@ export function Label(props: ElementProps, ...children: (Node | string)[]) {
 }
 
 /**
- * Grid контейнер
+ * Grid — uses safe Tailwind classes
  */
 export function Grid(
   props: ElementProps & { columns?: number },
   ...children: (Node | string)[]
 ) {
   const cols = props.columns || 3
+  // Use safe class mapping instead of dynamic interpolation
+  const colsClass: Record<number, string> = {
+    1: 'lg:grid-cols-1',
+    2: 'lg:grid-cols-2',
+    3: 'lg:grid-cols-3',
+    4: 'lg:grid-cols-4',
+  }
   return h(
     'div',
     {
       ...props,
-      class: `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${cols} gap-6 ${props.class || ''}`,
+      class: `grid grid-cols-1 md:grid-cols-2 ${colsClass[cols] || 'lg:grid-cols-3'} gap-6 ${props.class || ''}`,
     },
     ...children
   )
 }
 
 /**
- * Статус бейдж
+ * Status badge
  */
 export function StatusBadge(status: string) {
   const statusConfig: Record<string, { color: string; label: string }> = {
-    open: { color: 'warning', label: 'В работе' },
-    in_progress: { color: 'primary', label: 'В процессе' },
-    done: { color: 'success', label: 'Готово' },
-    cancelled: { color: 'error', label: 'Отменено' },
+    open: { color: 'warning', label: 'Open' },
+    in_progress: { color: 'primary', label: 'In Progress' },
+    done: { color: 'success', label: 'Done' },
+    cancelled: { color: 'error', label: 'Cancelled' },
   }
 
-  const config = statusConfig[status] || { color: 'default', label: status }
-
+  const config = statusConfig[status] || { color: 'primary', label: status }
   return Badge({ variant: config.color as any }, config.label)
 }
 
 /**
- * Приоритет бейдж
+ * Priority badge
  */
 export function PriorityBadge(priority: string) {
   const priorityConfig: Record<string, { color: string; label: string }> = {
-    low: { color: 'success', label: '🟢 Низкий' },
-    medium: { color: 'warning', label: '🟡 Средний' },
-    high: { color: 'error', label: '🔴 Высокий' },
+    low: { color: 'success', label: 'Low' },
+    medium: { color: 'warning', label: 'Medium' },
+    high: { color: 'error', label: 'High' },
   }
 
-  const config = priorityConfig[priority] || { color: 'default', label: priority }
-
+  const config = priorityConfig[priority] || { color: 'primary', label: priority }
   return Badge({ variant: config.color as any }, config.label)
 }
 
 /**
- * Пустой список
+ * Empty state
  */
-export function EmptyState(message: string, icon: string = '📭') {
+export function EmptyState(message: string) {
   return h(
     'div',
     { class: 'flex flex-col items-center justify-center py-12' },
-    h('div', { class: 'text-6xl mb-4' }, icon),
     h('p', { class: 'text-base-content/60 text-lg' }, message)
   )
 }
@@ -342,9 +360,7 @@ export function Divider(props: ElementProps = {}) {
 /**
  * Breadcrumb
  */
-export function Breadcrumb(
-  items: { label: string; href?: string }[]
-) {
+export function Breadcrumb(items: { label: string; onClick?: () => void }[]) {
   return h(
     'div',
     { class: 'breadcrumbs text-sm mb-6' },
@@ -355,7 +371,9 @@ export function Breadcrumb(
         h(
           'li',
           {},
-          item.href ? h('a', { href: item.href }, item.label) : item.label
+          item.onClick
+            ? h('a', { class: 'link link-hover', onClick: item.onClick }, item.label)
+            : item.label
         )
       )
     )
@@ -363,19 +381,51 @@ export function Breadcrumb(
 }
 
 /**
- * Success Toast
+ * Toast notification
  */
 export function showToast(message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') {
   const toast = h('div', {
-    class: `toast toast-${type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info'}`,
+    class: 'fixed bottom-4 right-4 z-[100] animate-slide-in',
   })
-  
-  const alert = h('div', { class: `alert alert-${type}` }, message)
+
+  const alert = h('div', { class: `alert alert-${type} shadow-lg` }, message)
   toast.appendChild(alert)
-  
+
   document.body.appendChild(toast)
-  
+
   setTimeout(() => {
     toast.remove()
   }, 3000)
+}
+
+/**
+ * Confirm dialog
+ */
+export function showConfirm(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = h('div', {
+      class: 'modal',
+      onClick: (e: MouseEvent) => {
+        if (e.target === e.currentTarget) {
+          overlay.remove()
+          resolve(false)
+        }
+      },
+    },
+      h('div', { class: 'modal-box' },
+        h('p', { class: 'text-lg mb-6' }, message),
+        h('div', { class: 'flex gap-2 justify-end' },
+          h('button', {
+            class: 'btn btn-ghost',
+            onClick: () => { overlay.remove(); resolve(false) },
+          }, 'Cancel'),
+          h('button', {
+            class: 'btn btn-error',
+            onClick: () => { overlay.remove(); resolve(true) },
+          }, 'Confirm')
+        )
+      )
+    )
+    document.body.appendChild(overlay)
+  })
 }

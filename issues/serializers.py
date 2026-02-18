@@ -42,11 +42,15 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 class IssueSerializer(serializers.ModelSerializer):
     project = serializers.PrimaryKeyRelatedField(queryset=Project.objects.all())
-    assignee = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), allow_null=True, required=False)
-    reporter = serializers.PrimaryKeyRelatedField(read_only=True)
-    labels = serializers.PrimaryKeyRelatedField(queryset=Label.objects.all(), many=True, required=False)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    assignee = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), allow_null=True, required=False
+    )
+    reporter = UserShortSerializer(read_only=True)
+    labels = serializers.PrimaryKeyRelatedField(
+        queryset=Label.objects.all(), many=True, required=False
+    )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    priority_display = serializers.CharField(source="get_priority_display", read_only=True)
 
     class Meta:
         model = Issue
@@ -68,8 +72,12 @@ class IssueSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        labels = validated_data.pop("labels", [])
         validated_data["reporter"] = self.context["request"].user
-        return super().create(validated_data)
+        issue = super().create(validated_data)
+        if labels:
+            issue.labels.set(labels)
+        return issue
 
 
 class CommentSerializer(serializers.ModelSerializer):

@@ -2,6 +2,12 @@
 Logging configuration for the BugTracker project.
 """
 
+from pathlib import Path
+
+# Ensure logs directory exists before configuring file handlers
+LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -32,15 +38,15 @@ LOGGING = {
         "file": {
             "level": "INFO",
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": "logs/bugtracker.log",
-            "maxBytes": 1024 * 1024 * 10,  # 10MB
+            "filename": str(LOGS_DIR / "bugtracker.log"),
+            "maxBytes": 1024 * 1024 * 10,
             "backupCount": 5,
             "formatter": "verbose",
         },
         "error_file": {
             "level": "ERROR",
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": "logs/errors.log",
+            "filename": str(LOGS_DIR / "errors.log"),
             "maxBytes": 1024 * 1024 * 10,
             "backupCount": 5,
             "formatter": "verbose",

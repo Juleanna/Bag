@@ -8,7 +8,7 @@ from .models import (
     ProjectMembership,
     Invitation,
 )
-from django.db.models import Count, Prefetch
+from django.db.models import Count
 from .serializers import (
     ProjectSerializer,
     IssueSerializer,
@@ -18,17 +18,14 @@ from .serializers import (
     ProjectMembershipSerializer,
     InvitationSerializer,
 )
+from .permissions import IsOwnerOrReadOnly, IsProjectMemberOrReadOnly
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils.crypto import get_random_string
-from django.views.decorators.cache import cache_page
-from django.utils.decorators import method_decorator
-from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+import logging
 
-
-class IsAuthenticatedOrReadOnly(permissions.IsAuthenticatedOrReadOnly):
-    pass
+logger = logging.getLogger(__name__)
 
 
 class StandardResultsSetPagination(pagination.PageNumberPagination):
@@ -37,34 +34,23 @@ class StandardResultsSetPagination(pagination.PageNumberPagination):
     max_page_size = 100
 
 
-class UserThrottle(UserRateThrottle):
-    scope = "user"
-
-
-class AnonThrottle(AnonRateThrottle):
-    scope = "anon"
-
-
 class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsProjectMemberOrReadOnly, IsOwnerOrReadOnly]
     pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["name", "description"]
     ordering_fields = ["created_at", "name"]
     ordering = ["-created_at"]
-    throttle_classes = [UserThrottle, AnonThrottle]
 
     def get_queryset(self):
-        # Optimize with annotations and prefetch
         queryset = (
             Project.objects.annotate(issues_count=Count("issues"))
             .select_related("owner")
             .prefetch_related("members")
         )
 
-        # Filter by owner if specified
-        if self.request.query_params.get("owner"):
+        if self.request.query_params.get("owner") == "me":
             queryset = queryset.filter(owner=self.request.user)
 
         return queryset
@@ -76,61 +62,85 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 class IssueViewSet(viewsets.ModelViewSet):
     serializer_class = IssueSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsProjectMemberOrReadOnly]
     pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["title", "description"]
     ordering_fields = ["created_at", "priority", "status"]
     ordering = ["-created_at"]
-    throttle_classes = [UserThrottle, AnonThrottle]
 
     def get_queryset(self):
-        # Heavy optimization for large datasets
         queryset = Issue.objects.select_related(
             "project", "reporter", "assignee"
         ).prefetch_related("labels", "comments")
 
-        # Filter by project if specified
-        if self.request.query_params.get("project"):
-            queryset = queryset.filter(
-                project_id=self.request.query_params.get("project")
-            )
+        project = self.request.query_params.get("project")
+        if project:
+            queryset = queryset.filter(project_id=project)
 
-        # Filter by status
-        if self.request.query_params.get("status"):
-            queryset = queryset.filter(status=self.request.query_params.get("status"))
+        status = self.request.query_params.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
 
-        # Filter by assignee
-        if self.request.query_params.get("assignee"):
-            queryset = queryset.filter(
-                assignee_id=self.request.query_params.get("assignee")
-            )
+        assignee = self.request.query_params.get("assignee")
+        if assignee:
+            if assignee == "me":
+                queryset = queryset.filter(assignee=self.request.user)
+            else:
+                queryset = queryset.filter(assignee_id=assignee)
+
+        priority = self.request.query_params.get("priority")
+        if priority:
+            queryset = queryset.filter(priority=priority)
 
         return queryset
 
+    def perform_create(self, serializer):
+        issue = serializer.save()
+        try:
+            from .tasks import send_issue_notification
+
+            send_issue_notification.delay(issue.id, "created")
+        except Exception:
+            pass
+
+    def perform_update(self, serializer):
+        issue = serializer.save()
+        try:
+            from .tasks import send_issue_notification
+
+            send_issue_notification.delay(issue.id, "updated")
+        except Exception:
+            pass
+
 
 class CommentViewSet(viewsets.ModelViewSet):
-    queryset = Comment.objects.select_related("issue", "author").order_by("-created_at")
     serializer_class = CommentSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsProjectMemberOrReadOnly]
+
+    def get_queryset(self):
+        qs = Comment.objects.select_related("issue", "author").order_by("-created_at")
+        issue_id = self.request.query_params.get("issue")
+        if issue_id:
+            qs = qs.filter(issue_id=issue_id)
+        return qs
 
 
 class LabelViewSet(viewsets.ModelViewSet):
     queryset = Label.objects.all().order_by("name")
     serializer_class = LabelSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsProjectMemberOrReadOnly]
 
 
 class AttachmentViewSet(viewsets.ModelViewSet):
-    queryset = Attachment.objects.select_related("issue", "uploader").order_by(
-        "-created_at"
-    )
     serializer_class = AttachmentSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsProjectMemberOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = Attachment.objects.select_related("issue", "uploader").order_by(
+            "-created_at"
+        )
         issue_id = self.request.query_params.get("issue")
         if issue_id:
             qs = qs.filter(issue_id=issue_id)
@@ -138,24 +148,36 @@ class AttachmentViewSet(viewsets.ModelViewSet):
 
 
 class ProjectMembershipViewSet(viewsets.ModelViewSet):
-    queryset = ProjectMembership.objects.select_related("project", "user").order_by(
-        "-created_at"
-    )
     serializer_class = ProjectMembershipSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsProjectMemberOrReadOnly]
+
+    def get_queryset(self):
+        qs = ProjectMembership.objects.select_related("project", "user").order_by(
+            "-created_at"
+        )
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
 
 
 class InvitationViewSet(viewsets.ModelViewSet):
-    queryset = Invitation.objects.select_related("project").order_by("-created_at")
     serializer_class = InvitationSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsProjectMemberOrReadOnly]
+
+    def get_queryset(self):
+        qs = Invitation.objects.select_related("project").order_by("-created_at")
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
 
     def perform_create(self, serializer):
         token = get_random_string(40)
         serializer.save(token=token)
 
     @action(
-        detail=False, methods=["post"], permission_classes=[IsAuthenticatedOrReadOnly]
+        detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated]
     )
     def accept(self, request):
         token = request.data.get("token")
