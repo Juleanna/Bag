@@ -130,18 +130,26 @@
 
 /* ======================== МОДАЛЬНЫЕ ОКНА ======================== */
 
-.modal {
-  @apply fixed inset-0 z-50 flex items-center justify-center;
-  @apply bg-black/50 backdrop-blur-sm;
+.bt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s;
 }
 
-.modal.hidden {
-  @apply pointer-events-none opacity-0;
+.bt-overlay.bt-hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
-.modal-content {
-  @apply bg-base-100 rounded-xl shadow-lg max-w-md w-full mx-4;
-  @apply transition-opacity duration-200;
+.bt-overlay .bt-modal-box {
+  @apply bg-base-100 rounded-xl shadow-xl max-w-lg w-full mx-4 p-6;
+  animation: slideIn 0.3s ease-out;
 }
 
 /* ======================== УТИЛИТЫ ======================== */

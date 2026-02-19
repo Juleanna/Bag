@@ -163,4 +163,110 @@ class Invitation(models.Model):
         return f"Invite {self.email} to {self.project} ({self.role})"
 
 
-# Create your models here.
+class IssueActivity(models.Model):
+    """Audit log for issue changes."""
+
+    issue = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="activities"
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activities")
+    action = models.CharField(max_length=50)  # e.g. "status_changed", "assigned", "comment_added"
+    field = models.CharField(max_length=50, blank=True)
+    old_value = models.CharField(max_length=255, blank=True)
+    new_value = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["issue", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} {self.action} on {self.issue_id}"
+
+
+class IssueRelation(models.Model):
+    """Relationships between issues."""
+
+    class RelationType(models.TextChoices):
+        BLOCKS = "blocks", "Blocks"
+        BLOCKED_BY = "blocked_by", "Blocked by"
+        RELATES_TO = "relates_to", "Relates to"
+        DUPLICATE_OF = "duplicate_of", "Duplicate of"
+
+    from_issue = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="relations_from"
+    )
+    to_issue = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="relations_to"
+    )
+    relation_type = models.CharField(max_length=20, choices=RelationType.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("from_issue", "to_issue", "relation_type")
+
+    def __str__(self) -> str:
+        return f"{self.from_issue_id} {self.relation_type} {self.to_issue_id}"
+
+
+class ChecklistItem(models.Model):
+    """Subtask / checklist item within an issue."""
+
+    issue = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="checklist_items"
+    )
+    text = models.CharField(max_length=500)
+    is_done = models.BooleanField(default=False)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "created_at"]
+
+    def __str__(self) -> str:
+        mark = "[x]" if self.is_done else "[ ]"
+        return f"{mark} {self.text}"
+
+
+class Notification(models.Model):
+    """User notification."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="notifications"
+    )
+    issue = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="notifications", null=True, blank=True
+    )
+    message = models.CharField(max_length=500)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["user", "is_read"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Notification for {self.user}: {self.message[:50]}"
+
+
+class StarredIssue(models.Model):
+    """User's starred/favorite issues."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="starred_issues"
+    )
+    issue = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="starred_by"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "issue")
+
+    def __str__(self) -> str:
+        return f"{self.user} starred {self.issue_id}"

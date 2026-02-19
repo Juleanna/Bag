@@ -1,5 +1,6 @@
+import json
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from django.views.decorators.csrf import csrf_protect
 from django.middleware.csrf import get_token
 from django.contrib.auth import (
@@ -8,6 +9,16 @@ from django.contrib.auth import (
     logout as dj_logout,
     get_user_model,
 )
+
+
+def _user_json(user):
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+    }
 
 
 @require_GET
@@ -19,16 +30,10 @@ def csrf(request):
 @require_GET
 def whoami(request):
     if request.user.is_authenticated:
-        user = request.user
         return JsonResponse(
             {
                 "isAuthenticated": True,
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                },
+                "user": _user_json(request.user),
             }
         )
     return JsonResponse({"isAuthenticated": False})
@@ -37,8 +42,6 @@ def whoami(request):
 @require_POST
 @csrf_protect
 def login(request):
-    import json
-
     try:
         payload = json.loads(request.body or b"{}")
     except Exception:
@@ -51,7 +54,6 @@ def login(request):
             {"ok": False, "error": "Укажите логин/почту и пароль"}, status=400
         )
 
-    # Пытаемся аутентифицировать по username; если не получилось — по email
     user = authenticate(request, username=identifier, password=password)
     if user is None and "@" in identifier:
         User = get_user_model()
@@ -71,12 +73,7 @@ def login(request):
         {
             "ok": True,
             "isAuthenticated": True,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-            },
+            "user": _user_json(user),
         }
     )
 
@@ -84,8 +81,6 @@ def login(request):
 @require_POST
 @csrf_protect
 def register(request):
-    import json
-
     try:
         payload = json.loads(request.body or b"{}")
     except Exception:
@@ -128,12 +123,7 @@ def register(request):
             {
                 "ok": True,
                 "isAuthenticated": True,
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                },
+                "user": _user_json(user),
             }
         )
     except Exception as e:
@@ -145,3 +135,71 @@ def register(request):
 def logout(request):
     dj_logout(request)
     return JsonResponse({"ok": True})
+
+
+@require_POST
+@csrf_protect
+def change_password(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "Not authenticated"}, status=401)
+
+    try:
+        payload = json.loads(request.body or b"{}")
+    except Exception:
+        payload = {}
+
+    current = payload.get("current_password", "")
+    new_pw = payload.get("new_password", "")
+
+    if not current or not new_pw:
+        return JsonResponse({"ok": False, "error": "Both fields are required"}, status=400)
+
+    if len(new_pw) < 6:
+        return JsonResponse({"ok": False, "error": "Password too short"}, status=400)
+
+    if not request.user.check_password(current):
+        return JsonResponse({"ok": False, "error": "Current password is incorrect"}, status=400)
+
+    request.user.set_password(new_pw)
+    request.user.save()
+    # Re-login to keep the session active
+    from django.contrib.auth import update_session_auth_hash
+    update_session_auth_hash(request, request.user)
+    return JsonResponse({"ok": True})
+
+
+@require_http_methods(["PATCH"])
+@csrf_protect
+def update_profile(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "Not authenticated"}, status=401)
+
+    try:
+        payload = json.loads(request.body or b"{}")
+    except Exception:
+        payload = {}
+
+    user = request.user
+    changed = False
+
+    if "first_name" in payload:
+        user.first_name = payload["first_name"].strip()
+        changed = True
+    if "last_name" in payload:
+        user.last_name = payload["last_name"].strip()
+        changed = True
+    if "email" in payload:
+        new_email = payload["email"].strip()
+        if new_email and new_email != user.email:
+            User = get_user_model()
+            if User.objects.filter(email=new_email).exclude(pk=user.pk).exists():
+                return JsonResponse(
+                    {"ok": False, "error": "Email already taken"}, status=400
+                )
+            user.email = new_email
+            changed = True
+
+    if changed:
+        user.save()
+
+    return JsonResponse({"ok": True, "user": _user_json(user)})

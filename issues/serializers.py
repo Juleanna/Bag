@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Project, Issue, Comment, Label, Attachment, ProjectMembership, Invitation
+from .models import (
+    Project, Issue, Comment, Label, Attachment, ProjectMembership, Invitation,
+    IssueActivity, IssueRelation, ChecklistItem, Notification, StarredIssue,
+)
 
 
 User = get_user_model()
@@ -124,3 +127,43 @@ class InvitationSerializer(serializers.ModelSerializer):
         model = Invitation
         fields = ["id", "project", "email", "role", "token", "accepted", "created_at"]
         read_only_fields = ["token", "accepted", "created_at"]
+
+
+class IssueActivitySerializer(serializers.ModelSerializer):
+    user = UserShortSerializer(read_only=True)
+
+    class Meta:
+        model = IssueActivity
+        fields = ["id", "issue", "user", "action", "field", "old_value", "new_value", "created_at"]
+
+
+class IssueRelationSerializer(serializers.ModelSerializer):
+    to_issue_title = serializers.CharField(source="to_issue.title", read_only=True)
+    from_issue_title = serializers.CharField(source="from_issue.title", read_only=True)
+
+    class Meta:
+        model = IssueRelation
+        fields = [
+            "id", "from_issue", "to_issue", "relation_type",
+            "from_issue_title", "to_issue_title", "created_at",
+        ]
+
+
+class ChecklistItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChecklistItem
+        fields = ["id", "issue", "text", "is_done", "position", "created_at"]
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ["id", "user", "issue", "message", "is_read", "created_at"]
+        read_only_fields = ["user", "created_at"]
+
+
+class StarredIssueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StarredIssue
+        fields = ["id", "user", "issue", "created_at"]
+        read_only_fields = ["user", "created_at"]

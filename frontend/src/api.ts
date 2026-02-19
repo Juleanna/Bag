@@ -5,6 +5,7 @@
 export interface UserShort {
   id: number
   username: string
+  email?: string
   first_name: string
   last_name: string
 }
@@ -59,6 +60,16 @@ export interface ProjectMembership {
   created_at: string
 }
 
+export interface Attachment {
+  id: number
+  issue: number
+  name: string
+  file: string
+  url: string
+  uploader: number
+  created_at: string
+}
+
 export interface Invitation {
   id: number
   project: number
@@ -66,6 +77,52 @@ export interface Invitation {
   role: string
   token: string
   accepted: boolean
+  created_at: string
+}
+
+export interface IssueActivity {
+  id: number
+  issue: number
+  user: UserShort
+  action: string
+  field: string
+  old_value: string
+  new_value: string
+  created_at: string
+}
+
+export interface IssueRelation {
+  id: number
+  from_issue: number
+  to_issue: number
+  relation_type: 'blocks' | 'blocked_by' | 'relates_to' | 'duplicate_of'
+  from_issue_title: string
+  to_issue_title: string
+  created_at: string
+}
+
+export interface ChecklistItem {
+  id: number
+  issue: number
+  text: string
+  is_done: boolean
+  position: number
+  created_at: string
+}
+
+export interface Notification {
+  id: number
+  user: number
+  issue: number | null
+  message: string
+  is_read: boolean
+  created_at: string
+}
+
+export interface StarredIssue {
+  id: number
+  user: number
+  issue: number
   created_at: string
 }
 

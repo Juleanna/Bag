@@ -5,7 +5,8 @@
       "Bash(pip install:*)",
       "Bash(npx:*)",
       "Bash(npm ls:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }
