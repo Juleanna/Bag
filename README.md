@@ -1,616 +1,337 @@
-# 🐛 BugTracker - Полнофункциональный трекер ошибок
+# BugTracker
 
-> Система управления проектами и отслеживания ошибок (issues) с современным фронтендом и масштабируемым бэкендом
-
-![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
-![Python](https://img.shields.io/badge/Python-3.11+-blue)
-![Django](https://img.shields.io/badge/Django-5.2-darkgreen)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
+Веб-застосунок для керування проєктами та задачами (баг-трекер).
+Backend — Django 5.2 + DRF, frontend — Vanilla TypeScript + Vite + Tailwind/DaisyUI.
 
 ---
 
-## 📚 Документация (Quick Links)
+## Зміст
 
-### 🚀 Для новичков
-- **[QUICK_START_FULL.md](QUICK_START_FULL.md)** - Запуск за 5 минут (бэкенд + фронтенд)
-- **[FRONTEND_QUICK_START.md](FRONTEND_QUICK_START.md)** - Только фронтенд (если бэкенд уже запущен)
-
-### 👨‍💻 Для разработчиков
-- **[DEVELOPMENT_GUIDE_FULL.md](DEVELOPMENT_GUIDE_FULL.md)** - Полный гайд архитектуры и разработки
-- **[COMPONENTS_REFERENCE_FULL.md](COMPONENTS_REFERENCE_FULL.md)** - Справочник всех 25+ UI компонентов
-- **[API_REFERENCE_FULL.md](API_REFERENCE_FULL.md)** - REST API endpoints с примерами
-
-### 🏗️ Для DevOps/Production
-- **[DEPLOYMENT_GUIDE_FULL.md](DEPLOYMENT_GUIDE_FULL.md)** - Полный гайд production деплоя
-- **[ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md)** - Архитектура системы с диаграммами
-- **[SCALING_GUIDE_FULL.md](SCALING_GUIDE_FULL.md)** - 6-уровневое масштабирование
+1. [Можливості](#можливості)
+2. [Стек технологій](#стек-технологій)
+3. [Структура проєкту](#структура-проєкту)
+4. [Швидкий старт](#швидкий-старт)
+5. [Налаштування `.env`](#налаштування-env)
+6. [Команди розробки](#команди-розробки)
+7. [API](#api)
+8. [Деплой у production](#деплой-у-production)
+9. [Безпека](#безпека)
+10. [Внесок і тестування](#внесок-і-тестування)
 
 ---
 
-## 📊 Матрица документации - Кто читает что?
+## Можливості
 
-| Роль | Начало | Полезно | Углубление |
-|------|--------|---------|-----------|
-| **🎓 Новичок** | QUICK_START | README (этот файл) | DEVELOPMENT_GUIDE |
-| **👨‍💻 Frontend** | FRONTEND_QUICK_START | COMPONENTS_REFERENCE | DEVELOPMENT_GUIDE |
-| **🔙 Backend** | QUICK_START | API_REFERENCE | DEVELOPMENT_GUIDE |
-| **🏗️ DevOps** | DEPLOYMENT_GUIDE | ARCHITECTURE | SCALING_GUIDE |
-| **📈 Scalability** | SCALING_GUIDE | ARCHITECTURE | DEPLOYMENT_GUIDE |
+- **Проєкти й задачі.** Кілька проєктів, у кожному — задачі зі статусом, пріоритетом, виконавцем, дедлайном і мітками.
+- **Учасники й ролі.** `viewer`, `member`, `manager`, `owner`. Учасники додаються через запрошення (email + токен).
+- **Коментарі та вкладення.** Markdown у коментарях, безпечні посилання, вкладення з обмеженням розміру / типу.
+- **Чек-листи, зв'язки між задачами, журнал активностей.** Аудит будь-якої зміни.
+- **Сповіщення.** Внутрішні + email через Celery (опційно).
+- **Зіркові задачі**, командна палітра, гарячі клавіші, темна тема, локалізація (uk / en).
+- **API.** REST через DRF + автогенерована OpenAPI-документація (`/api/schema/`, `/api/docs/`).
 
----
+## Стек технологій
 
-## 🎯 Что это?
+| Шар        | Технології                                                          |
+| ---------- | ------------------------------------------------------------------- |
+| Backend    | Python 3.11+, Django 5.2, DRF 3.15, drf-spectacular                 |
+| Async      | Celery 5 + Redis (опційно)                                          |
+| Frontend   | TypeScript 5.9, Vite 7, Tailwind CSS 4, DaisyUI                     |
+| База даних | SQLite (dev), PostgreSQL (production через `DATABASE_URL`)          |
+| Сервер     | Gunicorn + Whitenoise + Nginx                                       |
+| Контейнер  | Docker + docker-compose                                             |
 
-**BugTracker** — веб-приложение для управления проектами и отслеживания ошибок.
-
-### Основные возможности
-
-- ✅ Управление проектами (создание, редактирование, удаление)
-- ✅ Управление задачами/ошибками (CRUD операции)
-- ✅ Фильтрация по статусу, приоритету, дате
-- ✅ Полнотекстовый поиск
-- ✅ Система ролей и прав доступа
-- ✅ Асинхронная обработка (email, отчёты)
-- ✅ Современный интерактивный интерфейс
-- ✅ REST API
-- ✅ Production-ready (Docker, Nginx, PostgreSQL)
-
----
-
-## 🛠️ Стек технологий
-
-### Бэкенд
+## Структура проєкту
 
 ```
-Django 5.2 + DRF 3.15
-├── PostgreSQL 15 (База данных)
-├── Redis 7 (Кэш + сессии)
-├── Celery 5.4 (Асинхронные задачи)
-├── Gunicorn 23.0 (WSGI сервер)
-└── Nginx (Reverse proxy)
-```
-
-### Фронтенд
-
-```
-Vite 7.1 + TypeScript 5.9
-├── Tailwind CSS 4.1 (Стили)
-├── DaisyUI 5.3 (Pre-built компоненты)
-└── h() функция (Hyperscript вместо JSX)
-```
-
----
-
-## 📁 Структура проекта
-
-```
-bugtracker/
-├── 📄 manage.py                    # Django manage команды
-├── 🔧 bugtracker/
-│   ├── settings.py                # Django настройки
-│   ├── urls.py                    # URL маршруты
-│   ├── wsgi.py                    # WSGI приложение
-│   └── asgi.py                    # ASGI приложение
-├── 🎫 issues/                     # Django приложение
-│   ├── models.py                  # User, Project, Issue модели
-│   ├── serializers.py             # DRF сериализаторы
-│   ├── views_api.py               # REST API views
-│   ├── views_auth.py              # Аутентификация
-│   ├── views.py                   # HTML views (опционально)
-│   ├── urls.py                    # Django URLs
-│   └── migrations/                # БД миграции
-├── 🎨 frontend/
-│   ├── index.html                 # HTML (Vite template)
+bag/
+├── bugtracker/              # Django project (settings, urls, wsgi/asgi, celery)
+│   ├── settings.py          # Налаштування (читає .env)
+│   ├── urls.py              # Кореневі URL
+│   ├── celery.py            # Конфіг Celery
+│   └── logging_config.py    # Налаштування логування
+├── issues/                  # Основний Django app
+│   ├── models.py            # Project, Issue, Comment, Attachment, ...
+│   ├── serializers.py       # DRF серіалізатори (з обмеженням queryset)
+│   ├── views_api.py         # ViewSet'и з фільтрацією за членством
+│   ├── views_auth.py        # Реєстрація / логін / профіль (з throttle)
+│   ├── permissions.py       # IsProjectOwner, IsAuthenticatedAndMember, ...
+│   ├── tasks.py             # Celery таски (email)
+│   ├── api_urls.py          # API роутер
+│   ├── admin.py             # Django admin
+│   └── migrations/
+├── frontend/                # Vite + TypeScript SPA
 │   ├── src/
-│   │   ├── main.ts                # Точка входа
-│   │   ├── style.css              # Глобальные стили
-│   │   ├── components.ts          # UI компоненты (25+)
-│   │   ├── api.ts                 # API клиент
-│   │   └── pages/                 # Страницы
-│   ├── vite.config.ts             # Vite конфиг
-│   ├── tsconfig.json              # TypeScript конфиг
-│   └── package.json               # npm зависимости
-├── 📚 Документация
-│   ├── README.md                  # ✨ ВЫ ЗДЕСЬ
-│   ├── QUICK_START_FULL.md        # Быстрый старт (5 мин)
-│   ├── FRONTEND_QUICK_START.md    # Только фронтенд
-│   ├── DEVELOPMENT_GUIDE_FULL.md  # Архитектура и разработка
-│   ├── COMPONENTS_REFERENCE_FULL.md # Справочник компонентов
-│   ├── API_REFERENCE_FULL.md      # REST API endpoints
-│   ├── DEPLOYMENT_GUIDE_FULL.md   # Production деплой
-│   ├── ARCHITECTURE_FULL.md       # Архитектура системы
-│   └── SCALING_GUIDE_FULL.md      # Масштабирование
-└── 🐳 Docker
-    ├── Dockerfile
-    ├── docker-compose.yml
-    ├── nginx.conf
-    └── .env.example
+│   │   ├── main.ts          # Точка входу + роутер
+│   │   ├── api.ts           # ApiClient (CSRF, fetch)
+│   │   ├── auth.ts          # checkAuth + ініціалізація
+│   │   ├── state.ts         # Глобальний state
+│   │   ├── components.ts    # h(), Card, Button, Form, ...
+│   │   ├── helpers.ts       # renderMarkdown, sanitizeUrl, formatDate
+│   │   ├── i18n/            # uk.ts, en.ts
+│   │   └── pages/           # login, register, projects, issues, ...
+│   ├── vite.config.ts
+│   └── tsconfig.json
+├── templates/               # Django HTML (для Vite-bundle)
+├── static/                  # Статичні файли (зібрані вручну)
+├── manage.py
+├── requirements.txt         # Python залежності
+├── docker-compose.yml
+├── Dockerfile
+├── nginx.conf
+├── deploy.sh                # Скрипт деплою
+├── START_APP.sh / .bat      # Старт обох процесів локально
+└── .env / .env.example      # Конфігурація середовища
 ```
 
 ---
 
-## 🚀 Быстрый старт
+## Швидкий старт
 
-### Вариант 1: Полный (бэкенд + фронтенд) - 5 минут
+### Передумови
 
-**На Windows с батником:**
+- Python 3.11+ (`python --version`)
+- Node.js 18+ і npm (`node --version`)
+- (Опційно) Redis — лише якщо потрібен Celery / кеш
 
-```bash
-cd c:\Bag
-START_APP.bat
-```
-
-**На Linux/Mac:**
+### 1. Клонування та venv
 
 ```bash
-cd /path/to/bugtracker
-bash START_APP.sh
-```
+git clone <repo> bag
+cd bag
 
-**Вручную (Python + Node):**
-
-```bash
-# Терминал 1: Бэкенд
+# Створення віртуального середовища
 python -m venv venv
-source venv/bin/activate  # venv\Scripts\activate на Windows
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
 
-# Терминал 2: Фронтенд
+# Активація (Windows / Git Bash)
+source venv/Scripts/activate
+# Активація (Linux / macOS)
+source venv/bin/activate
+```
+
+### 2. Backend
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env          # створити свій .env (відредагувати за потреби)
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver    # http://127.0.0.1:8000/
+```
+
+### 3. Frontend
+
+В іншому терміналі:
+
+```bash
 cd frontend
 npm install
-npm run dev
-
-# Открыть в браузере
-http://localhost:5173
+npm run dev                   # http://localhost:5173/
 ```
 
-### Вариант 2: С Docker
+Vite проксує `/api/*` на Django (`http://localhost:8000`) — авторизація через сесійні cookie + CSRF працює без додаткових налаштувань.
 
-```bash
-docker-compose up
-# http://localhost (за Nginx)
-```
+### 4. Перевірка
 
-### Проверить работу
+Відкрийте `http://localhost:5173/` — побачите форму входу.
+Зареєструйтесь через UI або увійдіть за обліковим записом superuser.
 
-```bash
-# API доступен
-curl http://localhost:8000/api/projects/
-
-# Админка
-http://localhost:8000/admin/
-# username: admin, password: admin
-```
+> 💡 На Windows можна одночасно стартувати backend + frontend через `START_APP.bat`,
+> на Linux/macOS — `./START_APP.sh`.
 
 ---
 
-## 📖 Документация по разделам
+## Налаштування `.env`
 
-### 🎓 Новичкам
+Скопіюйте `.env.example` у `.env` і відредагуйте під своє середовище.
 
-Начните с **[QUICK_START_FULL.md](QUICK_START_FULL.md)** — это займёт 5 минут!
+| Змінна                           | Призначення                                                | За замовчуванням                          |
+| -------------------------------- | ---------------------------------------------------------- | ----------------------------------------- |
+| `SECRET_KEY`                     | Секрет Django — **обов'язково замінити в production**      | `dev-secret-key-change-me`                |
+| `DEBUG`                          | Режим розробки                                             | `False`                                   |
+| `ALLOWED_HOSTS`                  | Список дозволених хостів через кому                        | `localhost,127.0.0.1`                     |
+| `DATABASE_URL`                   | URL БД (`postgres://…`); якщо не задано — SQLite           | `sqlite:///db.sqlite3`                    |
+| `CORS_ALLOWED_ORIGINS`           | Origin'и, яким дозволено CORS                              | `http://localhost:5173,…`                 |
+| `CSRF_TRUSTED_ORIGINS`           | Origin'и, яким довіряємо CSRF                              | `http://localhost:5173,…`                 |
+| `CELERY_BROKER_URL`              | URL брокера Celery                                         | `redis://localhost:6379/0`                |
+| `REDIS_URL`                      | URL Redis для кешу (опційно)                               | —                                         |
+| `SENTRY_DSN`                     | DSN для Sentry (опційно)                                   | —                                         |
+| `DEFAULT_FROM_EMAIL`             | Адреса відправника email                                   | `noreply@bugtracker.local`                |
+| `EMAIL_BACKEND`                  | Backend email Django                                       | console (виводить у stdout)               |
 
-Затем прочитайте этот файл (README) для общего понимания.
+### Production-only змінні (читаються лише при `DEBUG=False`)
 
-### 👨‍💻 Фронтенд разработчикам
-
-1. Запустите **[FRONTEND_QUICK_START.md](FRONTEND_QUICK_START.md)**
-2. Используйте **[COMPONENTS_REFERENCE_FULL.md](COMPONENTS_REFERENCE_FULL.md)** как справочник
-3. Углубитесь в **[DEVELOPMENT_GUIDE_FULL.md](DEVELOPMENT_GUIDE_FULL.md)**
-
-**Важно:** Компоненты используют функцию `h()` вместо JSX для создания виртуального DOM.
-
-### 🔙 Бэкенд разработчикам
-
-1. Запустите **[QUICK_START_FULL.md](QUICK_START_FULL.md)**
-2. Используйте **[API_REFERENCE_FULL.md](API_REFERENCE_FULL.md)** для API endpoints
-3. Изучите **[DEVELOPMENT_GUIDE_FULL.md](DEVELOPMENT_GUIDE_FULL.md)** для архитектуры
-
-**Архитектура:** Django MVP (Model → Serializer → ViewSet → Response)
-
-### 🏗️ DevOps/Production
-
-1. Прочитайте **[DEPLOYMENT_GUIDE_FULL.md](DEPLOYMENT_GUIDE_FULL.md)** (Docker, Nginx, SSL)
-2. Изучите **[ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md)** (система компонентов)
-3. При необходимости масштабирования → **[SCALING_GUIDE_FULL.md](SCALING_GUIDE_FULL.md)**
-
----
-
-## 🔗 API Endpoints (краткая справка)
-
-### Projects (Проекты)
-
-```bash
-GET    /api/projects/              # Список проектов
-POST   /api/projects/              # Создать проект
-GET    /api/projects/{id}/         # Получить проект
-PUT    /api/projects/{id}/         # Обновить проект
-DELETE /api/projects/{id}/         # Удалить проект
-```
-
-### Issues (Задачи)
-
-```bash
-GET    /api/issues/                # Список задач
-POST   /api/issues/                # Создать задачу
-GET    /api/issues/{id}/           # Получить задачу
-PATCH  /api/issues/{id}/           # Обновить задачу
-DELETE /api/issues/{id}/           # Удалить задачу
-```
-
-### Auth (Аутентификация)
-
-```bash
-GET    /api/auth/me/               # Текущий пользователь
-POST   /api/auth/login/            # Вход
-POST   /api/auth/logout/           # Выход
-```
-
-**📖 Полный справочник:** [API_REFERENCE_FULL.md](API_REFERENCE_FULL.md)
+| Змінна                         | Дефолт     | Опис                                              |
+| ------------------------------ | ---------- | ------------------------------------------------- |
+| `SECURE_SSL_REDIRECT`          | `True`     | Перенаправляти HTTP → HTTPS                       |
+| `SESSION_COOKIE_SECURE`        | `True`     | Cookie сесії лише через HTTPS                     |
+| `CSRF_COOKIE_SECURE`           | `True`     | CSRF cookie лише через HTTPS                      |
+| `SECURE_HSTS_SECONDS`          | `31536000` | HSTS на рік                                       |
+| `SECURE_HSTS_INCLUDE_SUBDOMAINS` | `True`   | HSTS на піддомени                                 |
+| `SECURE_HSTS_PRELOAD`          | `True`     | Дозвіл на HSTS preload list                       |
 
 ---
 
-## 🎨 Компоненты фронтенда (краткая справка)
+## Команди розробки
 
-### Базовые компоненты
-
-```typescript
-import { Button, PrimaryButton, Card, Container, Grid } from './components'
-
-// Кнопка
-Button({ children: 'Текст', onClick: handler })
-
-// Карточка
-Card({}, 'Заголовок', h('p', {}, 'Содержимое'))
-
-// Сетка 3 колонки
-Grid({ columns: 3 }, Card({}), Card({}), Card({}))
-```
-
-### Компоненты форм
-
-```typescript
-import { Form, FormGroup, Label, Input, Textarea, Select } from './components'
-
-// Текстовое поле
-Input({ name: 'title', placeholder: 'Название' })
-
-// Выпадающее меню
-Select({ name: 'priority', options: [
-  { value: 'low', label: 'Низкий' },
-  { value: 'high', label: 'Высокий' }
-]})
-
-// Форма с отправкой
-Form({ onSubmit: (e) => createProject(e) },
-  FormGroup({}, Label({}, 'Название'), Input({ name: 'name' })),
-  PrimaryButton({ children: 'Создать', type: 'submit' })
-)
-```
-
-### Статус и приоритет бейджи
-
-```typescript
-import { StatusBadge, PriorityBadge } from './components'
-
-StatusBadge('open')       // 🕐 В работе
-StatusBadge('done')       // ✅ Готово
-
-PriorityBadge('high')     // ⬆️ Высокий
-PriorityBadge('low')      // ⬇️ Низкий
-```
-
-**📖 Полный справочник:** [COMPONENTS_REFERENCE_FULL.md](COMPONENTS_REFERENCE_FULL.md)
-
----
-
-## 🏛️ Архитектура (краткая справка)
-
-### Слои приложения
-
-```
-┌─────────────────────────────┐
-│    Браузер (Vite + TS)      │
-│  UI компоненты h() функциями│
-└────────────┬────────────────┘
-             │ HTTP GET/POST
-             ↓
-┌─────────────────────────────┐
-│  Django REST Framework API  │
-│  ViewSet → Serializer       │
-└────────────┬────────────────┘
-             │ ORM
-             ↓
-┌─────────────────────────────┐
-│   Django ORM (Models)       │
-│  User, Project, Issue       │
-└────────────┬────────────────┘
-             │ SQL
-             ↓
-┌─────────────────────────────┐
-│    PostgreSQL Database      │
-│  Индексы, Транзакции       │
-└─────────────────────────────┘
-```
-
-### Асинхронная обработка
-
-```
-API Request → Gunicorn Worker (быстро!)
-  ↓
-Создать объект в БД
-  ↓
-Запустить Celery Task асинхронно:
-  celery.send_email.delay(issue_id)
-  ↓
-Worker отключается, берёт следующий запрос
-  ↓
-Celery Worker обрабатывает email в фоне
-```
-
-**📖 Полная архитектура:** [ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md)
-
----
-
-## 📈 Масштабирование
-
-БugTracker готов к масштабированию! 6-уровневая стратегия:
-
-1. **Оптимизация кода** (select_related, только нужные поля)
-2. **Кэширование** (Redis, 5 минут TTL)
-3. **Оптимизация БД** (индексы, партиционирование)
-4. **Асинхронная обработка** (Celery, очереди)
-5. **Распределённые системы** (Load balancing, replicas)
-6. **Микросервисы** (отдельные сервисы для Projects, Issues, Notifications)
-
-Может обслуживать **100M+ пользователей** с правильной конфигурацией.
-
-**📖 Полный гайд:** [SCALING_GUIDE_FULL.md](SCALING_GUIDE_FULL.md)
-
----
-
-## 🚀 Production деплой
-
-### С Docker (рекомендуется)
+### Django
 
 ```bash
-# Скопировать и настроить
-cp .env.example .env
-# Отредактировать .env
-
-# Запустить
-docker-compose -f docker-compose.yml up -d
-
-# Миграции
-docker-compose exec web python manage.py migrate
-
-# Суперпользователь
-docker-compose exec web python manage.py createsuperuser
-
-# Открыть
-https://yourdomain.com
+python manage.py runserver         # запуск dev-сервера
+python manage.py shell             # інтерактивна оболонка
+python manage.py makemigrations    # генерація міграцій
+python manage.py migrate           # застосування міграцій
+python manage.py createsuperuser   # створення адміністратора
+python manage.py collectstatic     # збір статики (для production)
+python manage.py check             # перевірка конфігурації
 ```
 
-### Без Docker
-
-```bash
-# Python зависимости
-pip install -r requirements.txt
-
-# Миграции БД
-python manage.py migrate
-
-# Статические файлы
-python manage.py collectstatic
-
-# Gunicorn
-gunicorn bugtracker.wsgi:application --bind 0.0.0.0:8000
-
-# Nginx конфиг (см. DEPLOYMENT_GUIDE)
-sudo systemctl restart nginx
-
-# Celery
-celery -A bugtracker worker
-
-# Celery Beat
-celery -A bugtracker beat
-```
-
-**📖 Полный гайд:** [DEPLOYMENT_GUIDE_FULL.md](DEPLOYMENT_GUIDE_FULL.md)
-
----
-
-## 🧪 Тестирование
-
-### API тесты
-
-```bash
-# С pytest
-pytest issues/tests.py
-
-# С Django test runner
-python manage.py test issues
-```
-
-### Фронтенд тесты
+### Frontend
 
 ```bash
 cd frontend
-npm test
+npm run dev      # dev-сервер з hot-reload
+npm run build    # production-збірка → frontend/dist/
+npm run preview  # перегляд production-збірки
+npm run lint     # ESLint
+npx tsc --noEmit # перевірка типів TypeScript
 ```
 
-### Интеграционные тесты
+### Celery (опційно — потребує Redis)
 
 ```bash
-# Запустить приложение
-docker-compose up
+# Worker
+celery -A bugtracker worker -l info
 
-# Проверить API
-curl http://localhost:8000/api/projects/
-
-# Проверить фронтенд
-curl http://localhost/
+# Beat scheduler (для періодичних задач)
+celery -A bugtracker beat -l info
 ```
 
 ---
 
-## 🔐 Безопасность
+## API
 
-✅ **Включены:**
-- Django CSRF protection
-- SQL injection protection (ORM)
-- XSS protection (автоматическое экранирование)
-- Secure cookies (HttpOnly, Secure, SameSite)
-- Password hashing (PBKDF2 + SHA256)
-- HTTPS/TLS
-- Rate limiting (на Nginx)
+Базовий URL: `/api/`. Автентифікація — сесія + CSRF через cookie.
 
-⚙️ **Настроить в production:**
-```python
-# settings.py
-DEBUG = False
-ALLOWED_HOSTS = ['yourdomain.com']
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-```
+### Документація
+
+- **Swagger UI:** `/api/docs/` (тільки для адміністраторів)
+- **ReDoc:** `/api/redoc/`
+- **OpenAPI JSON:** `/api/schema/`
+
+### Ключові ендпоінти
+
+| Метод   | Шлях                              | Опис                                           |
+| ------- | --------------------------------- | ---------------------------------------------- |
+| `GET`   | `/api/auth/csrf/`                 | Отримати CSRF-токен (виставляє cookie)         |
+| `GET`   | `/api/auth/whoami/`               | Інформація про поточного користувача           |
+| `POST`  | `/api/auth/login/`                | Вхід (10 спроб/хв з IP)                        |
+| `POST`  | `/api/auth/register/`             | Реєстрація (5/год з IP, валідація пароля)      |
+| `POST`  | `/api/auth/logout/`               | Вихід                                          |
+| `PATCH` | `/api/auth/profile/`              | Оновлення профілю                              |
+| `POST`  | `/api/auth/password/`             | Зміна пароля                                   |
+| `*`     | `/api/projects/`                  | Проєкти (CRUD, тільки свої)                    |
+| `*`     | `/api/issues/`                    | Задачі (фільтри: `?project=`, `?status=`, `?assignee=me`) |
+| `*`     | `/api/comments/`                  | Коментарі (`?issue=<id>`)                      |
+| `*`     | `/api/attachments/`               | Вкладення (multipart/form-data)                |
+| `*`     | `/api/labels/`                    | Мітки (запис лише admin)                       |
+| `*`     | `/api/memberships/`               | Учасники проєктів (manager+)                   |
+| `*`     | `/api/invitations/`               | Запрошення (manager+)                          |
+| `POST`  | `/api/invitations/accept/`        | Прийняти запрошення (`{token}`)                |
+| `*`     | `/api/checklist/`                 | Пункти чек-листа                               |
+| `*`     | `/api/relations/`                 | Зв'язки між задачами                           |
+| `*`     | `/api/activities/`                | Журнал змін (read-only)                        |
+| `*`     | `/api/notifications/`             | Сповіщення                                     |
+| `POST`  | `/api/notifications/mark_all_read/` | Позначити все прочитаним                     |
+| `*`     | `/api/starred/`                   | Зіркові задачі                                 |
+| `POST`  | `/api/starred/toggle/`            | Перемкнути зірочку (`{issue}`)                 |
+
+### Throttling
+
+| Scope      | Ліміт         |
+| ---------- | ------------- |
+| `user`     | 120 / хв      |
+| `anon`     | 30 / хв       |
+| `login`    | 10 / хв з IP  |
+| `register` | 5 / год з IP  |
 
 ---
 
-## 🆘 Проблемы и решения
+## Деплой у production
 
-### "disallowed host"
-
-```python
-# settings.py - добавить домен
-ALLOWED_HOSTS = ['yourdomain.com', 'www.yourdomain.com']
-```
-
-### Статические файлы не загружаются
+### Через Docker Compose
 
 ```bash
-# Пересобрать статику
-python manage.py collectstatic --noinput --clear
+# 1. Налаштувати .env (DEBUG=False, реальний SECRET_KEY, DATABASE_URL, ALLOWED_HOSTS, ...)
+# 2. Зібрати і запустити
+docker-compose up -d --build
 
-# Проверить Nginx логи
-sudo tail -f /var/log/nginx/error.log
+# 3. Міграції + статика
+docker-compose exec web python manage.py migrate
+docker-compose exec web python manage.py collectstatic --noinput
+docker-compose exec web python manage.py createsuperuser
 ```
 
-### API недоступен
+### Без Docker (Linux + Nginx + Gunicorn + systemd)
+
+1. Зібрати frontend: `cd frontend && npm ci && npm run build`
+2. Зібрати статику Django: `python manage.py collectstatic --noinput`
+3. Налаштувати Nginx (див. `nginx.conf`) на проксі до Gunicorn
+4. Запустити Gunicorn: `gunicorn bugtracker.wsgi:application --workers 4 --bind 127.0.0.1:8000`
+5. (Опційно) запустити Celery worker як systemd-сервіс
+
+> Готовий скрипт автоматизації деплою: `./deploy.sh` (потрібно адаптувати під ваше середовище).
+
+### Контрольний список production
+
+- [ ] `DEBUG=False`
+- [ ] `SECRET_KEY` згенеровано і збережено в `.env` (не комітити!)
+- [ ] `ALLOWED_HOSTS` містить реальні домени
+- [ ] `CORS_ALLOWED_ORIGINS` / `CSRF_TRUSTED_ORIGINS` — реальні домени з `https://`
+- [ ] `DATABASE_URL` вказує на PostgreSQL
+- [ ] HTTPS (Let's Encrypt / Cloudflare)
+- [ ] Бекапи БД налаштовані
+- [ ] (Опційно) Sentry DSN заданий
+- [ ] Celery worker запущений (для email-сповіщень)
+- [ ] Nginx віддає `MEDIA_URL` із `Content-Disposition: attachment`
+
+---
+
+## Безпека
+
+Що вже зроблено:
+
+- **Permissions з членством у проєкті** — IDOR неможливий (`IsAuthenticatedAndMember`, `IsProjectOwner`, `IsProjectManager`, `IsAuthorOrReadOnly`)
+- **Querysets обмежено** для всіх ViewSet'ів за `Q(owner=user) | Q(members=user)`
+- **Серіалізатори обмежують** `PrimaryKeyRelatedField.queryset` лише доступними об'єктами
+- **CSRF + SessionAuth** — захист усіх write-методів
+- **XSS-фільтр у markdown** — `sanitizeUrl()` блокує `javascript:`, `data:`, `vbscript:`
+- **Валідатори файлів** — whitelist розширень + ліміт 10 МБ
+- **AUTH_PASSWORD_VALIDATORS** на реєстрації та зміні пароля (мін. 8 символів, не numeric, не common, не similar)
+- **Throttling**: загальний (user/anon) + scope `login`/`register`
+- **HSTS, SSL redirect, Secure cookies** в production
+- **Audit log** усіх змін у `IssueActivity`
+- **Транзакції** у критичних операціях (`perform_update`, `accept`, `toggle`)
+
+---
+
+## Внесок і тестування
+
+Тести покриваються через `pytest-django` (рекомендовано). Файл `issues/tests.py` поки порожній — додавайте сценарії на:
+
+- IDOR (доступ до чужих проєктів)
+- Throttle login / register
+- Валідацію вкладень (розмір / тип)
+- Перенесення між проєктами через PATCH
 
 ```bash
-# Проверить Gunicorn
-curl http://localhost:8000/api/projects/
-
-# Проверить Nginx маршруты
-sudo nginx -t
-
-# Логи
-docker logs bugtracker_web
-```
-
-### Celery не отправляет email
-
-```bash
-# Проверить worker
-celery -A bugtracker worker -l debug
-
-# Проверить Redis
-redis-cli ping
+pip install pytest-django
+pytest                       # запуск тестів
+pytest --cov=issues          # з покриттям
 ```
 
 ---
 
-## 📞 Контакты / Support
+## Ліцензія
 
-- 📧 Email: support@bugtracker.dev
-- 🐛 Issues: GitHub Issues
-- 💬 Discussions: GitHub Discussions
-
----
-
-## 📄 Лицензия
-
-MIT License - смотрите LICENSE файл
-
----
-
-## 🎓 Примеры использования
-
-### Получить все проекты пользователя
-
-```typescript
-const projects = await api.getProjects()
-console.log(projects.results)
-// [{id: 1, name: "Blog", issues_count: 5}, ...]
-```
-
-### Создать новую задачу
-
-```typescript
-const issue = await api.createIssue({
-  title: "Fix login bug",
-  description: "Users can't login with OAuth",
-  project: 1,
-  priority: "high"
-})
-console.log(issue.id)  // 42
-```
-
-### Обновить статус задачи
-
-```typescript
-const updated = await api.updateIssue(42, {
-  status: "done"
-})
-console.log(updated.status)  // "done"
-```
-
-### Фильтровать задачи
-
-```bash
-# Все открытые задачи высокого приоритета в проекте 1
-GET /api/issues/?project=1&status=open&priority=high
-
-# Результат:
-# {
-#   "count": 3,
-#   "results": [
-#     {"id": 1, "title": "Bug 1", ...},
-#     {"id": 5, "title": "Bug 2", ...},
-#     ...
-#   ]
-# }
-```
-
----
-
-## 📚 Дополнительные ресурсы
-
-- [Django документация](https://docs.djangoproject.com/)
-- [Django REST Framework](https://www.django-rest-framework.org/)
-- [TypeScript документация](https://www.typescriptlang.org/)
-- [Vite документация](https://vitejs.dev/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [DaisyUI документация](https://daisyui.com/)
-
----
-
-## 🚀 Готов к работе!
-
-Выберите с чего начать:
-
-1. **Я новичок** → [QUICK_START_FULL.md](QUICK_START_FULL.md) (5 минут)
-2. **Я фронтенд** → [FRONTEND_QUICK_START.md](FRONTEND_QUICK_START.md)
-3. **Я бэкенд** → [API_REFERENCE_FULL.md](API_REFERENCE_FULL.md)
-4. **Я DevOps** → [DEPLOYMENT_GUIDE_FULL.md](DEPLOYMENT_GUIDE_FULL.md)
-5. **Я хочу всё** → [DEVELOPMENT_GUIDE_FULL.md](DEVELOPMENT_GUIDE_FULL.md)
-
----
-
-⭐ **Если нравится проект — поставьте звёздочку!**
-
-💪 **Happy coding!**
+Внутрішній проєкт. Деталі — у конкретного власника репозиторію.

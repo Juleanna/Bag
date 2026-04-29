@@ -1,21 +1,22 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+
+from . import views_auth as auth
+from . import views_email, views_media, views_sse
 from .views_api import (
-    ProjectViewSet,
-    IssueViewSet,
-    CommentViewSet,
-    LabelViewSet,
     AttachmentViewSet,
-    ProjectMembershipViewSet,
+    ChecklistItemViewSet,
+    CommentViewSet,
     InvitationViewSet,
     IssueActivityViewSet,
     IssueRelationViewSet,
-    ChecklistItemViewSet,
+    IssueViewSet,
+    LabelViewSet,
     NotificationViewSet,
+    ProjectMembershipViewSet,
+    ProjectViewSet,
     StarredIssueViewSet,
 )
-from . import views_auth as auth
-
 
 router = DefaultRouter()
 router.register(r"projects", ProjectViewSet, basename="project")
@@ -33,7 +34,7 @@ router.register(r"starred", StarredIssueViewSet, basename="starred")
 
 urlpatterns = [
     path("", include(router.urls)),
-    # auth helpers for session-based login
+    # Сесійна автентифікація
     path("auth/csrf/", auth.csrf, name="auth-csrf"),
     path("auth/whoami/", auth.whoami, name="auth-whoami"),
     path("auth/login/", auth.login, name="auth-login"),
@@ -41,4 +42,38 @@ urlpatterns = [
     path("auth/logout/", auth.logout, name="auth-logout"),
     path("auth/profile/", auth.update_profile, name="auth-profile"),
     path("auth/password/", auth.change_password, name="auth-password"),
+    # Підтвердження email і скидання пароля
+    path(
+        "auth/email/request/",
+        views_email.request_confirm_email,
+        name="auth-email-request",
+    ),
+    path("auth/email/confirm/", views_email.confirm_email, name="auth-email-confirm"),
+    path(
+        "auth/email/status/",
+        views_email.email_verified_status,
+        name="auth-email-status",
+    ),
+    path(
+        "auth/password/forgot/",
+        views_email.request_password_reset,
+        name="auth-password-forgot",
+    ),
+    path(
+        "auth/password/reset/",
+        views_email.confirm_password_reset,
+        name="auth-password-reset",
+    ),
+    # Захищене скачування вкладень
+    path(
+        "attachments/<int:pk>/download/",
+        views_media.serve_attachment,
+        name="attachment-download",
+    ),
+    # SSE-стрім сповіщень (realtime)
+    path(
+        "notifications/stream/",
+        views_sse.notifications_stream,
+        name="notifications-stream",
+    ),
 ]

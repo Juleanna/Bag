@@ -11,6 +11,7 @@ import { handleLogout } from './pages/profile.ts'
 
 let notifDropdownOpen = false
 let notifPollTimer: ReturnType<typeof setInterval> | null = null
+let notifSSE: EventSource | null = null
 
 export async function loadNotifications() {
   try {
@@ -19,16 +20,61 @@ export async function loadNotifications() {
   } catch { /* ignore */ }
 }
 
+/**
+ * Запускає realtime-канал сповіщень.
+ * Спочатку пробує SSE; якщо браузер не підтримує або з'єднання падає —
+ * відкочується на periodic polling як fallback.
+ */
 export function startNotificationPolling() {
-  if (notifPollTimer) return
   loadNotifications()
-  notifPollTimer = setInterval(loadNotifications, 30000)
+
+  // Спроба SSE — миттєвий push нових сповіщень із сервера
+  if ('EventSource' in window && !notifSSE) {
+    try {
+      notifSSE = new EventSource('/api/notifications/stream/', { withCredentials: true })
+      notifSSE.onmessage = ev => {
+        try {
+          const notif = JSON.parse(ev.data)
+          if (notif && notif.id) {
+            // Додаємо нове сповіщення на початок списку, ігноруємо дублікати
+            const exists = state.notifications.some(n => n.id === notif.id)
+            if (!exists) {
+              state.notifications = [notif, ...state.notifications].slice(0, 50)
+              render()
+            }
+          }
+        } catch { /* ігноруємо погані пакети */ }
+      }
+      notifSSE.onerror = () => {
+        // Падіння SSE → відкат на polling
+        if (notifSSE) {
+          notifSSE.close()
+          notifSSE = null
+        }
+        if (!notifPollTimer) {
+          notifPollTimer = setInterval(loadNotifications, 30000)
+        }
+      }
+      return
+    } catch {
+      notifSSE = null
+    }
+  }
+
+  // Fallback: periodic polling кожні 30 сек
+  if (!notifPollTimer) {
+    notifPollTimer = setInterval(loadNotifications, 30000)
+  }
 }
 
 export function stopNotificationPolling() {
   if (notifPollTimer) {
     clearInterval(notifPollTimer)
     notifPollTimer = null
+  }
+  if (notifSSE) {
+    notifSSE.close()
+    notifSSE = null
   }
 }
 
@@ -179,7 +225,7 @@ function renderLangSwitcher() {
       h('span', { class: 'text-xs' }, '\u25BE')
     ),
     h('ul', { tabindex: '0', class: 'dropdown-content menu bg-base-100 rounded-box z-[1] w-40 p-2 shadow border border-base-200' },
-      ...(['en', 'uk', 'ru'] as Lang[]).map(lang =>
+      ...(['uk', 'en'] as Lang[]).map(lang =>
         h('li', {},
           h('a', {
             class: lang === current ? 'active' : '',

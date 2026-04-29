@@ -57,6 +57,25 @@ async function deleteComment(commentId: number, issueId: number) {
   }
 }
 
+// Редагування коментаря — PATCH замість delete+create
+async function editComment(commentId: number, issueId: number, newBody: string) {
+  if (!newBody.trim()) return
+  try {
+    await api.patch(`/comments/${commentId}/`, { body: newBody })
+    loadComments(issueId)
+  } catch (error: any) {
+    showToast(error.message || t('failedAddComment'), 'error')
+  }
+}
+
+// Перемкнути реакцію (toggle через POST /comments/{id}/react/)
+async function toggleReaction(commentId: number, emoji: string, issueId: number) {
+  try {
+    await api.post(`/comments/${commentId}/react/`, { emoji })
+    loadComments(issueId)
+  } catch { /* мовчки — UX */ }
+}
+
 async function uploadAttachment(issueId: number, file: File) {
   try {
     const fd = new FormData()
@@ -404,18 +423,45 @@ export function renderIssueDetail() {
         // Attachments
         Card({}, t('attachments'),
           h('div', { class: 'space-y-3' },
-            h('div', { class: 'flex items-center gap-2' },
-              h('button', {
-                class: 'btn btn-sm btn-outline',
-                onClick: () => {
-                  const input = document.createElement('input')
-                  input.type = 'file'
-                  input.onchange = () => {
-                    if (input.files?.[0]) uploadAttachment(issue.id, input.files[0])
+            // Drag-and-drop зона для завантаження вкладень
+            h('div', {
+              class:
+                'border-2 border-dashed border-base-300 rounded-lg p-4 text-center text-sm cursor-pointer transition-colors hover:bg-base-200/30',
+              onDragOver: (e: DragEvent) => {
+                e.preventDefault()
+                ;(e.currentTarget as HTMLElement).classList.add('border-primary', 'bg-primary/5')
+              },
+              onDragLeave: (e: DragEvent) => {
+                ;(e.currentTarget as HTMLElement).classList.remove('border-primary', 'bg-primary/5')
+              },
+              onDrop: (e: DragEvent) => {
+                e.preventDefault()
+                ;(e.currentTarget as HTMLElement).classList.remove('border-primary', 'bg-primary/5')
+                const files = e.dataTransfer?.files
+                if (files && files.length > 0) {
+                  for (const file of Array.from(files)) {
+                    uploadAttachment(issue.id, file)
                   }
-                  input.click()
-                },
-              }, t('attachFile'))
+                }
+              },
+              onClick: () => {
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.multiple = true
+                input.onchange = () => {
+                  if (input.files) {
+                    for (const file of Array.from(input.files)) {
+                      uploadAttachment(issue.id, file)
+                    }
+                  }
+                }
+                input.click()
+              },
+            },
+              h('p', { class: 'font-medium' }, t('attachFile')),
+              h('p', { class: 'text-xs text-base-content/60 mt-1' },
+                'Перетягніть файл або клікніть, щоб обрати'
+              )
             ),
             state.attachments.length === 0
               ? h('p', { class: 'text-base-content/50 text-sm py-2' }, t('noAttachments'))
@@ -462,13 +508,26 @@ export function renderIssueDetail() {
             state.comments.length === 0
               ? h('p', { class: 'text-base-content/50 text-center py-4' }, t('noCommentsYet'))
               : h('div', { class: 'space-y-3 mt-4 border-t border-base-200 pt-4' },
-                  ...state.comments.map(c =>
-                    h('div', { class: 'bg-base-200/50 rounded-lg p-4' },
+                  ...state.comments.map(c => {
+                    const isOwn =
+                      state.currentUser && c.author && c.author.id === state.currentUser.id
+                    const editingId = `comment-edit-${c.id}`
+                    return h('div', { class: 'bg-base-200/50 rounded-lg p-4', id: `comment-${c.id}` },
                       h('div', { class: 'flex items-center justify-between mb-2' },
                         h('span', { class: 'font-semibold text-sm' }, c.author?.username || t('unknown')),
                         h('div', { class: 'flex items-center gap-2' },
                           h('span', { class: 'text-xs text-base-content/50' }, formatDate(c.created_at)),
-                          state.currentUser && c.author && c.author.id === state.currentUser.id
+                          isOwn
+                            ? h('button', {
+                                class: 'btn btn-xs btn-ghost',
+                                onClick: () => {
+                                  // Перемикаємо видимість блоку редагування
+                                  const editBox = document.getElementById(editingId)
+                                  if (editBox) editBox.classList.toggle('bt-hidden')
+                                },
+                              }, t('edit'))
+                            : null,
+                          isOwn
                             ? h('button', {
                                 class: 'btn btn-xs btn-ghost text-error',
                                 onClick: () => deleteComment(c.id, issue.id),
@@ -476,9 +535,44 @@ export function renderIssueDetail() {
                             : null
                         )
                       ),
-                      renderMarkdown(c.body)
+                      // Тіло коментаря (markdown)
+                      renderMarkdown(c.body),
+                      // Прихована форма редагування (показується по кліку Edit)
+                      h('div', { id: editingId, class: 'bt-hidden mt-2' },
+                        h('textarea', {
+                          class: 'textarea textarea-bordered w-full text-sm',
+                          rows: '3',
+                          id: `${editingId}-input`,
+                        }, c.body),
+                        h('div', { class: 'flex justify-end gap-2 mt-2' },
+                          h('button', {
+                            class: 'btn btn-xs btn-ghost',
+                            onClick: () => {
+                              const box = document.getElementById(editingId)
+                              if (box) box.classList.add('bt-hidden')
+                            },
+                          }, t('cancel')),
+                          h('button', {
+                            class: 'btn btn-xs btn-primary',
+                            onClick: () => {
+                              const inp = document.getElementById(`${editingId}-input`) as HTMLTextAreaElement
+                              if (inp) editComment(c.id, issue.id, inp.value)
+                            },
+                          }, t('save')),
+                        )
+                      ),
+                      // Панель реакцій
+                      h('div', { class: 'flex gap-1 mt-2 flex-wrap' },
+                        ...['👍', '❤️', '🚀', '🎉', '😄', '👀'].map(emoji =>
+                          h('button', {
+                            class: 'btn btn-xs btn-ghost px-2',
+                            onClick: () => toggleReaction(c.id, emoji, issue.id),
+                            title: emoji,
+                          }, emoji)
+                        )
+                      )
                     )
-                  )
+                  })
                 )
           )
         ),

@@ -1,21 +1,27 @@
 """
-Django settings for bugtracker project.
+Налаштування Django для проєкту bugtracker.
 """
 
-from pathlib import Path
+import logging.config
 import os
-import environ
+from pathlib import Path
+
 import dj_database_url
+import environ
+
 from .logging_config import LOGGING
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env(DEBUG=(bool, True))
+# DEBUG за замовчуванням False — небезпечно піднімати prod з DEBUG=True
+env = environ.Env(DEBUG=(bool, False))
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
+# SECRET_KEY обов'язково має бути заданий у .env; default лише для dev-старту
 SECRET_KEY = env("SECRET_KEY", default="dev-secret-key-change-me")
 DEBUG = env("DEBUG")
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
+# ALLOWED_HOSTS більше не дозволяє "*" за замовчуванням — задайте список явно
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -64,7 +70,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "bugtracker.wsgi.application"
 
-# Database — use DATABASE_URL env if available (Docker/production), else SQLite
+# База даних — DATABASE_URL у Docker/production, інакше SQLite
 DATABASES = {
     "default": dj_database_url.config(
         default=env("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
@@ -74,17 +80,20 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 8},
+    },
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-LANGUAGE_CODE = "ru"
+LANGUAGE_CODE = "uk"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# Static files
+# Статичні файли
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
@@ -99,7 +108,8 @@ STORAGES = {
 }
 
 # CORS
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+# Не вмикаємо ALLOW_ALL_ORIGINS разом із ALLOW_CREDENTIALS — браузер так не пропустить
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
@@ -129,11 +139,26 @@ DJANGO_VITE_DEV_SERVER_PORT = env.int("VITE_PORT", default=5173)
 DJANGO_VITE_ASSETS_PATH = BASE_DIR / "frontend" / "dist"
 DJANGO_VITE_MANIFEST_PATH = DJANGO_VITE_ASSETS_PATH / "manifest.json"
 
-# Media (attachments)
+# Медіа (вкладення)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Обмеження розміру завантажуваних файлів (10 МБ)
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
+FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Email
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@bugtracker.local")
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
+
+# Базовий URL для посилань у email (підтвердження, скидання пароля)
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173")
 
 # REST Framework
 REST_FRAMEWORK = {
@@ -141,17 +166,21 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "user": "120/minute",
         "anon": "30/minute",
+        # Окремі scope для критичних ендпоінтів — захист від bruteforce
+        "login": "10/minute",
+        "register": "5/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
@@ -159,9 +188,11 @@ REST_FRAMEWORK = {
 # drf-spectacular
 SPECTACULAR_SETTINGS = {
     "TITLE": "BugTracker API",
-    "DESCRIPTION": "API for BugTracker project management",
+    "DESCRIPTION": "API для системи керування проєктами BugTracker",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Документацію API бачать лише адміністратори
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
 }
 
 # Celery
@@ -174,7 +205,7 @@ CELERY_TIMEZONE = "UTC"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
-# Redis Cache (only when Redis URL is provided)
+# Redis Cache (вмикається лише за наявності REDIS_URL)
 REDIS_URL = env("REDIS_URL", default="")
 if REDIS_URL:
     CACHES = {
@@ -186,14 +217,31 @@ if REDIS_URL:
         }
     }
 
-# Sentry (only when DSN is provided)
+# Sentry (вмикається лише за наявності SENTRY_DSN)
 SENTRY_DSN = env("SENTRY_DSN", default="")
 if SENTRY_DSN:
     import sentry_sdk
 
     sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.1)
 
-# Logging
-import logging.config
+# Параметри безпеки для production (DEBUG=False)
+# Усі вмикаються одночасно — щоб не залишити "наполовину захищений" prod
+if not DEBUG:
+    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+    SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=True)
+    CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=True)
+    SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000)  # 1 рік
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+        "SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True
+    )
+    SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=True)
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+    # Довіряємо заголовку від reverse-proxy (Nginx/Cloudflare)
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = False  # потрібен для frontend, що читає токен
+    X_FRAME_OPTIONS = "DENY"
 
+# Логування
 logging.config.dictConfig(LOGGING)

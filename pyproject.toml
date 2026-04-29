@@ -1,0 +1,62 @@
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "bugtracker.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+addopts = "-ra -q --reuse-db"
+testpaths = ["issues"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    "venv",
+    "node_modules",
+    "frontend",
+    "staticfiles",
+    "*/migrations/*",
+]
+
+[tool.ruff.lint]
+# Базовий набір: pyflakes, pycodestyle, isort, bugbear, simplify, comprehensions
+select = ["E", "F", "W", "I", "B", "SIM", "C4", "UP", "RUF"]
+ignore = [
+    "E501",  # Довгі рядки — частково керуємо line-length
+    "B008",  # Використання Field у defaults — норма для DRF
+    "RUF001",  # Латиниця/кирилиця у рядках — нормально для українського UI
+    "RUF002",  # Те саме у docstrings
+    "RUF003",  # Те саме у коментарях
+    "RUF012",  # ClassVar — не потрібно для Django
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bugtracker", "issues"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+exclude = '''
+/(
+    \.git
+  | venv
+  | node_modules
+  | frontend
+  | staticfiles
+  | migrations
+)/
+'''
+
+[tool.coverage.run]
+source = ["issues", "bugtracker"]
+omit = [
+    "*/migrations/*",
+    "*/tests.py",
+    "*/test_*.py",
+    "manage.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

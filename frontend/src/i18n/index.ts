@@ -1,15 +1,16 @@
 import { en } from './en.ts'
 import { uk } from './uk.ts'
-import { ru } from './ru.ts'
 
-export type Lang = 'en' | 'uk' | 'ru'
+// Підтримувані мови (російську прибрано)
+export type Lang = 'en' | 'uk'
 export type TranslationKeys = keyof typeof en
 
-const translations: Record<Lang, Record<string, string>> = { en, uk, ru }
+const translations: Record<Lang, Record<string, string>> = { en, uk }
 
 const STORAGE_KEY = 'bugtracker-lang'
 
-let currentLang: Lang = (localStorage.getItem(STORAGE_KEY) as Lang) || 'en'
+// Українська за замовчуванням
+let currentLang: Lang = (localStorage.getItem(STORAGE_KEY) as Lang) || 'uk'
 
 export function getLang(): Lang {
   return currentLang
@@ -33,5 +34,4 @@ export function t(key: TranslationKeys, params?: Record<string, string | number>
 export const langNames: Record<Lang, string> = {
   en: 'English',
   uk: 'Українська',
-  ru: 'Русский',
 }

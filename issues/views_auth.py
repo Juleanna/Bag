@@ -1,17 +1,48 @@
 import json
-from django.http import JsonResponse
-from django.views.decorators.http import require_GET, require_POST, require_http_methods
-from django.views.decorators.csrf import csrf_protect
-from django.middleware.csrf import get_token
+
 from django.contrib.auth import (
     authenticate,
-    login as dj_login,
-    logout as dj_logout,
     get_user_model,
+    password_validation,
+    update_session_auth_hash,
 )
+from django.contrib.auth import (
+    login as dj_login,
+)
+from django.contrib.auth import (
+    logout as dj_logout,
+)
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db.models import Q
+from django.http import JsonResponse
+from django.middleware.csrf import get_token
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
+from rest_framework.throttling import ScopedRateThrottle
+
+
+def _check_throttle(request, scope):
+    """
+    Застосовує DRF ScopedRateThrottle до function-based view.
+    Повертає (passed, wait_seconds): passed=False означає 429.
+    """
+    throttle = ScopedRateThrottle()
+    throttle.scope = scope
+    throttle.rate = throttle.get_rate()
+    throttle.num_requests, throttle.duration = throttle.parse_rate(throttle.rate)
+
+    # Імітація DRF view для отримання ідентифікатора (IP/user)
+    class _FakeView:
+        throttle_scope = scope
+
+    if not throttle.allow_request(request, _FakeView()):
+        return False, throttle.wait()
+    return True, 0
 
 
 def _user_json(user):
+    """Серіалізація користувача для відповідей API."""
     return {
         "id": user.id,
         "username": user.username,
@@ -19,6 +50,14 @@ def _user_json(user):
         "first_name": user.first_name,
         "last_name": user.last_name,
     }
+
+
+def _parse_json(request):
+    """Безпечно зчитує JSON-тіло запиту, повертає {} при помилці."""
+    try:
+        return json.loads(request.body or b"{}")
+    except (json.JSONDecodeError, ValueError):
+        return {}
 
 
 @require_GET
@@ -42,19 +81,25 @@ def whoami(request):
 @require_POST
 @csrf_protect
 def login(request):
-    try:
-        payload = json.loads(request.body or b"{}")
-    except Exception:
-        payload = {}
+    # Захист від bruteforce — 10 спроб на хвилину з IP
+    passed, wait = _check_throttle(request, "login")
+    if not passed:
+        return JsonResponse(
+            {"ok": False, "error": f"Забагато спроб. Спробуйте через {int(wait)} с"},
+            status=429,
+        )
+
+    payload = _parse_json(request)
     identifier = (payload.get("username", "") or "").strip()
     password = payload.get("password", "")
 
     if not identifier or not password:
         return JsonResponse(
-            {"ok": False, "error": "Укажите логин/почту и пароль"}, status=400
+            {"ok": False, "error": "Вкажіть логін/пошту та пароль"}, status=400
         )
 
     user = authenticate(request, username=identifier, password=password)
+    # Якщо не вдалося — пробуємо знайти користувача за email
     if user is None and "@" in identifier:
         User = get_user_model()
         found = User.objects.filter(email__iexact=identifier).first()
@@ -66,7 +111,7 @@ def login(request):
             )
     if user is None:
         return JsonResponse(
-            {"ok": False, "error": "Неверные учетные данные"}, status=400
+            {"ok": False, "error": "Невірні облікові дані"}, status=400
         )
     dj_login(request, user)
     return JsonResponse(
@@ -81,33 +126,50 @@ def login(request):
 @require_POST
 @csrf_protect
 def register(request):
-    try:
-        payload = json.loads(request.body or b"{}")
-    except Exception:
-        payload = {}
+    # Захист від масової реєстрації — 5 на годину з IP
+    passed, wait = _check_throttle(request, "register")
+    if not passed:
+        return JsonResponse(
+            {"ok": False, "error": f"Забагато реєстрацій. Спробуйте через {int(wait)} с"},
+            status=429,
+        )
+
+    payload = _parse_json(request)
 
     username = (payload.get("username", "") or "").strip()
     email = (payload.get("email", "") or "").strip()
     password = payload.get("password", "")
-    first_name = payload.get("first_name", "").strip()
-    last_name = payload.get("last_name", "").strip()
+    first_name = (payload.get("first_name", "") or "").strip()
+    last_name = (payload.get("last_name", "") or "").strip()
 
     if not username or not email or not password:
         return JsonResponse(
-            {"ok": False, "error": "Заполните обязательные поля"}, status=400
+            {"ok": False, "error": "Заповніть обов'язкові поля"}, status=400
         )
+
+    # Валідація email
+    try:
+        validate_email(email)
+    except ValidationError:
+        return JsonResponse({"ok": False, "error": "Некоректна адреса пошти"}, status=400)
 
     User = get_user_model()
-    if User.objects.filter(username=username).exists():
+    # Об'єднуємо два запити в один (раніше було два окремих filter().exists())
+    if User.objects.filter(Q(username=username) | Q(email__iexact=email)).exists():
         return JsonResponse(
-            {"ok": False, "error": "Пользователь с таким логином уже существует"},
+            {
+                "ok": False,
+                "error": "Користувач з таким логіном або поштою вже існує",
+            },
             status=400,
         )
 
-    if User.objects.filter(email=email).exists():
+    # Валідація пароля через стандартні AUTH_PASSWORD_VALIDATORS
+    try:
+        password_validation.validate_password(password)
+    except ValidationError as exc:
         return JsonResponse(
-            {"ok": False, "error": "Пользователь с такой почтой уже существует"},
-            status=400,
+            {"ok": False, "error": " ".join(exc.messages)}, status=400
         )
 
     try:
@@ -126,8 +188,8 @@ def register(request):
                 "user": _user_json(user),
             }
         )
-    except Exception as e:
-        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
 
 @require_POST
@@ -141,29 +203,31 @@ def logout(request):
 @csrf_protect
 def change_password(request):
     if not request.user.is_authenticated:
-        return JsonResponse({"ok": False, "error": "Not authenticated"}, status=401)
+        return JsonResponse({"ok": False, "error": "Не автентифіковано"}, status=401)
 
-    try:
-        payload = json.loads(request.body or b"{}")
-    except Exception:
-        payload = {}
-
+    payload = _parse_json(request)
     current = payload.get("current_password", "")
     new_pw = payload.get("new_password", "")
 
     if not current or not new_pw:
-        return JsonResponse({"ok": False, "error": "Both fields are required"}, status=400)
-
-    if len(new_pw) < 6:
-        return JsonResponse({"ok": False, "error": "Password too short"}, status=400)
+        return JsonResponse(
+            {"ok": False, "error": "Обидва поля обов'язкові"}, status=400
+        )
 
     if not request.user.check_password(current):
-        return JsonResponse({"ok": False, "error": "Current password is incorrect"}, status=400)
+        return JsonResponse(
+            {"ok": False, "error": "Поточний пароль невірний"}, status=400
+        )
+
+    # Стандартна Django-валідація пароля (мін. довжина, схожість, common, numeric)
+    try:
+        password_validation.validate_password(new_pw, request.user)
+    except ValidationError as exc:
+        return JsonResponse({"ok": False, "error": " ".join(exc.messages)}, status=400)
 
     request.user.set_password(new_pw)
     request.user.save()
-    # Re-login to keep the session active
-    from django.contrib.auth import update_session_auth_hash
+    # Підтримуємо сесію активною після зміни пароля
     update_session_auth_hash(request, request.user)
     return JsonResponse({"ok": True})
 
@@ -172,29 +236,33 @@ def change_password(request):
 @csrf_protect
 def update_profile(request):
     if not request.user.is_authenticated:
-        return JsonResponse({"ok": False, "error": "Not authenticated"}, status=401)
+        return JsonResponse({"ok": False, "error": "Не автентифіковано"}, status=401)
 
-    try:
-        payload = json.loads(request.body or b"{}")
-    except Exception:
-        payload = {}
-
+    payload = _parse_json(request)
     user = request.user
     changed = False
 
     if "first_name" in payload:
-        user.first_name = payload["first_name"].strip()
+        user.first_name = (payload["first_name"] or "").strip()
         changed = True
     if "last_name" in payload:
-        user.last_name = payload["last_name"].strip()
+        user.last_name = (payload["last_name"] or "").strip()
         changed = True
     if "email" in payload:
-        new_email = payload["email"].strip()
+        new_email = (payload["email"] or "").strip()
         if new_email and new_email != user.email:
-            User = get_user_model()
-            if User.objects.filter(email=new_email).exclude(pk=user.pk).exists():
+            # Валідація формату email
+            try:
+                validate_email(new_email)
+            except ValidationError:
                 return JsonResponse(
-                    {"ok": False, "error": "Email already taken"}, status=400
+                    {"ok": False, "error": "Некоректна адреса пошти"}, status=400
+                )
+            User = get_user_model()
+            if User.objects.filter(email__iexact=new_email).exclude(pk=user.pk).exists():
+                return JsonResponse(
+                    {"ok": False, "error": "Цю пошту вже використовує інший користувач"},
+                    status=400,
                 )
             user.email = new_email
             changed = True

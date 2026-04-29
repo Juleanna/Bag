@@ -33,16 +33,38 @@ export function formatDate(dateStr: string): string {
   const localeMap: Record<string, string> = {
     en: 'en-US',
     uk: 'uk-UA',
-    ru: 'ru-RU',
   }
-  return new Date(dateStr).toLocaleDateString(localeMap[getLang()] || 'en-US', {
+  return new Date(dateStr).toLocaleDateString(localeMap[getLang()] || 'uk-UA', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
 }
 
-/** Simple markdown renderer: **bold**, *italic*, `code`, ```blocks```, [links](url), @mentions */
+/**
+ * Перевіряє URL і повертає безпечний варіант для href.
+ * Дозволяє лише http(s)://, mailto:, відносні шляхи (/path) та фрагменти (#).
+ * Все інше (включаючи javascript:, data:, vbscript:) → '#' — захист від XSS.
+ */
+function sanitizeUrl(url: string): string {
+  const trimmed = (url || '').trim()
+  if (!trimmed) return '#'
+  // Безпечні відносні URL
+  if (trimmed.startsWith('/') || trimmed.startsWith('#') || trimmed.startsWith('?')) {
+    return trimmed
+  }
+  // Перевірка схеми
+  const schemeMatch = trimmed.match(/^([a-z][a-z0-9+.-]*):/i)
+  if (!schemeMatch) {
+    // Без явної схеми — додаємо https:// (відносні URL вже відсіяні вище)
+    return 'https://' + trimmed
+  }
+  const scheme = schemeMatch[1].toLowerCase()
+  const allowed = ['http', 'https', 'mailto', 'tel']
+  return allowed.includes(scheme) ? trimmed : '#'
+}
+
+/** Простий markdown-рендер: **bold**, *italic*, `code`, ```blocks```, [links](url), @mentions */
 export function renderMarkdown(text: string): Node {
   const container = document.createElement('div')
   container.className = 'markdown-content'
@@ -96,7 +118,9 @@ function renderInlineMarkdown(line: string): Node {
       span.appendChild(code)
     } else if (match[7]) {
       const a = document.createElement('a')
-      a.href = match[9]
+      // Дозволяємо лише безпечні схеми, інакше посилання — простий текст.
+      // Це блокує XSS виду [click](javascript:alert(1)) у коментарях/описах
+      a.href = sanitizeUrl(match[9])
       a.textContent = match[8]
       a.className = 'link link-primary'
       a.target = '_blank'

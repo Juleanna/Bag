@@ -1,8 +1,30 @@
-from django.db import models
 from django.contrib.auth import get_user_model
-
+from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
+from django.db import models
 
 User = get_user_model()
+
+
+# Дозволені розширення файлів для вкладень
+ALLOWED_FILE_EXTENSIONS = [
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods",
+    "txt", "md", "csv", "log",
+    "jpg", "jpeg", "png", "gif", "webp", "svg",
+    "zip", "rar", "7z", "tar", "gz",
+    "mp3", "mp4", "mov", "avi", "webm",
+]
+
+# Максимальний розмір вкладення (10 МБ)
+MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
+
+
+def validate_file_size(value):
+    """Перевіряє, що розмір файлу не перевищує MAX_ATTACHMENT_SIZE."""
+    if value.size > MAX_ATTACHMENT_SIZE:
+        raise ValidationError(
+            f"Розмір файлу не може перевищувати {MAX_ATTACHMENT_SIZE // (1024 * 1024)} МБ."
+        )
 
 
 class Project(models.Model):
@@ -11,7 +33,17 @@ class Project(models.Model):
     owner = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="owned_projects"
     )
-    members = models.ManyToManyField(User, related_name="projects", blank=True)
+    # Учасники проєкту через explicit through-модель ProjectMembership.
+    # Це усуває розсинхрон між Project.members і ProjectMembership.role
+    members = models.ManyToManyField(
+        User,
+        related_name="projects",
+        blank=True,
+        through="ProjectMembership",
+    )
+    # Soft delete: архівований проєкт прихований у списках, але можна відновити
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -20,15 +52,30 @@ class Project(models.Model):
         indexes = [
             models.Index(fields=["owner", "-created_at"]),
             models.Index(fields=["name"]),
+            models.Index(fields=["is_archived", "-created_at"]),
         ]
 
     def __str__(self) -> str:
         return self.name
 
+    def archive(self):
+        """Архівує проєкт замість фізичного видалення."""
+        from django.utils import timezone
+
+        self.is_archived = True
+        self.archived_at = timezone.now()
+        self.save(update_fields=["is_archived", "archived_at"])
+
+    def restore(self):
+        """Відновлює проєкт з архіву."""
+        self.is_archived = False
+        self.archived_at = None
+        self.save(update_fields=["is_archived", "archived_at"])
+
 
 class Label(models.Model):
     name = models.CharField(max_length=64, unique=True)
-    color = models.CharField(max_length=7, default="#3b82f6")  # HEX
+    color = models.CharField(max_length=7, default="#3b82f6")  # HEX-колір
 
     def __str__(self) -> str:
         return self.name
@@ -36,15 +83,15 @@ class Label(models.Model):
 
 class Issue(models.Model):
     class Status(models.TextChoices):
-        OPEN = "open", "В работе"
-        IN_PROGRESS = "in_progress", "В процессе"
+        OPEN = "open", "Відкрито"
+        IN_PROGRESS = "in_progress", "В процесі"
         DONE = "done", "Готово"
-        CANCELLED = "cancelled", "Отменено"
+        CANCELLED = "cancelled", "Скасовано"
 
     class Priority(models.TextChoices):
-        LOW = "low", "Низкий"
-        MEDIUM = "medium", "Средний"
-        HIGH = "high", "Высокий"
+        LOW = "low", "Низький"
+        MEDIUM = "medium", "Середній"
+        HIGH = "high", "Високий"
 
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="issues", db_index=True
@@ -101,14 +148,21 @@ class Comment(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"Комментарий к {self.issue_id} от {self.author_id}"
+        return f"Коментар до {self.issue_id} від {self.author_id}"
 
 
 class Attachment(models.Model):
     issue = models.ForeignKey(
         Issue, on_delete=models.CASCADE, related_name="attachments"
     )
-    file = models.FileField(upload_to="attachments/%Y/%m/%d/")
+    # Обмежуємо завантаження за типом і розміром (захист від XSS і великих файлів)
+    file = models.FileField(
+        upload_to="attachments/%Y/%m/%d/",
+        validators=[
+            FileExtensionValidator(allowed_extensions=ALLOWED_FILE_EXTENSIONS),
+            validate_file_size,
+        ],
+    )
     name = models.CharField(max_length=255, blank=True)
     uploader = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="uploaded_attachments"
@@ -121,15 +175,15 @@ class Attachment(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:
-        return self.name or f"Attachment #{self.pk}"
+        return self.name or f"Вкладення #{self.pk}"
 
 
 class ProjectMembership(models.Model):
     class Role(models.TextChoices):
-        VIEWER = "viewer", "Наблюдатель"
-        MEMBER = "member", "Участник"
+        VIEWER = "viewer", "Спостерігач"
+        MEMBER = "member", "Учасник"
         MANAGER = "manager", "Менеджер"
-        OWNER = "owner", "Владелец"
+        OWNER = "owner", "Власник"
 
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="memberships"
@@ -160,17 +214,18 @@ class Invitation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
-        return f"Invite {self.email} to {self.project} ({self.role})"
+        return f"Запрошення {self.email} до {self.project} ({self.role})"
 
 
 class IssueActivity(models.Model):
-    """Audit log for issue changes."""
+    """Журнал змін задачі (audit log)."""
 
     issue = models.ForeignKey(
         Issue, on_delete=models.CASCADE, related_name="activities"
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activities")
-    action = models.CharField(max_length=50)  # e.g. "status_changed", "assigned", "comment_added"
+    # Тип дії: "status_changed", "assigned", "comment_added" тощо
+    action = models.CharField(max_length=50)
     field = models.CharField(max_length=50, blank=True)
     old_value = models.CharField(max_length=255, blank=True)
     new_value = models.CharField(max_length=255, blank=True)
@@ -187,13 +242,13 @@ class IssueActivity(models.Model):
 
 
 class IssueRelation(models.Model):
-    """Relationships between issues."""
+    """Зв'язки між задачами."""
 
     class RelationType(models.TextChoices):
-        BLOCKS = "blocks", "Blocks"
-        BLOCKED_BY = "blocked_by", "Blocked by"
-        RELATES_TO = "relates_to", "Relates to"
-        DUPLICATE_OF = "duplicate_of", "Duplicate of"
+        BLOCKS = "blocks", "Блокує"
+        BLOCKED_BY = "blocked_by", "Заблоковано"
+        RELATES_TO = "relates_to", "Пов'язано з"
+        DUPLICATE_OF = "duplicate_of", "Дублікат"
 
     from_issue = models.ForeignKey(
         Issue, on_delete=models.CASCADE, related_name="relations_from"
@@ -206,13 +261,20 @@ class IssueRelation(models.Model):
 
     class Meta:
         unique_together = ("from_issue", "to_issue", "relation_type")
+        constraints = [
+            # Заборона самопосилання задачі на себе
+            models.CheckConstraint(
+                condition=~models.Q(from_issue=models.F("to_issue")),
+                name="issue_relation_no_self_reference",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.from_issue_id} {self.relation_type} {self.to_issue_id}"
 
 
 class ChecklistItem(models.Model):
-    """Subtask / checklist item within an issue."""
+    """Підзадача / пункт чек-листа всередині задачі."""
 
     issue = models.ForeignKey(
         Issue, on_delete=models.CASCADE, related_name="checklist_items"
@@ -231,7 +293,7 @@ class ChecklistItem(models.Model):
 
 
 class Notification(models.Model):
-    """User notification."""
+    """Сповіщення для користувача."""
 
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notifications"
@@ -251,11 +313,11 @@ class Notification(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"Notification for {self.user}: {self.message[:50]}"
+        return f"Сповіщення для {self.user}: {self.message[:50]}"
 
 
 class StarredIssue(models.Model):
-    """User's starred/favorite issues."""
+    """Обрані / зірковані задачі користувача."""
 
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="starred_issues"
@@ -270,3 +332,81 @@ class StarredIssue(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} starred {self.issue_id}"
+
+
+class CommentReaction(models.Model):
+    """Реакція на коментар (емодзі)."""
+
+    REACTION_CHOICES = [
+        ("👍", "Подобається"),
+        ("❤️", "Серце"),
+        ("🚀", "Ракета"),
+        ("🎉", "Святкування"),
+        ("😄", "Сміх"),
+        ("👀", "Очі"),
+    ]
+
+    comment = models.ForeignKey(
+        Comment, on_delete=models.CASCADE, related_name="reactions"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="reactions"
+    )
+    emoji = models.CharField(max_length=10, choices=REACTION_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("comment", "user", "emoji")
+        indexes = [
+            models.Index(fields=["comment", "emoji"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} {self.emoji} on comment {self.comment_id}"
+
+
+class EmailToken(models.Model):
+    """Токен для підтвердження email або скидання пароля."""
+
+    class Purpose(models.TextChoices):
+        CONFIRM_EMAIL = "confirm_email", "Підтвердження пошти"
+        RESET_PASSWORD = "reset_password", "Скидання пароля"
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="email_tokens"
+    )
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    purpose = models.CharField(max_length=20, choices=Purpose.choices)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "purpose"]),
+        ]
+
+    def is_valid(self) -> bool:
+        """Токен валідний, якщо ще не використаний і не протермінований."""
+        from django.utils import timezone
+
+        return self.used_at is None and self.expires_at > timezone.now()
+
+    def __str__(self) -> str:
+        return f"{self.purpose} for {self.user} (used: {bool(self.used_at)})"
+
+
+class UserProfile(models.Model):
+    """
+    Розширення моделі User. Тримаємо окремо, щоб не міняти AUTH_USER_MODEL
+    (це ризиковано після старту проєкту).
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="profile"
+    )
+    email_verified = models.BooleanField(default=False)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"Profile of {self.user}"
