@@ -17,6 +17,8 @@ urlpatterns = [
     # /api/ лишається для зворотної сумісності, /api/v1/ — рекомендований
     path("api/", include("issues.api_urls")),
     path("api/v1/", include(("issues.api_urls", "v1"), namespace="v1")),
+    # Лендінг: публічний GET + адмінські CRUD
+    path("api/", include("landing.urls")),
     # Healthcheck для k8s / docker / load balancer
     path("api/health/", views_health.liveness, name="health-liveness"),
     path("api/health/live/", views_health.liveness, name="health-live"),
