@@ -167,8 +167,10 @@ export async function fetchLandingPublic(opts?: {
   const qs = new URLSearchParams()
   if (opts?.lang) qs.set('lang', opts.lang)
   if (opts?.preview) qs.set('preview', 'true')
-  const suffix = qs.toString() ? `?${qs}` : ''
-  return apiGet<LandingPublic>(`/landing/${suffix}`)
+  // Cache-buster: бекенд віддає Cache-Control: max-age=60, тому без unique URL
+  // браузер може повертати застарілу версію (і нові items не видно одразу).
+  qs.set('_t', String(Date.now()))
+  return apiGet<LandingPublic>(`/landing/?${qs}`)
 }
 
 // ============================================================================

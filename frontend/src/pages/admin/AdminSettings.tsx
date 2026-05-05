@@ -4,12 +4,14 @@ import { landingAdmin } from '../../api/landing'
 import type { Lang, LandingSettings, LangText } from '../../api/landing'
 import { useToast } from '../../context/ToastContext'
 import { useLanding } from '../../context/LandingContext'
+import { useConfirm } from '../../context/ConfirmContext'
 import { Field, SaveBar } from './AdminHero'
 import { TranslatableInput } from './TranslatableInput'
 import { Toggle } from './Toggle'
 
 export function AdminSettings() {
   const toast = useToast()
+  const confirm = useConfirm()
   const { refresh } = useLanding()
   const [settings, setSettings] = useState<LandingSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -88,7 +90,13 @@ export function AdminSettings() {
   }
 
   const discardDraft = async () => {
-    if (!confirm('Скасувати чорновик?')) return
+    const ok = await confirm({
+      title: 'Скасувати чорновик?',
+      message: 'Усі незбережені зміни буде втрачено.',
+      confirmText: 'Скасувати чорновик',
+      danger: true,
+    })
+    if (!ok) return
     setSaving(true)
     try {
       await landingAdmin.discardDraftSettings()

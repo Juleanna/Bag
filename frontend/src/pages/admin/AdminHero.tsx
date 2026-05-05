@@ -4,10 +4,12 @@ import { landingAdmin } from '../../api/landing'
 import type { Lang, LandingHero } from '../../api/landing'
 import { useToast } from '../../context/ToastContext'
 import { useLanding } from '../../context/LandingContext'
+import { useConfirm } from '../../context/ConfirmContext'
 import { TranslatableInput } from './TranslatableInput'
 
 export function AdminHero() {
   const toast = useToast()
+  const confirm = useConfirm()
   const { refresh } = useLanding()
   const [hero, setHero] = useState<LandingHero | null>(null)
   const [loading, setLoading] = useState(true)
@@ -88,7 +90,13 @@ export function AdminHero() {
   }
 
   const discardDraft = async () => {
-    if (!confirm('Скасувати чорновик? Усі незбережені зміни буде втрачено.')) return
+    const ok = await confirm({
+      title: 'Скасувати чорновик?',
+      message: 'Усі незбережені зміни буде втрачено.',
+      confirmText: 'Скасувати чорновик',
+      danger: true,
+    })
+    if (!ok) return
     setSaving(true)
     try {
       await landingAdmin.discardDraftHero()
@@ -219,19 +227,7 @@ export function SaveBar({
   onPublish: () => void
 }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: 8,
-        position: 'sticky',
-        bottom: 0,
-        paddingTop: 12,
-        paddingBottom: 12,
-        background: 'var(--bg)',
-        borderTop: '1px solid var(--border)',
-      }}
-    >
+    <div className="admin-save-bar">
       <button className="btn" onClick={onSaveDraft} disabled={saving}>
         {saving ? '…' : 'Зберегти як чорновик'}
       </button>

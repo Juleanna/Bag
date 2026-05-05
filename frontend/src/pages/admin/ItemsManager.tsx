@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext'
 import { useLanding } from '../../context/LandingContext'
 import { Toggle } from './Toggle'
 import { useDragReorder } from './useDragReorder'
+import { useConfirm } from '../../context/ConfirmContext'
 
 interface ItemsManagerProps<T extends BaseItem> {
   /** Заголовок сторінки */
@@ -57,6 +58,7 @@ export function ItemsManager<T extends BaseItem>({
   renderItemTitle,
 }: ItemsManagerProps<T>) {
   const toast = useToast()
+  const confirm = useConfirm()
   const { refresh } = useLanding()
   const [items, setItems] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,7 +106,13 @@ export function ItemsManager<T extends BaseItem>({
   }
 
   const removeItem = async (id: number) => {
-    if (!confirm(`Видалити ${itemName.toLowerCase()}?`)) return
+    const ok = await confirm({
+      title: `Видалити ${itemName.toLowerCase()}?`,
+      message: 'Цю дію неможливо скасувати.',
+      confirmText: 'Видалити',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await remove(id)
       setItems(items => items.filter(i => i.id !== id))

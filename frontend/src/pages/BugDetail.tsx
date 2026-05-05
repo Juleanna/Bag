@@ -6,6 +6,7 @@ import { StatusPill, PriorityBadge, STATUS_MAP, PRIORITY_MAP } from '../atoms/St
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmContext'
 import type {
   Attachment,
   Comment,
@@ -26,6 +27,7 @@ export function BugDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
   const { user } = useAuth()
 
   const [issue, setIssue] = useState<Issue | null>(null)
@@ -130,7 +132,13 @@ export function BugDetailPage() {
   }
 
   const removeIssue = async () => {
-    if (!confirm('Видалити цей баг? Це незворотно.')) return
+    const ok = await confirm({
+      title: 'Видалити цей баг?',
+      message: 'Цю дію неможливо скасувати — усі коментарі та вкладення зникнуть разом із багом.',
+      confirmText: 'Видалити',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await apiDelete(`/issues/${issue.id}/`)
       toast.show('Видалено', 'success')

@@ -454,6 +454,390 @@
   flex-shrink: 0;
 }
 
+/* ============================================================================
+ * Modal + Help Center (з proto/forms.css)
+ * ============================================================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  background: rgba(20, 20, 24, 0.5);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  animation: bt-fade-in 0.15s ease-out;
+}
+
+[data-theme='dark'] .modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 880px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: bt-pop-in 0.18s cubic-bezier(0.2, 0.7, 0.4, 1);
+  overflow: hidden;
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 14px;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Help Modal */
+.help-modal {
+  width: 100%;
+  max-width: 920px;
+}
+
+.help-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-3);
+}
+
+.help-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--fg);
+}
+
+.help-body {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.help-tabs {
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.help-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--fg-2);
+  text-align: left;
+  font-family: inherit;
+}
+
+.help-tabs button:hover {
+  background: var(--bg-2);
+  color: var(--fg);
+}
+
+.help-tabs button.active {
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+  font-weight: 500;
+}
+
+.help-tabs-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 8px;
+}
+
+.help-content {
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+
+.qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qa-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 70%);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.qa-hero h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.qa-hero p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--fg-2);
+  line-height: 1.55;
+}
+
+.qa-hero-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: white;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.qa-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.qa-item summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.qa-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.qa-item summary > b {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.qa-item summary .chev {
+  color: var(--fg-3);
+  transition: transform 150ms;
+}
+
+.qa-item[open] summary .chev {
+  transform: rotate(90deg);
+}
+
+.qa-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+  font-size: 11.5px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.qa-item p {
+  margin: 0;
+  padding: 0 14px 14px 14px;
+  font-size: 13px;
+  color: var(--fg-2);
+  line-height: 1.6;
+}
+
+.kbd-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.kbd-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+}
+
+.wf-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  margin-bottom: 8px;
+}
+
+.wf-card h4 {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.wf-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wf-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  font-size: 12px;
+}
+
+.wf-step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+  font-size: 10.5px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+
+/* Sticky save-bar внизу admin-content (Hero / Settings) */
+.admin-save-bar {
+  position: sticky;
+  bottom: 0;
+  /* Розширюємо на всю ширину контенту, компенсуючи horizontal padding admin-content */
+  margin: 24px -32px -48px;
+  padding: 14px 32px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  z-index: 10;
+  /* М'яка тінь зверху щоб контент знизу не проступав візуально */
+  box-shadow: 0 -8px 24px -8px rgba(20, 18, 12, 0.08);
+}
+
+[data-theme='dark'] .admin-save-bar {
+  box-shadow: 0 -8px 24px -8px rgba(0, 0, 0, 0.4);
+}
+
+/* Confirm dialog — модальне вікно підтвердження дій */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 18, 12, 0.4);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  z-index: 2100;
+  animation: bt-fade-in 0.12s ease-out;
+}
+
+[data-theme='dark'] .confirm-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.confirm-dialog {
+  width: 400px;
+  max-width: 92vw;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px 18px;
+  box-shadow: var(--shadow-lg);
+  animation: bt-pop-in 0.18s cubic-bezier(0.2, 0.7, 0.4, 1);
+  outline: none;
+}
+
+.confirm-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+
+.confirm-dialog p {
+  margin: 0 0 20px;
+  font-size: 13.5px;
+  color: var(--fg-2);
+  line-height: 1.55;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Danger-варіант primary-кнопки — для destructive дій */
+.btn.danger {
+  background: var(--st-open-fg);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--shadow-sm), 0 1px 0 rgba(255, 255, 255, 0.15) inset;
+}
+
+.btn.danger:hover {
+  filter: brightness(0.92);
+}
+
+@keyframes bt-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bt-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 /* Stub-сторінки (поки немає бекенд-моделей) */
 .bt-stub {
   display: flex;

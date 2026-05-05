@@ -11,6 +11,7 @@ import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import { TweaksProvider } from './context/TweaksContext'
 import { LandingProvider } from './context/LandingContext'
+import { ConfirmProvider } from './context/ConfirmContext'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Не знайдено контейнер #root')
@@ -21,9 +22,11 @@ ReactDOM.createRoot(root).render(
       <BrowserRouter>
         <AuthProvider>
           <ToastProvider>
-            <LandingProvider>
-              <App />
-            </LandingProvider>
+            <ConfirmProvider>
+              <LandingProvider>
+                <App />
+              </LandingProvider>
+            </ConfirmProvider>
           </ToastProvider>
         </AuthProvider>
       </BrowserRouter>

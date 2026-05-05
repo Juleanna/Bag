@@ -91,7 +91,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
         <Item to="/runs" icon={Ic.Play} label="Test Runs" />
         <Item to="/reports" icon={Ic.Chart} label="Звіти" />
         <Item to="/inbox" icon={Ic.Inbox} label="Інбокс" count={counts.inbox} hot={counts.inbox > 0} />
-        <Item to="/profile" icon={Ic.User} label="Особистий кабінет" />
       </div>
 
       {user?.is_staff && (
@@ -135,7 +134,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
         </div>
         <button
           className="btn icon ghost"
-          title="Профіль"
+          title="Особистий кабінет"
           onClick={() => navigate('/profile')}
         >
           <Ic.Settings sz={14} />

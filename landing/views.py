@@ -102,8 +102,15 @@ def landing_public(request):
         data, context={"lang": lang, "request": request}
     )
     response = Response(serializer.data)
-    if not preview:
-        response["Cache-Control"] = "public, max-age=60"
+    if preview:
+        # Preview-режим: завжди свіжі дані
+        response["Cache-Control"] = "no-store"
+    elif request.user.is_authenticated and request.user.is_staff:
+        # Staff бачить зміни одразу (без кешу), щоб після збереження не чекати
+        response["Cache-Control"] = "no-store"
+    else:
+        # Анонімам можна закешувати на 30 секунд
+        response["Cache-Control"] = "public, max-age=30"
     return response
 
 
