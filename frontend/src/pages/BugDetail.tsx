@@ -7,6 +7,9 @@ import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, listAll } from '../api
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../context/ConfirmContext'
+import { useGlobalShortcut } from '../hooks/useGlobalShortcut'
+import { api as extras } from '../api/extras'
+import type { TimeLog } from '../api/extras'
 import type {
   Attachment,
   Comment,
@@ -23,6 +26,33 @@ function formatWhen(iso: string): string {
   return d.toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+/** Парсимо рядки як "30m", "1h", "1h30m", "90", "1.5h" → хвилини. */
+function parseTimeInput(s: string): number {
+  const trimmed = s.trim().toLowerCase()
+  if (!trimmed) return 0
+  // "1h30m" або "30m" або "2h"
+  const re = /(?:(\d+(?:\.\d+)?)h)?\s*(?:(\d+)m)?/
+  const m = trimmed.match(re)
+  if (m && (m[1] || m[2])) {
+    const h = m[1] ? parseFloat(m[1]) : 0
+    const min = m[2] ? parseInt(m[2], 10) : 0
+    return Math.round(h * 60 + min)
+  }
+  // Чистий int = хвилини
+  const n = parseInt(trimmed, 10)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Форматуємо хвилини → "Xh Ym" */
+function formatMinutes(m: number): string {
+  if (!m) return '0m'
+  const h = Math.floor(m / 60)
+  const min = m % 60
+  if (h && min) return `${h}h ${min}m`
+  if (h) return `${h}h`
+  return `${min}m`
+}
+
 export function BugDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -35,8 +65,11 @@ export function BugDetailPage() {
   const [comments, setComments] = useState<Comment[]>([])
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [activities, setActivities] = useState<IssueActivity[]>([])
+  const [timeLogs, setTimeLogs] = useState<TimeLog[]>([])
   const [loading, setLoading] = useState(true)
   const [comment, setComment] = useState('')
+  const [timeMin, setTimeMin] = useState('')
+  const [timeNote, setTimeNote] = useState('')
 
   const issueId = Number(id)
 
@@ -47,14 +80,16 @@ export function BugDetailPage() {
       setIssue(iss)
       const proj = await apiGet<Project>(`/projects/${iss.project}/`)
       setProject(proj)
-      const [cm, at, ac] = await Promise.all([
+      const [cm, at, ac, tl] = await Promise.all([
         listAll<Comment>(`/comments/?issue=${issueId}&page_size=100`),
         listAll<Attachment>(`/attachments/?issue=${issueId}&page_size=50`),
         listAll<IssueActivity>(`/activities/?issue=${issueId}&page_size=50`),
+        extras.listTimeLogs(issueId).catch(() => [] as TimeLog[]),
       ])
       setComments(cm)
       setAttachments(at)
       setActivities(ac)
+      setTimeLogs(tl)
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Не вдалося завантажити баг', 'error')
       navigate('/bugs')
@@ -67,6 +102,38 @@ export function BugDetailPage() {
     void reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueId])
+
+  // Гарячі клавіші для BugDetail (мають бути перед умовним return для React rules)
+  useGlobalShortcut({
+    key: 'i',
+    enabled: !!user && !!issue,
+    handler: () => {
+      if (!user || !issue) return
+      void apiPatch<Issue>(`/issues/${issue.id}/`, { assignee: user.id }).then(() => {
+        toast.show('Призначено вам', 'success')
+        void reload()
+      })
+    },
+  })
+  useGlobalShortcut({
+    key: 'e',
+    enabled: !!issue,
+    handler: () => {
+      if (!issue) return
+      const next: IssueStatus = issue.status === 'done' ? 'open' : 'done'
+      void apiPatch<Issue>(`/issues/${issue.id}/`, { status: next }).then(() => {
+        toast.show(next === 'done' ? 'Позначено готовим' : 'Перевідкрито', 'success')
+        void reload()
+      })
+    },
+  })
+  useGlobalShortcut({
+    key: 'meta+backspace',
+    enabled: !!issue,
+    handler: () => {
+      if (issue) void removeIssue()
+    },
+  })
 
   if (loading || !issue) {
     return (
@@ -125,6 +192,33 @@ export function BugDetailPage() {
   const removeAttachment = async (aid: number) => {
     try {
       await apiDelete(`/attachments/${aid}/`)
+      void reload()
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
+  // Time tracking
+  const addTimeLog = async () => {
+    const minutes = parseTimeInput(timeMin)
+    if (!minutes || minutes <= 0) {
+      toast.show('Вкажіть час: 30m, 1h30m або просто число хвилин', 'info')
+      return
+    }
+    try {
+      await extras.createTimeLog({ issue: issue.id, minutes, note: timeNote })
+      setTimeMin('')
+      setTimeNote('')
+      toast.show('Час залоговано', 'success')
+      void reload()
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
+  const removeTimeLog = async (tid: number) => {
+    try {
+      await extras.deleteTimeLog(tid)
       void reload()
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
@@ -271,6 +365,82 @@ export function BugDetailPage() {
                   >
                     <Ic.X sz={12} />
                   </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="section">
+          <h3>
+            <Ic.Clock sz={12} /> Час роботи{' '}
+            <span className="count">
+              ({formatMinutes(timeLogs.reduce((s, l) => s + l.minutes, 0))})
+            </span>
+          </h3>
+          {user && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              <input
+                className="inp"
+                placeholder="30m / 1h30m / 90"
+                value={timeMin}
+                onChange={e => setTimeMin(e.target.value)}
+                style={{ width: 120 }}
+              />
+              <input
+                className="inp"
+                placeholder="Що робив(ла)? (опц.)"
+                value={timeNote}
+                onChange={e => setTimeNote(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button className="btn primary sm" onClick={addTimeLog}>
+                <Ic.Plus sz={11} /> Залогувати
+              </button>
+            </div>
+          )}
+          {timeLogs.length === 0 ? (
+            <div style={{ color: 'var(--fg-3)', fontSize: 12.5, padding: '6px 0' }}>
+              Ще не залоговано часу
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {timeLogs.map(t => (
+                <div
+                  key={t.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '6px 10px',
+                    background: 'var(--surface-2)',
+                    borderRadius: 6,
+                    fontSize: 12.5,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 600,
+                      minWidth: 60,
+                    }}
+                  >
+                    {formatMinutes(t.minutes)}
+                  </span>
+                  <span style={{ color: 'var(--fg-2)' }}>{t.user_name}</span>
+                  {t.note && <span style={{ color: 'var(--fg-3)' }}>· {t.note}</span>}
+                  <span style={{ color: 'var(--fg-4)', fontSize: 11, marginLeft: 'auto' }}>
+                    {formatWhen(t.logged_at)}
+                  </span>
+                  {user && (
+                    <button
+                      className="btn ghost icon sm"
+                      onClick={() => removeTimeLog(t.id)}
+                      title="Видалити"
+                    >
+                      <Ic.X sz={10} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

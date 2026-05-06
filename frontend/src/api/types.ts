@@ -44,6 +44,12 @@ export interface Issue {
   due_date: string | null
   created_at: string
   updated_at: string
+  // Розширені поля (опціональні — backend може їх не повертати у legacy-серіалізаторах)
+  time_spent_minutes?: number
+  custom_fields?: Record<string, unknown>
+  is_archived?: boolean
+  archived_at?: string | null
+  sprint?: number | null
 }
 
 export interface Comment {

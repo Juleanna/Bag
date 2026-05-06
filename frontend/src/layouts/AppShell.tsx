@@ -38,7 +38,10 @@ export function AppShell() {
         const map: Record<string, string> = { '1': '/dashboard', '2': '/bugs', '3': '/tests', '4': '/runs' }
         navigate(map[e.key])
       } else if (!meta && !inField) {
-        if (e.key.toLowerCase() === 'c' && !e.shiftKey) {
+        if (e.key === 'C' && e.shiftKey) {
+          e.preventDefault()
+          navigate('/tests/new')
+        } else if (e.key.toLowerCase() === 'c' && !e.shiftKey) {
           e.preventDefault()
           navigate('/bugs/new')
         }

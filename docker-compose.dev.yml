@@ -1,0 +1,56 @@
+# Dev-стек: швидкі hot-reload для backend (runserver) і frontend (Vite).
+# Запуск:  docker compose -f docker-compose.dev.yml up
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bugtracker
+      POSTGRES_USER: bugtracker
+      POSTGRES_PASSWORD: bugtracker_dev
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    image: python:3.11-slim
+    working_dir: /app
+    command: >
+      sh -c "
+        apt-get update && apt-get install -y --no-install-recommends libpq-dev gcc &&
+        pip install --no-cache-dir -r requirements.txt &&
+        python manage.py migrate --noinput &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=postgres://bugtracker:bugtracker_dev@db:5432/bugtracker
+      - REDIS_URL=redis://redis:6379/0
+      - DJANGO_ALLOWED_HOSTS=*
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=http://localhost:8000
+
+volumes:
+  postgres_data_dev:

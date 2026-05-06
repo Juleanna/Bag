@@ -279,4 +279,11 @@ export const Ic = {
       <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </>
   ),
+  Shield: make(<path d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z" />),
+  Key: make(
+    <>
+      <circle cx="8" cy="15" r="3" />
+      <path d="m11 13 8-8M16 8l3 3" />
+    </>
+  ),
 }

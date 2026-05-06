@@ -11,7 +11,13 @@ import { InboxPage } from './pages/Inbox'
 import { ProfilePage } from './pages/Profile'
 import { NewBugPage } from './pages/NewBug'
 import { NewProjectPage } from './pages/NewProject'
-import { TestsPage, RunsPage, ReportsPage } from './pages/Stubs'
+import { TestsPage } from './pages/Tests'
+import { TestRunsPage } from './pages/TestRuns'
+import { ReportsPage } from './pages/Reports'
+import { NewTestPage } from './pages/NewTest'
+import { SprintsPage } from './pages/Sprints'
+import { WebhooksPage } from './pages/Webhooks'
+import { TemplatesPage } from './pages/Templates'
 import { AdminLandingLayout } from './pages/admin/AdminLandingLayout'
 import { AdminHero } from './pages/admin/AdminHero'
 import { AdminSettings } from './pages/admin/AdminSettings'
@@ -107,8 +113,12 @@ export function App() {
         <Route path="bugs/:id" element={<BugDetailPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="tests" element={<TestsPage />} />
-        <Route path="runs" element={<RunsPage />} />
+        <Route path="tests/new" element={<NewTestPage />} />
+        <Route path="runs" element={<TestRunsPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="sprints" element={<SprintsPage />} />
+        <Route path="webhooks" element={<WebhooksPage />} />
+        <Route path="templates" element={<TemplatesPage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>

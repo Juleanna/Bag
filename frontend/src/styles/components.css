@@ -396,3 +396,30 @@ textarea.inp { padding: 8px 10px; height: auto; resize: vertical; line-height: 1
 .hm-2 { background: color-mix(in oklch, var(--accent) 45%, var(--bg-2)); }
 .hm-3 { background: color-mix(in oklch, var(--accent) 70%, var(--bg-2)); }
 .hm-4 { background: var(--accent); }
+
+/* ───────── Skeleton placeholder з shimmer ───────── */
+.bt-skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--bg-2) 0%,
+    color-mix(in oklch, var(--bg-2) 60%, var(--surface)) 50%,
+    var(--bg-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: bt-skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+@keyframes bt-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bt-skeleton { animation: none; opacity: 0.7; }
+}
+
+/* Selected row у таблиці (bulk-actions) */
+.table tr.selected { background: var(--accent-soft); }
+.table tr.kbd-active { background: color-mix(in oklch, var(--accent) 8%, var(--surface)); }
+.table .checkbox-col { width: 36px; text-align: center; padding-right: 0; }
+.cb { cursor: pointer; accent-color: var(--accent); }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Ic } from '../icons/Ic'
+import { BACKSPACE_KEY, MOD_KEY, SHIFT_KEY } from '../utils/shortcuts'
 
 type Tab = 'start' | 'shortcuts' | 'workflows' | 'faq'
 
@@ -23,20 +24,23 @@ const SECTIONS = {
       a: 'У вкладці Test Runs створіть новий ран, виберіть кейси, браузери та середовище. Раннер виконає автоматизовані та підкаже які кейси прогнати manual.',
     },
   ],
+  // Гарячі клавіші — символ MOD_KEY автоматично перемикається
+  // на ⌘ (Mac) чи Ctrl (Windows/Linux). Самі shortcut'и обробляються
+  // через e.metaKey || e.ctrlKey, тому функціонально однакові.
   shortcuts: [
-    ['⌘ K', 'Відкрити команд палітру'],
-    ['⌘ 1 — 4', 'Швидкий перехід між розділами'],
+    [`${MOD_KEY} K`, 'Відкрити команд палітру'],
+    [`${MOD_KEY} 1 — 4`, 'Швидкий перехід між розділами'],
     ['C', 'Створити баг'],
-    ['⇧ C', 'Створити тест-кейс'],
+    [`${SHIFT_KEY} C`, 'Створити тест-кейс'],
     ['/', 'Пошук'],
     ['I', 'Призначити мені'],
     ['E', 'Позначити готовим'],
     ['J / K', 'Навігація списком вгору / вниз'],
     ['↵', 'Відкрити елемент'],
-    ['⌘ ⌫', 'Архівувати'],
+    [`${MOD_KEY} ${BACKSPACE_KEY}`, 'Архівувати'],
     ['?', 'Показати цю довідку'],
     ['Esc', 'Закрити модальне вікно'],
-  ] as const,
+  ] as Array<readonly [string, string]>,
   workflows: [
     {
       name: 'Bug → Resolution',

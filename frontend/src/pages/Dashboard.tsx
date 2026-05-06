@@ -7,6 +7,7 @@ import { BarStack, DonutChart, Sparkline } from '../atoms/Charts'
 import { listAll } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import type { Issue, IssueActivity, Project } from '../api/types'
+import { Skeleton, SkeletonCard } from '../components/Skeleton'
 
 interface MetricProps {
   icon: React.ReactNode
@@ -262,8 +263,20 @@ export function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="bt-loading-overlay">
-        <div className="bt-spinner" />
+      <div className="page">
+        <div className="page-head">
+          <div>
+            <Skeleton width={280} height={28} />
+            <div style={{ marginTop: 8 }}><Skeleton width={180} height={14} /></div>
+          </div>
+        </div>
+        <div className="metrics" style={{ marginBottom: 16 }}>
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} height={120} />)}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
+          <SkeletonCard height={260} />
+          <SkeletonCard height={260} />
+        </div>
       </div>
     )
   }

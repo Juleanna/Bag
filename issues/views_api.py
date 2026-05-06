@@ -1,13 +1,15 @@
 import csv
 import logging
+from secrets import token_urlsafe
 
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils.crypto import get_random_string
-from rest_framework import filters, pagination, permissions, viewsets
-from rest_framework.decorators import action
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework import filters, pagination, permissions, status, viewsets
+from rest_framework.decorators import action, api_view
+from rest_framework.decorators import permission_classes as drf_permission_classes
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from .models import (
@@ -247,6 +249,17 @@ class IssueViewSet(viewsets.ModelViewSet):
         )
 
         params = self.request.query_params
+
+        # Soft delete: за замовчуванням ховаємо archived;
+        # archived=true → лише архівовані; archived=all → і живі, і архівовані
+        archived = params.get("archived", "false")
+        if archived == "true":
+            queryset = queryset.filter(is_archived=True)
+        elif archived == "all":
+            pass
+        else:
+            queryset = queryset.filter(is_archived=False)
+
         project = params.get("project")
         if project:
             queryset = queryset.filter(project_id=project)
@@ -265,6 +278,10 @@ class IssueViewSet(viewsets.ModelViewSet):
         priority = params.get("priority")
         if priority:
             queryset = queryset.filter(priority=priority)
+
+        sprint = params.get("sprint")
+        if sprint:
+            queryset = queryset.filter(sprint_id=sprint)
 
         return queryset
 
@@ -763,3 +780,490 @@ class StarredIssueViewSet(viewsets.ModelViewSet):
                 return Response({"starred": False})
             StarredIssue.objects.create(user=request.user, issue_id=issue_id)
             return Response({"starred": True})
+
+
+# ============================================================================
+# Imports for new ViewSets
+# ============================================================================
+
+from .models import (  # noqa: E402
+    ApiToken,
+    IntegrationConfig,
+    IssueTemplate,
+    LoginEvent,
+    SavedFilter,
+    Sprint,
+    TestCase,
+    TestResult,
+    TestRun,
+    TestSuite,
+    TimeLog,
+    Webhook,
+)
+from .serializers import (  # noqa: E402
+    ApiTokenSerializer,
+    IntegrationConfigSerializer,
+    IssueTemplateSerializer,
+    LoginEventSerializer,
+    SavedFilterSerializer,
+    SprintSerializer,
+    TestCaseSerializer,
+    TestResultSerializer,
+    TestRunSerializer,
+    TestSuiteSerializer,
+    TimeLogSerializer,
+    WebhookSerializer,
+)
+
+
+# ============================================================================
+# Sprint
+# ============================================================================
+
+
+class SprintViewSet(viewsets.ModelViewSet):
+    serializer_class = SprintSerializer
+    permission_classes = [IsAuthenticatedAndMember]
+    pagination_class = StandardResultsSetPagination
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        qs = Sprint.objects.filter(project__in=user_projects).select_related("project")
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+
+# ============================================================================
+# Issue templates / Time tracking / Saved filters
+# ============================================================================
+
+
+class IssueTemplateViewSet(viewsets.ModelViewSet):
+    serializer_class = IssueTemplateSerializer
+    permission_classes = [IsAuthenticatedAndMember]
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        return IssueTemplate.objects.filter(
+            Q(project__isnull=True) | Q(project__in=user_projects)
+        ).distinct()
+
+
+class TimeLogViewSet(viewsets.ModelViewSet):
+    serializer_class = TimeLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        qs = TimeLog.objects.filter(issue__project__in=user_projects).select_related(
+            "user", "issue"
+        )
+        issue_id = self.request.query_params.get("issue")
+        if issue_id:
+            qs = qs.filter(issue_id=issue_id)
+        return qs
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            log = serializer.save(user=self.request.user)
+            Issue.objects.filter(pk=log.issue_id).update(
+                time_spent_minutes=models.F("time_spent_minutes") + log.minutes
+            )
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            Issue.objects.filter(pk=instance.issue_id).update(
+                time_spent_minutes=models.F("time_spent_minutes") - instance.minutes
+            )
+            instance.delete()
+
+
+class SavedFilterViewSet(viewsets.ModelViewSet):
+    serializer_class = SavedFilterSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        return SavedFilter.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+# ============================================================================
+# Test management
+# ============================================================================
+
+
+class TestSuiteViewSet(viewsets.ModelViewSet):
+    serializer_class = TestSuiteSerializer
+    permission_classes = [IsAuthenticatedAndMember]
+    pagination_class = StandardResultsSetPagination
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        qs = TestSuite.objects.filter(project__in=user_projects)
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+
+class TestCaseViewSet(viewsets.ModelViewSet):
+    serializer_class = TestCaseSerializer
+    permission_classes = [IsAuthenticatedAndMember]
+    pagination_class = StandardResultsSetPagination
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        qs = TestCase.objects.filter(suite__project__in=user_projects).select_related(
+            "suite", "created_by"
+        )
+        suite_id = self.request.query_params.get("suite")
+        if suite_id:
+            qs = qs.filter(suite_id=suite_id)
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            qs = qs.filter(suite__project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class TestRunViewSet(viewsets.ModelViewSet):
+    serializer_class = TestRunSerializer
+    permission_classes = [IsAuthenticatedAndMember]
+    pagination_class = StandardResultsSetPagination
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        qs = TestRun.objects.filter(project__in=user_projects).prefetch_related(
+            "test_cases", "results"
+        )
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def start(self, request, pk=None):
+        from django.utils import timezone as tz
+
+        run = self.get_object()
+        run.status = TestRun.Status.IN_PROGRESS
+        run.started_at = tz.now()
+        run.save(update_fields=["status", "started_at"])
+        TestResult.objects.bulk_create(
+            [
+                TestResult(run=run, test_case=tc, result=TestResult.Result.PENDING)
+                for tc in run.test_cases.all()
+            ],
+            ignore_conflicts=True,
+        )
+        return Response(self.get_serializer(run).data)
+
+    @action(detail=True, methods=["post"])
+    def finish(self, request, pk=None):
+        from django.utils import timezone as tz
+
+        run = self.get_object()
+        run.status = TestRun.Status.COMPLETED
+        run.finished_at = tz.now()
+        run.save(update_fields=["status", "finished_at"])
+        return Response(self.get_serializer(run).data)
+
+
+class TestResultViewSet(viewsets.ModelViewSet):
+    serializer_class = TestResultSerializer
+    permission_classes = [IsAuthenticatedAndMember]
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        qs = TestResult.objects.filter(
+            run__project__in=user_projects
+        ).select_related("test_case", "executed_by", "run")
+        run_id = self.request.query_params.get("run")
+        if run_id:
+            qs = qs.filter(run_id=run_id)
+        return qs
+
+    def perform_update(self, serializer):
+        from django.utils import timezone as tz
+
+        serializer.save(executed_by=self.request.user, executed_at=tz.now())
+
+
+# ============================================================================
+# API tokens / Login history / Webhooks / Integrations
+# ============================================================================
+
+
+class ApiTokenViewSet(viewsets.ModelViewSet):
+    serializer_class = ApiTokenSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        return ApiToken.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user, key=token_urlsafe(40))
+
+    @action(detail=True, methods=["post"])
+    def revoke(self, request, pk=None):
+        from django.utils import timezone as tz
+
+        token = self.get_object()
+        token.revoked_at = tz.now()
+        token.save(update_fields=["revoked_at"])
+        return Response(self.get_serializer(token).data)
+
+
+class LoginEventViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = LoginEventSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return LoginEvent.objects.all().order_by("-created_at")[:500]
+        return LoginEvent.objects.filter(user=self.request.user).order_by("-created_at")[:200]
+
+
+class WebhookViewSet(viewsets.ModelViewSet):
+    serializer_class = WebhookSerializer
+    permission_classes = [permissions.IsAdminUser]
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        return Webhook.objects.all().order_by("-created_at")
+
+
+class IntegrationConfigViewSet(viewsets.ModelViewSet):
+    serializer_class = IntegrationConfigSerializer
+    permission_classes = [IsAuthenticatedAndMember]
+    parser_classes = [JSONParser, FormParser]
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        return IntegrationConfig.objects.filter(project__in=user_projects)
+
+
+# ============================================================================
+# Reports + Activity feed (function-based)
+# ============================================================================
+
+
+@api_view(["GET"])
+@drf_permission_classes([permissions.IsAuthenticated])
+def reports_summary(request):
+    """Агреговані метрики для Reports: created/closed/days, MTTR, top assignees."""
+    from datetime import timedelta
+
+    from django.utils import timezone as tz
+
+    user_projects = _user_projects_cached(request)
+    project_id = request.query_params.get("project")
+    issues_qs = Issue.objects.filter(project__in=user_projects)
+    if project_id:
+        issues_qs = issues_qs.filter(project_id=project_id)
+
+    now = tz.now()
+    days = []
+    for i in range(29, -1, -1):
+        day = now - timedelta(days=i)
+        day_iso = day.date().isoformat()
+        created = issues_qs.filter(created_at__date=day.date()).count()
+        closed = issues_qs.filter(
+            status__in=["done", "cancelled"], updated_at__date=day.date()
+        ).count()
+        days.append({"day": day_iso, "created": created, "closed": closed})
+
+    closed_issues = list(issues_qs.filter(status="done")[:200])
+    durations = [
+        (it.updated_at - it.created_at).total_seconds() / 3600 for it in closed_issues
+    ]
+    mttr_hours = round(sum(durations) / len(durations), 1) if durations else 0
+
+    by_status = list(
+        issues_qs.values("status").annotate(n=Count("id")).order_by("-n")
+    )
+    top_assignees = list(
+        issues_qs.filter(status="done", assignee__isnull=False)
+        .values("assignee", "assignee__username")
+        .annotate(n=Count("id"))
+        .order_by("-n")[:5]
+    )
+
+    return Response(
+        {
+            "days": days,
+            "mttr_hours": mttr_hours,
+            "by_status": by_status,
+            "top_assignees": top_assignees,
+        }
+    )
+
+
+@api_view(["GET"])
+@drf_permission_classes([permissions.IsAuthenticated])
+def activity_feed(request):
+    user_projects = _user_projects_cached(request)
+    qs = (
+        IssueActivity.objects.filter(issue__project__in=user_projects)
+        .select_related("user", "issue", "issue__project")
+        .order_by("-created_at")[:20]
+    )
+    return Response(IssueActivitySerializer(qs, many=True).data)
+
+
+# ============================================================================
+# 2FA TOTP (потребує `pip install pyotp`)
+# ============================================================================
+
+
+@api_view(["POST"])
+@drf_permission_classes([permissions.IsAuthenticated])
+def totp_enroll(request):
+    try:
+        import pyotp
+    except ImportError:
+        return Response(
+            {"error": "Встановіть pyotp: pip install pyotp"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    from .models import UserProfile
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    secret = pyotp.random_base32()
+    profile.totp_secret = secret
+    profile.totp_enabled = False
+    profile.save(update_fields=["totp_secret", "totp_enabled"])
+    issuer = "BugTracker"
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(
+        name=request.user.email or request.user.username, issuer_name=issuer
+    )
+    return Response({"secret": secret, "otpauth_uri": uri, "issuer": issuer})
+
+
+@api_view(["POST"])
+@drf_permission_classes([permissions.IsAuthenticated])
+def totp_verify_and_enable(request):
+    try:
+        import pyotp
+    except ImportError:
+        return Response({"error": "pyotp not installed"}, status=500)
+    from .models import UserProfile
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    code = request.data.get("code", "")
+    if not profile.totp_secret:
+        return Response({"error": "Спершу викличте /enroll"}, status=400)
+    if not pyotp.TOTP(profile.totp_secret).verify(code):
+        return Response({"error": "Невірний код"}, status=400)
+    profile.totp_enabled = True
+    profile.save(update_fields=["totp_enabled"])
+    return Response({"ok": True, "enabled": True})
+
+
+@api_view(["POST"])
+@drf_permission_classes([permissions.IsAuthenticated])
+def totp_disable(request):
+    try:
+        import pyotp
+    except ImportError:
+        return Response({"error": "pyotp not installed"}, status=500)
+    from .models import UserProfile
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    code = request.data.get("code", "")
+    if profile.totp_enabled and not pyotp.TOTP(profile.totp_secret or "").verify(code):
+        return Response({"error": "Невірний код"}, status=400)
+    profile.totp_secret = ""
+    profile.totp_enabled = False
+    profile.save(update_fields=["totp_secret", "totp_enabled"])
+    return Response({"ok": True, "enabled": False})
+
+
+# ============================================================================
+# CSV/JSON import
+# ============================================================================
+
+
+@api_view(["POST"])
+@drf_permission_classes([IsAuthenticatedAndMember])
+def import_issues(request):
+    """
+    Body: {project: id, items: [{title, description, status, priority}]}
+    Імпортує задачі з зовнішніх систем (JIRA / Linear / GitHub Issues, попередньо
+    конвертованих у простий JSON).
+    """
+    project_id = request.data.get("project")
+    items = request.data.get("items") or []
+    if not project_id or not isinstance(items, list):
+        return Response({"error": "project та items обов'язкові"}, status=400)
+    if not _user_projects_cached(request).filter(pk=project_id).exists():
+        return Response({"error": "Немає доступу до проєкту"}, status=403)
+
+    created = []
+    with transaction.atomic():
+        for it in items:
+            try:
+                issue = Issue.objects.create(
+                    project_id=project_id,
+                    title=str(it.get("title", ""))[:255] or "Untitled",
+                    description=str(it.get("description", "")),
+                    status=it.get("status", "open"),
+                    priority=it.get("priority", "medium"),
+                    reporter=request.user,
+                )
+                created.append(issue.id)
+            except Exception:
+                logger.exception("import_issues: failed for %s", it)
+    return Response({"created": len(created), "ids": created})
+
+
+# ============================================================================
+# Bulk archive / restore для Issue (soft delete)
+# ============================================================================
+
+
+@api_view(["POST"])
+@drf_permission_classes([permissions.IsAuthenticated])
+def bulk_archive_issues(request):
+    """Body: {ids: [pk]} — архівує (soft delete) задачі."""
+    from django.utils import timezone as tz
+
+    ids = request.data.get("ids") or []
+    if not isinstance(ids, list):
+        return Response({"error": "ids must be list"}, status=400)
+    user_projects = _user_projects_cached(request)
+    qs = Issue.objects.filter(id__in=ids, project__in=user_projects, is_archived=False)
+    updated = qs.update(is_archived=True, archived_at=tz.now())
+    return Response({"archived": updated})
+
+
+@api_view(["POST"])
+@drf_permission_classes([permissions.IsAuthenticated])
+def bulk_restore_issues(request):
+    ids = request.data.get("ids") or []
+    if not isinstance(ids, list):
+        return Response({"error": "ids must be list"}, status=400)
+    user_projects = _user_projects_cached(request)
+    qs = Issue.objects.filter(id__in=ids, project__in=user_projects, is_archived=True)
+    updated = qs.update(is_archived=False, archived_at=None)
+    return Response({"restored": updated})

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
+import { MOD_KEY } from '../utils/shortcuts'
 
 interface PaletteItem {
   id: string
@@ -28,7 +29,7 @@ export function CommandPalette({ open, onClose }: Props) {
       label: 'Огляд',
       icon: Ic.Layout,
       section: 'Перейти',
-      hint: '⌘1',
+      hint: `${MOD_KEY}+1`,
       action: () => navigate('/dashboard'),
     },
     {
@@ -36,7 +37,7 @@ export function CommandPalette({ open, onClose }: Props) {
       label: 'Список багів',
       icon: Ic.Bug,
       section: 'Перейти',
-      hint: '⌘2',
+      hint: `${MOD_KEY}+2`,
       action: () => navigate('/bugs'),
     },
     {
@@ -44,7 +45,7 @@ export function CommandPalette({ open, onClose }: Props) {
       label: 'Тест-кейси',
       icon: Ic.Beaker,
       section: 'Перейти',
-      hint: '⌘3',
+      hint: `${MOD_KEY}+3`,
       action: () => navigate('/tests'),
     },
     {
@@ -52,7 +53,7 @@ export function CommandPalette({ open, onClose }: Props) {
       label: 'Test Runs',
       icon: Ic.Play,
       section: 'Перейти',
-      hint: '⌘4',
+      hint: `${MOD_KEY}+4`,
       action: () => navigate('/runs'),
     },
     {

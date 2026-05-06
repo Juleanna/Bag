@@ -2,18 +2,30 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from .models import (
+    ApiToken,
     Attachment,
     ChecklistItem,
     Comment,
+    IntegrationConfig,
     Invitation,
     Issue,
     IssueActivity,
     IssueRelation,
+    IssueTemplate,
     Label,
+    LoginEvent,
     Notification,
     Project,
     ProjectMembership,
+    SavedFilter,
+    Sprint,
     StarredIssue,
+    TestCase,
+    TestResult,
+    TestRun,
+    TestSuite,
+    TimeLog,
+    Webhook,
 )
 
 User = get_user_model()
@@ -86,10 +98,15 @@ class IssueSerializer(serializers.ModelSerializer):
             "reporter",
             "labels",
             "due_date",
+            "time_spent_minutes",
+            "custom_fields",
+            "is_archived",
+            "archived_at",
+            "sprint",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["reporter", "created_at", "updated_at"]
+        read_only_fields = ["reporter", "archived_at", "created_at", "updated_at"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -299,3 +316,168 @@ class StarredIssueSerializer(serializers.ModelSerializer):
         model = StarredIssue
         fields = ["id", "user", "issue", "created_at"]
         read_only_fields = ["user", "created_at"]
+
+
+# ============================================================================
+# Sprint
+# ============================================================================
+
+
+class SprintSerializer(serializers.ModelSerializer):
+    issues_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Sprint
+        fields = "__all__"
+        read_only_fields = ("created_at",)
+
+    def get_issues_count(self, obj):
+        return obj.issues.count()
+
+
+# ============================================================================
+# Issue templates
+# ============================================================================
+
+
+class IssueTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IssueTemplate
+        fields = "__all__"
+        read_only_fields = ("created_at",)
+
+
+# ============================================================================
+# Time tracking
+# ============================================================================
+
+
+class TimeLogSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source="user.username", read_only=True)
+
+    class Meta:
+        model = TimeLog
+        fields = ("id", "issue", "user", "user_name", "minutes", "note", "logged_at")
+        read_only_fields = ("user", "user_name", "logged_at")
+
+
+# ============================================================================
+# Saved filters
+# ============================================================================
+
+
+class SavedFilterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedFilter
+        fields = "__all__"
+        read_only_fields = ("user", "created_at")
+
+
+# ============================================================================
+# Test management
+# ============================================================================
+
+
+class TestSuiteSerializer(serializers.ModelSerializer):
+    cases_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TestSuite
+        fields = "__all__"
+        read_only_fields = ("created_at",)
+
+    def get_cases_count(self, obj):
+        return obj.test_cases.count()
+
+
+class TestCaseSerializer(serializers.ModelSerializer):
+    suite_name = serializers.CharField(source="suite.name", read_only=True)
+    project = serializers.IntegerField(source="suite.project_id", read_only=True)
+
+    class Meta:
+        model = TestCase
+        fields = "__all__"
+        read_only_fields = ("created_by", "created_at", "updated_at")
+
+
+class TestResultSerializer(serializers.ModelSerializer):
+    case_title = serializers.CharField(source="test_case.title", read_only=True)
+    executed_by_name = serializers.CharField(
+        source="executed_by.username", read_only=True
+    )
+
+    class Meta:
+        model = TestResult
+        fields = "__all__"
+
+
+class TestRunSerializer(serializers.ModelSerializer):
+    cases_total = serializers.SerializerMethodField()
+    pass_count = serializers.SerializerMethodField()
+    fail_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TestRun
+        fields = "__all__"
+        read_only_fields = ("created_by", "created_at")
+
+    def get_cases_total(self, obj):
+        return obj.test_cases.count()
+
+    def get_pass_count(self, obj):
+        return obj.results.filter(result="pass").count()
+
+    def get_fail_count(self, obj):
+        return obj.results.filter(result="fail").count()
+
+
+# ============================================================================
+# API tokens (security)
+# ============================================================================
+
+
+class ApiTokenSerializer(serializers.ModelSerializer):
+    """key — write-only при list, повертається лише ОДИН РАЗ при create."""
+
+    class Meta:
+        model = ApiToken
+        fields = ("id", "name", "key", "last_used_at", "revoked_at", "created_at")
+        read_only_fields = ("key", "last_used_at", "revoked_at", "created_at")
+
+
+class LoginEventSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source="user.username", read_only=True)
+
+    class Meta:
+        model = LoginEvent
+        fields = (
+            "id",
+            "user",
+            "user_name",
+            "username_attempted",
+            "success",
+            "ip_address",
+            "user_agent",
+            "method",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+# ============================================================================
+# Webhooks / Integrations
+# ============================================================================
+
+
+class WebhookSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Webhook
+        fields = "__all__"
+        read_only_fields = ("created_at", "last_called_at", "last_status_code")
+
+
+class IntegrationConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IntegrationConfig
+        fields = "__all__"
+        read_only_fields = ("created_at",)

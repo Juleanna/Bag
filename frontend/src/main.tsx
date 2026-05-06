@@ -16,6 +16,15 @@ import { ConfirmProvider } from './context/ConfirmContext'
 const root = document.getElementById('root')
 if (!root) throw new Error('Не знайдено контейнер #root')
 
+// PWA: реєстрація service worker (тільки в production, щоб не заважати dev-серверу)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* SW не критичний — мовчки */
+    })
+  })
+}
+
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <TweaksProvider>

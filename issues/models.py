@@ -117,6 +117,21 @@ class Issue(models.Model):
     )
     labels = models.ManyToManyField(Label, blank=True, related_name="issues")
     due_date = models.DateField(null=True, blank=True)
+    # Time tracking — фактично витрачені хвилини (накопичувально)
+    time_spent_minutes = models.PositiveIntegerField(default=0)
+    # Custom fields — довільний JSON {field_name: value} (Browser, OS, Env тощо)
+    custom_fields = models.JSONField(default=dict, blank=True)
+    # Soft delete — баг у "кошику", не показується у звичайних списках
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    # Sprint (iteration), якщо задача належить активному спринту
+    sprint = models.ForeignKey(
+        "Sprint",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="issues",
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -127,6 +142,7 @@ class Issue(models.Model):
             models.Index(fields=["assignee", "status"]),
             models.Index(fields=["-created_at"]),
             models.Index(fields=["priority", "-created_at"]),
+            models.Index(fields=["is_archived", "-created_at"]),
         ]
 
     def __str__(self) -> str:
@@ -407,6 +423,407 @@ class UserProfile(models.Model):
     )
     email_verified = models.BooleanField(default=False)
     email_verified_at = models.DateTimeField(null=True, blank=True)
+    # 2FA — секрет TOTP (base32). Якщо None — 2FA вимкнено.
+    totp_secret = models.CharField(max_length=64, blank=True, default="")
+    totp_enabled = models.BooleanField(default=False)
+    # Onboarding — чи пройшов початковий тур
+    onboarding_done = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return f"Profile of {self.user}"
+
+
+# ============================================================================
+# Sprint / Iteration
+# ============================================================================
+
+
+class Sprint(models.Model):
+    """Спринт — обмежений у часі обсяг роботи в проєкті."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="sprints")
+    name = models.CharField(max_length=120)
+    goal = models.TextField(blank=True)
+    starts_at = models.DateField()
+    ends_at = models.DateField()
+    is_active = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-starts_at"]
+        indexes = [
+            models.Index(fields=["project", "-starts_at"]),
+            models.Index(fields=["is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.project.name} · {self.name}"
+
+
+# ============================================================================
+# Issue Templates — пресети для нових задач
+# ============================================================================
+
+
+class IssueTemplate(models.Model):
+    """Шаблон задачі: 'Bug report', 'Feature request' тощо."""
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="issue_templates",
+        null=True,
+        blank=True,
+        help_text="Якщо null — глобальний шаблон, доступний у всіх проєктах",
+    )
+    name = models.CharField(max_length=120)
+    description_template = models.TextField(
+        help_text="Markdown-шаблон для опису задачі (наприклад з кроками репро)"
+    )
+    default_priority = models.CharField(
+        max_length=20,
+        choices=Issue.Priority.choices,
+        default=Issue.Priority.MEDIUM,
+    )
+    default_labels = models.ManyToManyField(Label, blank=True, related_name="templates")
+    custom_fields_schema = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Список полів зі схемою [{name, label, type: text|number|select, options?}]"
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+# ============================================================================
+# Time tracking
+# ============================================================================
+
+
+class TimeLog(models.Model):
+    """Запис часу, витраченого користувачем на задачу."""
+
+    issue = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="time_logs", db_index=True
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="time_logs")
+    minutes = models.PositiveIntegerField()
+    note = models.CharField(max_length=255, blank=True)
+    logged_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-logged_at"]
+        indexes = [
+            models.Index(fields=["issue", "-logged_at"]),
+            models.Index(fields=["user", "-logged_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} · {self.minutes}m on issue {self.issue_id}"
+
+
+# ============================================================================
+# Saved filters
+# ============================================================================
+
+
+class SavedFilter(models.Model):
+    """Збережений фільтр / smart view для задач."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="saved_filters"
+    )
+    name = models.CharField(max_length=120)
+    # Query parameters as dict, e.g. {"status": "open", "assignee": "me"}
+    params = models.JSONField(default=dict)
+    is_pinned = models.BooleanField(default=False)
+    icon = models.CharField(max_length=32, blank=True, default="Filter")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-is_pinned", "name"]
+
+    def __str__(self) -> str:
+        return f"{self.user} · {self.name}"
+
+
+# ============================================================================
+# Test management
+# ============================================================================
+
+
+class TestSuite(models.Model):
+    """Колекція тест-кейсів за функціональністю (auth, billing, ...)."""
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="test_suites"
+    )
+    name = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return f"{self.project.name} · {self.name}"
+
+
+class TestCase(models.Model):
+    """Тест-кейс — сценарій, що перевіряє конкретний шматок функціоналу."""
+
+    class Type(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        AUTOMATED = "automated", "Automated"
+
+    class Priority(models.TextChoices):
+        CRITICAL = "critical", "Critical"
+        HIGH = "high", "High"
+        MEDIUM = "medium", "Medium"
+        LOW = "low", "Low"
+
+    suite = models.ForeignKey(
+        TestSuite, on_delete=models.CASCADE, related_name="test_cases"
+    )
+    title = models.CharField(max_length=255, db_index=True)
+    preconditions = models.TextField(blank=True)
+    # Steps зберігаємо як JSON-масив [{step, expected}]
+    steps = models.JSONField(default=list, blank=True)
+    expected_result = models.TextField(blank=True)
+    type = models.CharField(max_length=20, choices=Type.choices, default=Type.MANUAL)
+    priority = models.CharField(
+        max_length=20, choices=Priority.choices, default=Priority.MEDIUM
+    )
+    automation_link = models.URLField(blank=True, help_text="URL до Playwright/Cypress тесту")
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="created_test_cases"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["suite", "-created_at"]),
+            models.Index(fields=["type"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class TestRun(models.Model):
+    """Запуск підмножини тест-кейсів."""
+
+    class Status(models.TextChoices):
+        PLANNED = "planned", "Planned"
+        IN_PROGRESS = "in_progress", "In Progress"
+        COMPLETED = "completed", "Completed"
+        ABORTED = "aborted", "Aborted"
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="test_runs"
+    )
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    environment = models.CharField(max_length=80, blank=True, help_text="Production / Staging / ...")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PLANNED)
+    test_cases = models.ManyToManyField(
+        TestCase, related_name="test_runs", blank=True
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="created_test_runs"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.project.name} · {self.name}"
+
+
+class TestResult(models.Model):
+    """Результат виконання конкретного тест-кейсу в run'і."""
+
+    class Result(models.TextChoices):
+        PASS = "pass", "Pass"
+        FAIL = "fail", "Fail"
+        BLOCKED = "blocked", "Blocked"
+        SKIP = "skip", "Skip"
+        PENDING = "pending", "Pending"
+
+    run = models.ForeignKey(
+        TestRun, on_delete=models.CASCADE, related_name="results", db_index=True
+    )
+    test_case = models.ForeignKey(
+        TestCase, on_delete=models.CASCADE, related_name="results"
+    )
+    result = models.CharField(
+        max_length=20, choices=Result.choices, default=Result.PENDING, db_index=True
+    )
+    note = models.TextField(blank=True)
+    related_issue = models.ForeignKey(
+        Issue,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="test_failures",
+        help_text="Якщо fail — пов'язаний баг",
+    )
+    executed_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="test_executions"
+    )
+    executed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("run", "test_case")
+        indexes = [
+            models.Index(fields=["run", "result"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.test_case.title}: {self.result}"
+
+
+# ============================================================================
+# API Tokens, Login Events, Webhooks (security / integrations)
+# ============================================================================
+
+
+class ApiToken(models.Model):
+    """Persistent API token для скриптів і CI/CD."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="api_tokens")
+    name = models.CharField(max_length=80, help_text="Описова назва (CI deploy, my-script)")
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user.username} · {self.name}"
+
+
+class LoginEvent(models.Model):
+    """Запис про вхід / спробу входу — для audit log."""
+
+    user = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="login_events",
+    )
+    username_attempted = models.CharField(max_length=150, blank=True)
+    success = models.BooleanField(default=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    method = models.CharField(
+        max_length=20,
+        default="password",
+        help_text="password / oauth_google / oauth_github / token",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user or self.username_attempted} · {'OK' if self.success else 'FAIL'} · {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class Webhook(models.Model):
+    """Outgoing webhook — для Slack / Discord / своїх систем."""
+
+    EVENTS = [
+        ("issue.created", "Issue created"),
+        ("issue.updated", "Issue updated"),
+        ("issue.closed", "Issue closed"),
+        ("comment.created", "Comment created"),
+        ("test_run.completed", "Test run completed"),
+    ]
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="webhooks",
+        null=True,
+        blank=True,
+        help_text="null — глобальний webhook на всі проєкти",
+    )
+    name = models.CharField(max_length=120)
+    url = models.URLField()
+    events = models.JSONField(default=list, help_text="Список eventів зі списку EVENTS")
+    secret = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text="Опційний secret для HMAC-підпису payload",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_called_at = models.DateTimeField(null=True, blank=True)
+    last_status_code = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class WebhookDelivery(models.Model):
+    """Лог відправлень webhook — для дебагу і retry."""
+
+    webhook = models.ForeignKey(
+        Webhook, on_delete=models.CASCADE, related_name="deliveries", db_index=True
+    )
+    event = models.CharField(max_length=64)
+    payload = models.JSONField(default=dict)
+    status_code = models.IntegerField(null=True, blank=True)
+    response_body = models.TextField(blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class IntegrationConfig(models.Model):
+    """
+    Конфігурація інтеграцій з GitHub / GitLab / Slack для проєкту.
+    Один рядок на проєкт + тип інтеграції.
+    """
+
+    class Kind(models.TextChoices):
+        GITHUB = "github", "GitHub"
+        GITLAB = "gitlab", "GitLab"
+        SLACK = "slack", "Slack"
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="integrations"
+    )
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    # Налаштування у JSON: {repo: 'org/repo', token: '...', channel: '#qa'}
+    config = models.JSONField(default=dict)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("project", "kind")
+

@@ -85,8 +85,51 @@ services:
     depends_on:
       - web
 
+  # ---- Опціональний моніторинг (profile: monitoring) ----
+  # Запуск:  docker compose --profile monitoring up
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["monitoring"]
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    profiles: ["monitoring"]
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    depends_on:
+      - prometheus
+
+  # ---- Опціональні бекапи (profile: backups) ----
+  postgres-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    profiles: ["backups"]
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=bugtracker
+      - POSTGRES_USER=bugtracker
+      - POSTGRES_PASSWORD=bugtracker_dev
+      - SCHEDULE=@daily
+      - BACKUP_KEEP_DAYS=7
+      - BACKUP_KEEP_WEEKS=4
+      - BACKUP_KEEP_MONTHS=6
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      - db
+
 volumes:
   postgres_data:
   redis_data:
   static_volume:
   media_volume:
+  prometheus_data:
+  grafana_data:

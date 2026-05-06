@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Ic } from '../icons/Ic'
 import { Avatar, gradientFor } from '../atoms/Avatar'
 import { useAuth } from '../context/AuthContext'
+import { MOD_KEY } from '../utils/shortcuts'
 import { listAll } from '../api/client'
 import type { Project, Notification } from '../api/types'
 
@@ -80,7 +81,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
       <button className="sb-search" onClick={onOpenPalette}>
         <Ic.Search sz={13} />
         <span className="grow">Швидкий пошук…</span>
-        <span className="kbd">⌘K</span>
+        <span className="kbd">{MOD_KEY === '⌘' ? '⌘K' : 'Ctrl+K'}</span>
       </button>
 
       <div className="sb-section">Робочий простір</div>
@@ -89,7 +90,10 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
         <Item to="/bugs" icon={Ic.Bug} label="Баги" count={counts.bugs} hot={counts.bugs > 0} />
         <Item to="/tests" icon={Ic.Beaker} label="Тест-кейси" />
         <Item to="/runs" icon={Ic.Play} label="Test Runs" />
+        <Item to="/sprints" icon={Ic.Calendar} label="Спринти" />
         <Item to="/reports" icon={Ic.Chart} label="Звіти" />
+        <Item to="/templates" icon={Ic.Edit} label="Шаблони" />
+        <Item to="/webhooks" icon={Ic.Activity} label="Webhooks" />
         <Item to="/inbox" icon={Ic.Inbox} label="Інбокс" count={counts.inbox} hot={counts.inbox > 0} />
       </div>
 
