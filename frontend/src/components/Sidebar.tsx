@@ -26,6 +26,19 @@ interface WorkspaceShort {
 }
 
 const ACTIVE_WS_KEY = 'bt:activeWorkspace'
+const COLLAPSED_SECTIONS_KEY = 'bt:sidebarSections'
+
+type SectionKey = 'workspace' | 'admin' | 'projects'
+
+function loadCollapsedSections(): Record<SectionKey, boolean> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_SECTIONS_KEY)
+    if (raw) return JSON.parse(raw) as Record<SectionKey, boolean>
+  } catch {
+    /* ignore */
+  }
+  return { workspace: false, admin: false, projects: false }
+}
 
 export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }: SidebarProps) {
   const { user } = useAuth()
@@ -38,6 +51,17 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
   })
   const [counts, setCounts] = useState<CountState>({ bugs: 0, inbox: 0 })
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  const [sectionsCollapsed, setSectionsCollapsed] = useState<Record<SectionKey, boolean>>(
+    () => loadCollapsedSections()
+  )
+
+  const toggleSection = (key: SectionKey) => {
+    setSectionsCollapsed(s => {
+      const next = { ...s, [key]: !s[key] }
+      localStorage.setItem(COLLAPSED_SECTIONS_KEY, JSON.stringify(next))
+      return next
+    })
+  }
   const switcherRef = useRef<HTMLDivElement>(null)
 
   // Закриваємо switcher при кліку поза ним
@@ -376,35 +400,74 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
         <span className="kbd">{MOD_KEY === '⌘' ? '⌘K' : 'Ctrl+K'}</span>
       </button>
 
-      <div className="sb-section">Робочий простір</div>
-      <div className="sb-nav">
-        <Item to="/dashboard" icon={Ic.Layout} label="Огляд" />
-        <Item to="/bugs" icon={Ic.Bug} label="Баги" count={counts.bugs} hot={counts.bugs > 0} />
-        <Item to="/tests" icon={Ic.Beaker} label="Тест-кейси" />
-        <Item to="/runs" icon={Ic.Play} label="Test Runs" />
-        <Item to="/sprints" icon={Ic.Calendar} label="Спринти" />
-        <Item to="/reports" icon={Ic.Chart} label="Звіти" />
-        <Item to="/templates" icon={Ic.Edit} label="Шаблони" />
-        <Item to="/webhooks" icon={Ic.Activity} label="Webhooks" />
-        <Item to="/inbox" icon={Ic.Inbox} label="Інбокс" count={counts.inbox} hot={counts.inbox > 0} />
-      </div>
+      <button
+        type="button"
+        className="sb-section sb-section-toggle"
+        onClick={() => toggleSection('workspace')}
+      >
+        <Ic.Chev
+          sz={10}
+          className={`sb-section-chev ${sectionsCollapsed.workspace ? '' : 'open'}`}
+        />
+        <span className="sb-section-label">Робочий простір</span>
+      </button>
+      {!sectionsCollapsed.workspace && (
+        <div className="sb-nav">
+          <Item to="/dashboard" icon={Ic.Layout} label="Огляд" />
+          <Item to="/bugs" icon={Ic.Bug} label="Баги" count={counts.bugs} hot={counts.bugs > 0} />
+          <Item to="/tests" icon={Ic.Beaker} label="Тест-кейси" />
+          <Item to="/runs" icon={Ic.Play} label="Test Runs" />
+          <Item to="/sprints" icon={Ic.Calendar} label="Спринти" />
+          <Item to="/reports" icon={Ic.Chart} label="Звіти" />
+          <Item to="/templates" icon={Ic.Edit} label="Шаблони" />
+          <Item to="/webhooks" icon={Ic.Activity} label="Webhooks" />
+          <Item to="/inbox" icon={Ic.Inbox} label="Інбокс" count={counts.inbox} hot={counts.inbox > 0} />
+        </div>
+      )}
 
       {user?.is_staff && (
         <>
-          <div className="sb-section">Адміністрування</div>
-          <div className="sb-nav">
-            <Item to="/admin/landing" icon={Ic.Settings} label="Лендінг" />
-            <Item to="/admin/regions" icon={Ic.Globe} label="Регіони даних" />
-          </div>
+          <button
+            type="button"
+            className="sb-section sb-section-toggle"
+            onClick={() => toggleSection('admin')}
+          >
+            <Ic.Chev
+              sz={10}
+              className={`sb-section-chev ${sectionsCollapsed.admin ? '' : 'open'}`}
+            />
+            <span className="sb-section-label">Адміністрування</span>
+          </button>
+          {!sectionsCollapsed.admin && (
+            <div className="sb-nav">
+              <Item to="/admin/landing" icon={Ic.Settings} label="Лендінг" />
+              <Item to="/admin/regions" icon={Ic.Globe} label="Регіони даних" />
+            </div>
+          )}
         </>
       )}
 
-      <div className="sb-section">
-        Проєкти
-        <button className="add" onClick={() => navigate('/projects/new')} title="Новий проєкт">
+      <div className="sb-section sb-section-toggle">
+        <button
+          type="button"
+          className="sb-section-btn"
+          onClick={() => toggleSection('projects')}
+        >
+          <Ic.Chev
+            sz={10}
+            className={`sb-section-chev ${sectionsCollapsed.projects ? '' : 'open'}`}
+          />
+          <span className="sb-section-label">Проєкти</span>
+        </button>
+        <button
+          className="add"
+          onClick={() => navigate('/projects/new')}
+          title="Новий проєкт"
+        >
           <Ic.Plus sz={12} />
         </button>
       </div>
+      {!sectionsCollapsed.projects && (
       <div className="sb-nav">
         {projects.length === 0 && (
           <div style={{ padding: '6px 8px', fontSize: 11.5, color: 'var(--fg-4)' }}>
@@ -435,6 +498,7 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
           </div>
         ))}
       </div>
+      )}
 
       <div className="sb-foot">
         {user && <Avatar user={user} />}

@@ -791,3 +791,51 @@ textarea.inp { padding: 8px 10px; height: auto; resize: vertical; line-height: 1
   background: var(--bg);
   color: var(--fg);
 }
+
+/* ───────── Згортання секцій сайдбара (Робочий простір / Адміністрування / Проєкти) ───────── */
+button.sb-section,
+.sb-section.sb-section-toggle {
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  gap: 4px;
+}
+button.sb-section:hover,
+.sb-section-btn:hover { color: var(--fg-2); }
+.sb-section-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  text-align: left;
+}
+.sb-section-chev {
+  color: var(--fg-4);
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.sb-section-chev.open { transform: rotate(0deg); }
+.sb-section-label { flex: 1; }
+
+/* У згорнутому стані сайдбара — секції-заголовки і чеврони ховаємо */
+.sidebar.collapsed button.sb-section,
+.sidebar.collapsed .sb-section.sb-section-toggle { display: none; }
