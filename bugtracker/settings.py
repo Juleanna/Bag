@@ -138,7 +138,8 @@ DJANGO_VITE_DEV_MODE = DEBUG
 DJANGO_VITE_DEV_SERVER_HOST = env("VITE_HOST", default="localhost")
 DJANGO_VITE_DEV_SERVER_PORT = env.int("VITE_PORT", default=5173)
 DJANGO_VITE_ASSETS_PATH = BASE_DIR / "frontend" / "dist"
-DJANGO_VITE_MANIFEST_PATH = DJANGO_VITE_ASSETS_PATH / "manifest.json"
+# Vite 5+ кладе manifest у `dist/.vite/manifest.json` (раніше було `dist/manifest.json`).
+DJANGO_VITE_MANIFEST_PATH = DJANGO_VITE_ASSETS_PATH / ".vite" / "manifest.json"
 
 # Медіа (вкладення)
 MEDIA_URL = "/media/"
