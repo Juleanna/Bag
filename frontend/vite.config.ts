@@ -25,5 +25,11 @@ export default defineConfig({
     emptyOutDir: true,
     minify: 'esbuild',
     sourcemap: false,
+    // Явний entry — щоб у manifest.json був ключ `src/main.tsx`,
+    // який очікує django-vite (інакше за замовчуванням Vite бере
+    // index.html як entry і ключ у manifest буде "index.html").
+    rollupOptions: {
+      input: 'src/main.tsx',
+    },
   },
 })

@@ -1,14 +1,22 @@
 {% load django_vite %}
 <!doctype html>
-<html lang="ru">
+<html lang="uk" data-theme="light" data-density="comfortable">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>BugTracker</title>
+    <meta name="description" content="BugTracker — сучасний баг-трекер" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <title>BugTracker — керування задачами</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     {% vite_hmr_client %}
-    {% vite_asset 'src/main.ts' %}
+    {% vite_asset 'src/main.tsx' %}
   </head>
-  <body class="bg-gray-50 text-slate-900">
-    <div id="app" class="min-h-screen"></div>
+  <body>
+    <div id="root"></div>
   </body>
 </html>
