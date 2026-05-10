@@ -62,7 +62,7 @@ function SignIn({ goto }) {
             <input className="auth-input" type="email" placeholder="you@team.com" value={email} onChange={e => setEmail(e.target.value)}/>
           </div>
           <div className="auth-field">
-            <label>Пароль <a onClick={() => alert('Лист для скидання надіслано (демо)')}>Забули?</a></label>
+            <label>Пароль <a onClick={() => goto('forgot')}>Забули?</a></label>
             <input className="auth-input" type="password" placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)}/>
           </div>
           <label className="auth-checkbox">
@@ -196,4 +196,106 @@ function SignUp({ goto }) {
   );
 }
 
-Object.assign(window, { SignIn, SignUp, AuthAside });
+function ForgotPassword({ goto }) {
+  const [email, setEmail] = React.useState('');
+  const [sent, setSent] = React.useState(false);
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!email.includes('@')) return;
+    setSent(true);
+  };
+
+  return (
+    <div className="auth-shell">
+      <div className="auth-form-side">
+        <div className="auth-form-top">
+          <div className="brand" onClick={() => goto('landing')}>
+            <span className="mark">B</span> BugForge
+          </div>
+          <div className="alt">Згадали пароль? <a onClick={() => goto('signin')}>Увійти</a></div>
+        </div>
+        <div className="auth-form-body">
+          {!sent && (
+            <>
+              <button className="back-link" onClick={() => goto('signin')}>
+                <Ic.Chev sz={12} style={{transform: 'rotate(180deg)'}}/> Назад до входу
+              </button>
+              <h1>Забули пароль?</h1>
+              <p className="sub">Введіть email вашого акаунту — ми надішлемо лист з посиланням для скидання паролю. Лист зазвичай приходить за 1–2 хвилини.</p>
+
+              <form onSubmit={submit}>
+                <div className="auth-field">
+                  <label>Email</label>
+                  <input className="auth-input" type="email" autoFocus required
+                         placeholder="you@team.com"
+                         value={email} onChange={e => setEmail(e.target.value)}/>
+                  <span className="hint">Адреса, з якою ви реєструвалися в BugForge.</span>
+                </div>
+                <button type="submit" className="auth-submit">Надіслати посилання →</button>
+              </form>
+
+              <div className="auth-foot" style={{marginTop: 16}}>
+                Не пам'ятаєте email акаунту?{' '}
+                <a onClick={() => alert('Зверніться до support@bugforge.io (демо)')}>Звернутися в підтримку</a>
+              </div>
+            </>
+          )}
+
+          {sent && (
+            <>
+              <div style={{
+                width: 56, height: 56, borderRadius: 14,
+                background: 'var(--st-resolved-bg)', color: 'var(--st-resolved-fg)',
+                display: 'grid', placeItems: 'center', marginBottom: 20,
+              }}>
+                <Ic.Inbox sz={26}/>
+              </div>
+              <h1>Перевірте пошту</h1>
+              <p className="sub">
+                Якщо акаунт з адресою <b style={{color: 'var(--fg)'}}>{email}</b> існує, ми щойно надіслали лист
+                із посиланням для скидання пароля. Воно дійсне 30 хвилин.
+              </p>
+
+              <div style={{
+                background: 'var(--surface-2)', border: '1px solid var(--border)',
+                borderRadius: 10, padding: '14px 16px', marginBottom: 20,
+                display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13,
+                color: 'var(--fg-2)', lineHeight: 1.55,
+              }}>
+                <div style={{display: 'flex', gap: 10, alignItems: 'flex-start'}}>
+                  <Ic.Check sz={16} style={{color: 'var(--st-resolved-fg)', marginTop: 2, flexShrink: 0}}/>
+                  <span>Перевірте теку <b>Спам</b> або <b>Промоакції</b>, якщо листа немає.</span>
+                </div>
+                <div style={{display: 'flex', gap: 10, alignItems: 'flex-start'}}>
+                  <Ic.Check sz={16} style={{color: 'var(--st-resolved-fg)', marginTop: 2, flexShrink: 0}}/>
+                  <span>Лист приходить з адреси <code style={{fontFamily: 'var(--font-mono)', fontSize: 12, background: 'var(--bg-2)', padding: '1px 5px', borderRadius: 4}}>noreply@bugforge.io</code>.</span>
+                </div>
+                <div style={{display: 'flex', gap: 10, alignItems: 'flex-start'}}>
+                  <Ic.Check sz={16} style={{color: 'var(--st-resolved-fg)', marginTop: 2, flexShrink: 0}}/>
+                  <span>Якщо лист не прийшов протягом 5 хвилин — спробуйте надіслати ще раз.</span>
+                </div>
+              </div>
+
+              <div style={{display: 'flex', gap: 8}}>
+                <button className="oauth-btn" style={{flex: 1}} onClick={() => setSent(false)}>
+                  <Ic.Refresh sz={14}/> Надіслати ще раз
+                </button>
+                <button className="oauth-btn" style={{flex: 1}} onClick={() => goto('signin')}>
+                  Назад до входу
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="auth-form-footer">
+          <span>© 2026 BugForge</span>
+          <span><a>Конфіденційність</a> · <a>Умови</a></span>
+        </div>
+      </div>
+      <AuthAside/>
+    </div>
+  );
+}
+
+Object.assign(window, { SignIn, SignUp, ForgotPassword, AuthAside });

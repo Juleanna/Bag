@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Ic } from '../icons/Ic'
 import { Avatar, gradientFor } from '../atoms/Avatar'
 import { useAuth } from '../context/AuthContext'
@@ -16,29 +16,117 @@ interface CountState {
   inbox: number
 }
 
+interface WorkspaceShort {
+  id: number
+  name: string
+  color: string
+  team_size?: string
+}
+
+const ACTIVE_WS_KEY = 'bt:activeWorkspace'
+
 export function Sidebar({ onOpenPalette }: SidebarProps) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
+  const [workspaces, setWorkspaces] = useState<WorkspaceShort[]>([])
+  const [activeWs, setActiveWs] = useState<number | null>(() => {
+    const raw = localStorage.getItem(ACTIVE_WS_KEY)
+    return raw ? Number(raw) : null
+  })
   const [counts, setCounts] = useState<CountState>({ bugs: 0, inbox: 0 })
+  const [switcherOpen, setSwitcherOpen] = useState(false)
+  const switcherRef = useRef<HTMLDivElement>(null)
 
+  // Закриваємо switcher при кліку поза ним
   useEffect(() => {
-    void (async () => {
-      try {
-        const [ps, ns] = await Promise.all([
-          listAll<Project>('/projects/?page_size=20'),
-          listAll<Notification>('/notifications/?page_size=50'),
-        ])
-        setProjects(ps)
-        setCounts({
-          bugs: ps.reduce((s, p) => s + (p.issues_count || 0), 0),
-          inbox: ns.filter(n => !n.is_read).length,
-        })
-      } catch {
-        /* мовчки — sidebar не критичний */
+    if (!switcherOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (!switcherRef.current) return
+      if (!switcherRef.current.contains(e.target as Node)) setSwitcherOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [switcherOpen])
+
+  // Завантажуємо простори + сповіщення (одноразово при монтажі та на події змін).
+  const reloadWorkspacesAndNotifs = async () => {
+    try {
+      const [ns, ws] = await Promise.all([
+        listAll<Notification>('/notifications/?page_size=50'),
+        listAll<WorkspaceShort>('/workspaces/?page_size=20').catch(
+          () => [] as WorkspaceShort[]
+        ),
+      ])
+      setWorkspaces(ws)
+      const stored = localStorage.getItem(ACTIVE_WS_KEY)
+      const storedId = stored ? Number(stored) : null
+      if (storedId && ws.find(w => w.id === storedId)) {
+        setActiveWs(storedId)
+      } else if (ws[0]) {
+        setActiveWs(ws[0].id)
+      } else {
+        setActiveWs(null)
       }
-    })()
+      setCounts(c => ({ ...c, inbox: ns.filter(n => !n.is_read).length }))
+    } catch {
+      /* мовчки */
+    }
+  }
+
+  // Завантажуємо проєкти лише для активного простору.
+  const reloadProjects = async (wsId: number | null) => {
+    try {
+      const url = wsId
+        ? `/projects/?workspace=${wsId}&page_size=50`
+        : '/projects/?page_size=50'
+      const ps = await listAll<Project>(url)
+      setProjects(ps)
+      setCounts(c => ({
+        ...c,
+        bugs: ps.reduce((s, p) => s + (p.issues_count || 0), 0),
+      }))
+    } catch {
+      /* мовчки */
+    }
+  }
+
+  // Перший рендер + слухачі подій
+  useEffect(() => {
+    void reloadWorkspacesAndNotifs()
+    const onWsChange = () => void reloadWorkspacesAndNotifs()
+    const onProjectChange = () => void reloadProjects(activeWs)
+    window.addEventListener('workspace:created', onWsChange)
+    window.addEventListener('workspace:deleted', onWsChange)
+    window.addEventListener('project:created', onProjectChange)
+    window.addEventListener('project:deleted', onProjectChange)
+    return () => {
+      window.removeEventListener('workspace:created', onWsChange)
+      window.removeEventListener('workspace:deleted', onWsChange)
+      window.removeEventListener('project:created', onProjectChange)
+      window.removeEventListener('project:deleted', onProjectChange)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Перезавантажуємо проєкти, коли активний простір змінюється
+  useEffect(() => {
+    void reloadProjects(activeWs)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeWs])
+
+  // Зберігаємо активний простір
+  useEffect(() => {
+    if (activeWs) localStorage.setItem(ACTIVE_WS_KEY, String(activeWs))
+  }, [activeWs])
+
+  const currentWs = workspaces.find(w => w.id === activeWs) || workspaces[0]
+  const teamLabel = (() => {
+    if (!user) return 'Гість'
+    const name =
+      [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username
+    return name
+  })()
 
   const Item = ({
     to,
@@ -69,13 +157,217 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
 
   return (
     <aside className="sidebar">
-      <div className="sb-head">
-        <div className="sb-logo">B</div>
-        <div className="sb-brand">
-          <b>BugTracker</b>
-          <span>{user ? user.username : 'Гість'}</span>
-        </div>
-        <Ic.ChevDown sz={14} className="sb-chev" />
+      <div className="sb-head" ref={switcherRef} style={{ position: 'relative' }}>
+        <button
+          type="button"
+          className="sb-logo"
+          onClick={() => setSwitcherOpen(o => !o)}
+          title="Перемкнути простір"
+          style={{
+            border: 'none',
+            cursor: 'pointer',
+            background: currentWs?.color || 'var(--accent)',
+          }}
+        >
+          {(currentWs?.name || 'B')[0].toUpperCase()}
+        </button>
+        <button
+          type="button"
+          className="sb-brand"
+          onClick={() => setSwitcherOpen(o => !o)}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            textAlign: 'left',
+            padding: 0,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <b>{currentWs?.name || 'BugTracker'}</b>
+          <span>{teamLabel}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/workspaces/new')}
+          title="Створити простір"
+          style={{
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            padding: 4,
+            color: 'var(--fg-3)',
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: 6,
+          }}
+        >
+          <Ic.Plus sz={14} />
+        </button>
+
+        {switcherOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 8,
+              right: 8,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              boxShadow: 'var(--shadow-lg)',
+              padding: 6,
+              zIndex: 200,
+              maxHeight: 320,
+              overflow: 'auto',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10.5,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                fontWeight: 600,
+                color: 'var(--fg-3)',
+                padding: '6px 8px 4px',
+              }}
+            >
+              Простори
+            </div>
+            {workspaces.length === 0 ? (
+              <div
+                style={{
+                  padding: '10px 8px',
+                  fontSize: 12,
+                  color: 'var(--fg-3)',
+                }}
+              >
+                Ще немає просторів
+              </div>
+            ) : (
+              workspaces.map(w => {
+                const isActive = w.id === activeWs
+                return (
+                  <div
+                    key={w.id}
+                    className="sb-ws-row"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      borderRadius: 6,
+                      background: isActive ? 'var(--accent-soft)' : 'transparent',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveWs(w.id)
+                        setSwitcherOpen(false)
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '7px 8px',
+                        flex: 1,
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: 13,
+                        color: 'var(--fg)',
+                        fontWeight: isActive ? 500 : 400,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 6,
+                          background: w.color || 'var(--accent)',
+                          color: 'white',
+                          display: 'grid',
+                          placeItems: 'center',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {w.name[0].toUpperCase()}
+                      </span>
+                      <span
+                        style={{
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {w.name}
+                      </span>
+                      {isActive && <Ic.Check sz={12} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSwitcherOpen(false)
+                        navigate(`/workspaces/${w.id}/edit`)
+                      }}
+                      title="Редагувати простір"
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        padding: '6px 8px',
+                        color: 'var(--fg-3)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Ic.Edit sz={11} />
+                    </button>
+                  </div>
+                )
+              })
+            )}
+            <div
+              style={{
+                borderTop: '1px solid var(--divider)',
+                marginTop: 4,
+                paddingTop: 4,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setSwitcherOpen(false)
+                  navigate('/workspaces/new')
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '7px 8px',
+                  width: '100%',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: 'var(--fg-2)',
+                }}
+                onMouseEnter={e =>
+                  ((e.currentTarget as HTMLElement).style.background = 'var(--bg-2)')
+                }
+                onMouseLeave={e =>
+                  ((e.currentTarget as HTMLElement).style.background = 'transparent')
+                }
+              >
+                <Ic.Plus sz={12} /> Новий простір
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <button className="sb-search" onClick={onOpenPalette}>
@@ -102,6 +394,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
           <div className="sb-section">Адміністрування</div>
           <div className="sb-nav">
             <Item to="/admin/landing" icon={Ic.Settings} label="Лендінг" />
+            <Item to="/admin/regions" icon={Ic.Globe} label="Регіони даних" />
           </div>
         </>
       )}
@@ -119,14 +412,27 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
           </div>
         )}
         {projects.map(p => (
-          <button
-            key={p.id}
-            className="sb-project"
-            onClick={() => navigate(`/bugs?project=${p.id}`)}
-          >
-            <span className="pdot" style={{ background: gradientFor(p.id) }} />
-            <span>{p.name}</span>
-          </button>
+          <div key={p.id} className="sb-project-row">
+            <button
+              className="sb-project"
+              onClick={() => navigate(`/bugs?project=${p.id}`)}
+              style={{ flex: 1 }}
+            >
+              <span className="pdot" style={{ background: p.color || gradientFor(p.id) }} />
+              <span>{p.name}</span>
+            </button>
+            <button
+              type="button"
+              className="sb-project-edit"
+              onClick={e => {
+                e.stopPropagation()
+                navigate(`/projects/${p.id}/edit`)
+              }}
+              title="Редагувати проєкт"
+            >
+              <Ic.Edit sz={11} />
+            </button>
+          </div>
         ))}
       </div>
 

@@ -10,8 +10,27 @@ export interface ConfirmOptions {
   danger?: boolean
 }
 
+export interface PromptOptions {
+  title?: string
+  /** Текст-підказка над полем вводу. */
+  message?: string
+  /** Початкове значення поля. */
+  defaultValue?: string
+  /** Placeholder поля вводу. */
+  placeholder?: string
+  /** Текст кнопки підтвердження. */
+  confirmText?: string
+  cancelText?: string
+  /** Тип input-а (text / password / number). */
+  inputType?: 'text' | 'password' | 'number'
+  /** Не дозволяти підтвердити порожнє значення (тримова: false). */
+  required?: boolean
+}
+
 interface ConfirmCtx {
   confirm: (options: ConfirmOptions) => Promise<boolean>
+  /** Модальний prompt — повертає рядок або null, якщо скасовано. */
+  prompt: (options: PromptOptions) => Promise<string | null>
 }
 
 const ConfirmContext = createContext<ConfirmCtx | null>(null)
@@ -21,38 +40,77 @@ interface ConfirmState {
   resolve: (result: boolean) => void
 }
 
+interface PromptState {
+  options: PromptOptions
+  resolve: (result: string | null) => void
+}
+
 export function ConfirmProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<ConfirmState | null>(null)
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
+  const [promptState, setPromptState] = useState<PromptState | null>(null)
+  const [promptValue, setPromptValue] = useState('')
 
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>(resolve => {
-      setState({ options, resolve })
+      setConfirmState({ options, resolve })
     })
   }, [])
 
-  const close = (result: boolean) => {
-    if (state) {
-      state.resolve(result)
-      setState(null)
+  const prompt = useCallback((options: PromptOptions) => {
+    return new Promise<string | null>(resolve => {
+      setPromptValue(options.defaultValue || '')
+      setPromptState({ options, resolve })
+    })
+  }, [])
+
+  const closeConfirm = (result: boolean) => {
+    if (confirmState) {
+      confirmState.resolve(result)
+      setConfirmState(null)
+    }
+  }
+
+  const closePrompt = (result: string | null) => {
+    if (promptState) {
+      promptState.resolve(result)
+      setPromptState(null)
+      setPromptValue('')
     }
   }
 
   // Esc — Скасувати, Enter — Підтвердити
-  const onKey = (e: React.KeyboardEvent) => {
+  const onKeyConfirm = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault()
-      close(false)
+      closeConfirm(false)
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      close(true)
+      closeConfirm(true)
+    }
+  }
+
+  const submitPrompt = () => {
+    if (!promptState) return
+    const v = promptValue.trim()
+    if (promptState.options.required && !v) return
+    closePrompt(promptValue)
+  }
+
+  const onKeyPrompt = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closePrompt(null)
+    } else if (e.key === 'Enter' && !(e.target as HTMLElement).matches('textarea')) {
+      e.preventDefault()
+      submitPrompt()
     }
   }
 
   return (
-    <ConfirmContext.Provider value={{ confirm }}>
+    <ConfirmContext.Provider value={{ confirm, prompt }}>
       {children}
-      {state && (
-        <div className="confirm-overlay" onClick={() => close(false)}>
+      {confirmState && (
+        <div className="confirm-overlay" onClick={() => closeConfirm(false)}>
           <div
             className="confirm-dialog"
             role="dialog"
@@ -60,21 +118,59 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             tabIndex={-1}
             ref={el => el?.focus()}
             onClick={e => e.stopPropagation()}
-            onKeyDown={onKey}
+            onKeyDown={onKeyConfirm}
           >
-            <h3>{state.options.title || 'Підтвердження'}</h3>
-            <p>{state.options.message}</p>
+            <h3>{confirmState.options.title || 'Підтвердження'}</h3>
+            <p>{confirmState.options.message}</p>
             <div className="confirm-actions">
-              <button className="btn" type="button" onClick={() => close(false)}>
-                {state.options.cancelText || 'Скасувати'}
+              <button className="btn" type="button" onClick={() => closeConfirm(false)}>
+                {confirmState.options.cancelText || 'Скасувати'}
               </button>
               <button
-                className={`btn ${state.options.danger ? 'danger' : 'primary'}`}
+                className={`btn ${confirmState.options.danger ? 'danger' : 'primary'}`}
                 type="button"
-                onClick={() => close(true)}
+                onClick={() => closeConfirm(true)}
                 autoFocus
               >
-                {state.options.confirmText || 'Підтвердити'}
+                {confirmState.options.confirmText || 'Підтвердити'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {promptState && (
+        <div className="confirm-overlay" onClick={() => closePrompt(null)}>
+          <div
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={onKeyPrompt}
+          >
+            <h3>{promptState.options.title || 'Введіть значення'}</h3>
+            {promptState.options.message && (
+              <p style={{ marginBottom: 10 }}>{promptState.options.message}</p>
+            )}
+            <input
+              className="inp"
+              type={promptState.options.inputType || 'text'}
+              value={promptValue}
+              onChange={e => setPromptValue(e.target.value)}
+              placeholder={promptState.options.placeholder}
+              autoFocus
+            />
+            <div className="confirm-actions">
+              <button className="btn" type="button" onClick={() => closePrompt(null)}>
+                {promptState.options.cancelText || 'Скасувати'}
+              </button>
+              <button
+                className="btn primary"
+                type="button"
+                onClick={submitPrompt}
+                disabled={promptState.options.required && !promptValue.trim()}
+              >
+                {promptState.options.confirmText || 'OK'}
               </button>
             </div>
           </div>
@@ -88,4 +184,10 @@ export function useConfirm() {
   const ctx = useContext(ConfirmContext)
   if (!ctx) throw new Error('useConfirm має використовуватись усередині <ConfirmProvider>')
   return ctx.confirm
+}
+
+export function usePrompt() {
+  const ctx = useContext(ConfirmContext)
+  if (!ctx) throw new Error('usePrompt має використовуватись усередині <ConfirmProvider>')
+  return ctx.prompt
 }

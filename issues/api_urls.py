@@ -19,15 +19,19 @@ from .views_api import (
     NotificationViewSet,
     ProjectMembershipViewSet,
     ProjectViewSet,
+    RegionViewSet,
     SavedFilterViewSet,
     SprintViewSet,
     StarredIssueViewSet,
+    UserListView,
     TestCaseViewSet,
     TestResultViewSet,
     TestRunViewSet,
     TestSuiteViewSet,
     TimeLogViewSet,
     WebhookViewSet,
+    WorkflowStatusViewSet,
+    WorkspaceViewSet,
     activity_feed,
     bulk_archive_issues,
     bulk_restore_issues,
@@ -40,6 +44,10 @@ from .views_api import (
 
 router = DefaultRouter()
 # Існуючі
+router.register(r"workspaces", WorkspaceViewSet, basename="workspace")
+router.register(r"regions", RegionViewSet, basename="region")
+router.register(r"users", UserListView, basename="user")
+router.register(r"workflow-statuses", WorkflowStatusViewSet, basename="workflow-status")
 router.register(r"projects", ProjectViewSet, basename="project")
 router.register(r"issues", IssueViewSet, basename="issue")
 router.register(r"comments", CommentViewSet, basename="comment")

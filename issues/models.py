@@ -27,9 +27,112 @@ def validate_file_size(value):
         )
 
 
-class Project(models.Model):
+class WorkflowStatus(models.Model):
+    """Кастомний статус робочого процесу проєкту.
+    Дозволяє кожному проєкту задати власний набір статусів і їх кольорів.
+    Якщо для проєкту немає WorkflowStatus — використовується дефолтний набір.
+    """
+
+    project = models.ForeignKey(
+        "Project",
+        on_delete=models.CASCADE,
+        related_name="workflow_statuses",
+    )
+    key = models.CharField(max_length=32, db_index=True)
+    label = models.CharField(max_length=64)
+    color = models.CharField(max_length=24, default="var(--st-open-dot)")
+    sort_order = models.IntegerField(default=0)
+    is_default = models.BooleanField(default=False)
+    is_done = models.BooleanField(default=False, help_text="Чи статус вважається завершеним")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        unique_together = ("project", "key")
+
+    def __str__(self) -> str:
+        return f"{self.project.name} · {self.label}"
+
+
+class Region(models.Model):
+    """Регіон зберігання даних (EU/US/AP/UA тощо). Керується адміністратором."""
+
+    code = models.CharField(max_length=16, unique=True, db_index=True)
+    label = models.CharField(max_length=120)
+    # Опціональна іконка-emoji для відображення.
+    icon = models.CharField(max_length=8, blank=True)
+    # Опціональний порядок у списку (менше — раніше).
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "label"]
+
+    def __str__(self) -> str:
+        return f"{self.icon} {self.label}".strip()
+
+    def save(self, *args, **kwargs):
+        # Гарантуємо, що default лише один
+        if self.is_default:
+            Region.objects.exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
+class Workspace(models.Model):
+    """Простір — організаційна одиниця, що містить кілька проєктів,
+    учасників і власні налаштування (білінг, регіон даних тощо)."""
+
     name = models.CharField(max_length=200, db_index=True)
+    # URL-адреса простору (app.bugforge.io/<slug>).
+    slug = models.SlugField(max_length=64, unique=True, db_index=True)
+    color = models.CharField(max_length=9, default="#5E6AD2")
+    # Метадані з wizard'у створення.
+    team_size = models.CharField(max_length=20, blank=True)
+    industry = models.CharField(max_length=20, blank=True)
+    region = models.CharField(max_length=10, blank=True)
+    auto_join_domain = models.BooleanField(default=False)
+    domain = models.CharField(max_length=100, blank=True)
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="owned_workspaces"
+    )
+    members = models.ManyToManyField(User, related_name="workspaces", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Project(models.Model):
+    class Visibility(models.TextChoices):
+        TEAM = "team", "Команда"
+        ORG = "org", "Уся організація"
+        PRIVATE = "private", "Приватний"
+
+    name = models.CharField(max_length=200, db_index=True)
+    # Префікс для людино-читних ID (наприклад "WEB" → WEB-101).
+    key = models.CharField(max_length=10, blank=True, db_index=True)
     description = models.TextField(blank=True)
+    # Кольор та іконка для UI (без впливу на бізнес-логіку).
+    color = models.CharField(max_length=9, default="#5E6AD2")
+    icon = models.CharField(max_length=32, default="Layout")
+    visibility = models.CharField(
+        max_length=10, choices=Visibility.choices, default=Visibility.TEAM
+    )
+    # Простори, до яких належить проєкт. Один проєкт може бути спільним для
+    # декількох просторів (наприклад "Public API" — і у Web team, і у Mobile team).
+    workspaces = models.ManyToManyField(
+        Workspace,
+        related_name="projects",
+        blank=True,
+    )
     owner = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="owned_projects"
     )
@@ -92,14 +195,25 @@ class Issue(models.Model):
         LOW = "low", "Низький"
         MEDIUM = "medium", "Середній"
         HIGH = "high", "Високий"
+        CRITICAL = "critical", "Критичний"
 
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="issues", db_index=True
     )
     title = models.CharField(max_length=255, db_index=True)
     description = models.TextField(blank=True)
+    # Legacy enum-поле залишене для зворотньої сумісності частини коду
+    # (наприклад, signals.py і деякі тести використовують issue.status). Реальним
+    # джерелом істини стало workflow_status (FK на WorkflowStatus).
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True
+    )
+    workflow_status = models.ForeignKey(
+        "WorkflowStatus",
+        on_delete=models.SET_NULL,
+        related_name="issues",
+        null=True,
+        blank=True,
     )
     priority = models.CharField(
         max_length=20, choices=Priority.choices, default=Priority.MEDIUM, db_index=True

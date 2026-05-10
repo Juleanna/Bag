@@ -17,7 +17,7 @@ function SaasApp() {
   const [t, setTweak] = useTweaks(SAAS_TWEAKS);
   const [route, setRoute] = React.useState(() => {
     const h = (location.hash || '').replace('#', '');
-    return ['landing','signin','signup'].includes(h) ? h : 'landing';
+    return ['landing','signin','signup','forgot'].includes(h) ? h : 'landing';
   });
 
   React.useEffect(() => {
@@ -34,7 +34,7 @@ function SaasApp() {
   React.useEffect(() => {
     const onHash = () => {
       const h = (location.hash || '').replace('#', '');
-      if (['landing','signin','signup'].includes(h)) setRoute(h);
+      if (['landing','signin','signup','forgot'].includes(h)) setRoute(h);
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -58,6 +58,7 @@ function SaasApp() {
       )}
       {route === 'signin' && <SignIn goto={goto}/>}
       {route === 'signup' && <SignUp goto={goto}/>}
+      {route === 'forgot' && <ForgotPassword goto={goto}/>}
 
       <TweaksPanel title="SaaS · Tweaks">
         <TweakSection label="Тема">
@@ -66,8 +67,8 @@ function SaasApp() {
             onChange={(v) => setTweak('theme', v)}/>
         </TweakSection>
         <TweakSection label="Екран">
-          <TweakRadio label="Сторінка" value={route}
-            options={[{value:'landing',label:'Landing'},{value:'signin',label:'Sign In'},{value:'signup',label:'Sign Up'}]}
+          <TweakSelect label="Сторінка" value={route}
+            options={[{value:'landing',label:'Landing'},{value:'signin',label:'Sign In'},{value:'signup',label:'Sign Up'},{value:'forgot',label:'Forgot password'}]}
             onChange={(v) => goto(v)}/>
         </TweakSection>
         {route === 'landing' && (

@@ -423,3 +423,116 @@ textarea.inp { padding: 8px 10px; height: auto; resize: vertical; line-height: 1
 .table tr.kbd-active { background: color-mix(in oklch, var(--accent) 8%, var(--surface)); }
 .table .checkbox-col { width: 36px; text-align: center; padding-right: 0; }
 .cb { cursor: pointer; accent-color: var(--accent); }
+
+/* ───────── Dropdown items (filter / sort / columns в BugList) ───────── */
+.drop-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: none;
+  background: transparent;
+  font-size: 12.5px;
+  color: var(--fg);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.drop-item:hover { background: var(--bg-2); }
+.drop-item.active { background: var(--accent-soft); color: var(--accent-soft-fg); font-weight: 500; }
+.drop-item input[type="checkbox"] { margin: 0; }
+
+/* ───────── Sidebar row з hover-edit-кнопкою (для проектів) ───────── */
+.sb-project-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  border-radius: 6px;
+}
+.sb-project-row .sb-project { width: 100%; }
+.sb-project-edit {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px 8px;
+  color: var(--fg-3);
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.sb-project-row:hover .sb-project-edit { opacity: 1; }
+.sb-project-edit:hover { background: var(--bg-2); color: var(--fg); }
+
+/* ───────── Карточки видимості (Команда / Організація / Приватний) ───────── */
+.visibility-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+.vis-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+.vis-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-2);
+}
+.vis-card.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 12%, transparent);
+}
+.vis-card .vis-ico {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--bg-2);
+  color: var(--fg-2);
+  margin-bottom: 2px;
+}
+.vis-card.active .vis-ico {
+  background: var(--accent);
+  color: white;
+}
+.vis-card b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.vis-card.active b { color: var(--accent-soft-fg); }
+.vis-card .vis-desc {
+  font-size: 11.5px;
+  color: var(--fg-3);
+  line-height: 1.35;
+}
+
+/* Селект ролі учасника — стиснутіший за стандартний .inp.
+   width + flex:0 щоб не стискався і не розтягувався у member-row. */
+.member-row .role-select,
+.role-select {
+  height: 28px;
+  padding: 0 6px 0 8px;
+  font-size: 12px;
+  width: 130px;
+  flex: 0 0 130px;
+  cursor: pointer;
+}
+
+/* Адаптив: на вузьких екранах — у стовпчик */
+@media (max-width: 720px) {
+  .visibility-cards { grid-template-columns: 1fr; }
+}

@@ -34,6 +34,16 @@ const CRUMBS = {
   'new-bug':    [{ icon: Ic.Bug, label: 'Баги', go: 'bugs' }, { label: 'Новий' }],
   'new-test':   [{ icon: Ic.Beaker, label: 'Тест-кейси', go: 'tests' }, { label: 'Новий' }],
   'new-project':[{ icon: Ic.Layout, label: 'Проєкти', go: 'dashboard' }, { label: 'Новий' }],
+  'invite':     [{ icon: Ic.Users, label: 'Учасники', go: 'dashboard' }, { label: 'Запросити' }],
+  'sprints':    [{ icon: Ic.Lightning, label: 'Спринти' }],
+  'templates':  [{ icon: Ic.Layout, label: 'Шаблони' }],
+  'webhooks':   [{ icon: Ic.Link, label: 'Webhooks' }],
+  'integrations':[{ icon: Ic.Link, label: 'Інтеграції' }],
+  'new-workspace':[{ icon: Ic.Layout, label: 'Простори' }, { label: 'Новий простір' }],
+  'new-sprint': [{ icon: Ic.Lightning, label: 'Спринти', go: 'sprints' }, { label: 'Новий' }],
+  'new-template':[{ icon: Ic.Layout, label: 'Шаблони', go: 'templates' }, { label: 'Новий' }],
+  'new-webhook':[{ icon: Ic.Link, label: 'Webhooks', go: 'webhooks' }, { label: 'Новий' }],
+  'new-report': [{ icon: Ic.Chart, label: 'Звіти', go: 'reports' }, { label: 'Новий' }],
 };
 
 function Topbar({ route, goto, onOpenNotif, onOpenHelp }) {
@@ -95,7 +105,7 @@ function Topbar({ route, goto, onOpenNotif, onOpenHelp }) {
                   <span className="cm-ico" style={{ background: 'var(--accent-soft)', color: 'var(--accent-soft-fg)' }}><Ic.Layout sz={13}/></span>
                   <div><b>Проєкт</b><span>Новий QA-простір</span></div>
                 </button>
-                <button>
+                <button onClick={() => { setCreateOpen(false); goto('invite'); }}>
                   <span className="cm-ico" style={{ background: 'var(--bg-2)', color: 'var(--fg-2)' }}><Ic.Users sz={13}/></span>
                   <div><b>Запросити людей</b><span>Email / Slack-handle</span></div>
                 </button>
@@ -177,6 +187,16 @@ function App() {
           {route === 'new-bug'      && <NewBug goto={goto}/>}
           {route === 'new-test'     && <NewTestCase goto={goto}/>}
           {route === 'new-project'  && <NewProject goto={goto}/>}
+          {route === 'invite'       && <InvitePeople goto={goto}/>}
+          {route === 'sprints'      && <Sprints goto={goto}/>}
+          {route === 'templates'    && <Templates goto={goto}/>}
+          {route === 'webhooks'     && <Webhooks goto={goto}/>}
+          {route === 'integrations' && <Integrations goto={goto}/>}
+          {route === 'new-workspace'&& <NewWorkspace goto={goto}/>}
+          {route === 'new-sprint'   && <NewSprint goto={goto}/>}
+          {route === 'new-template' && <NewTemplate goto={goto}/>}
+          {route === 'new-webhook'  && <NewWebhook goto={goto}/>}
+          {route === 'new-report'   && <NewReport goto={goto}/>}
         </div>
       </main>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} goto={goto}/>

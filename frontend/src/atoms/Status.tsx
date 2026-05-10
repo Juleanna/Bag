@@ -1,13 +1,14 @@
 import type { IssueStatus, IssuePriority } from '../api/types'
 
-// Статус бага. Бекенд має 4 значення (open / in_progress / done / cancelled),
-// прототип — 5 (додатково blocked). Мапимо backend → UI.
+// Базова мапа дефолтних статусів. Використовується як fallback, коли
+// для проєкту немає кастомного WorkflowStatus.
 export const STATUS_MAP: Record<
-  IssueStatus,
+  string,
   { label: string; cls: string; dot: string }
 > = {
   open: { label: 'Відкрито', cls: 'open', dot: 'var(--st-open-dot)' },
   in_progress: { label: 'В процесі', cls: 'progress', dot: 'var(--st-progress-dot)' },
+  blocked: { label: 'Заблоковано', cls: 'blocked', dot: 'var(--st-blocked-dot)' },
   done: { label: 'Готово', cls: 'resolved', dot: 'var(--st-resolved-dot)' },
   cancelled: { label: 'Скасовано', cls: 'closed', dot: 'var(--st-closed-dot)' },
 }
@@ -19,14 +20,30 @@ export const PRIORITY_MAP: Record<
   low: { label: 'Низький', cls: 'low', dots: 1 },
   medium: { label: 'Середній', cls: 'medium', dots: 2 },
   high: { label: 'Високий', cls: 'high', dots: 3 },
+  critical: { label: 'Критичний', cls: 'critical', dots: 4 },
 }
 
-export function StatusPill({ value }: { value: IssueStatus }) {
-  const s = STATUS_MAP[value] || STATUS_MAP.open
+/**
+ * StatusPill — підтримує два режими:
+ *   1. Тільки value → беремо все з STATUS_MAP (legacy fallback).
+ *   2. value + label/color → довільний кастомний статус (з WorkflowStatus).
+ */
+export function StatusPill({
+  value,
+  label,
+  color,
+}: {
+  value: IssueStatus
+  label?: string
+  color?: string
+}) {
+  const s = STATUS_MAP[value]
+  const finalLabel = label ?? s?.label ?? value
+  const finalColor = color ?? s?.dot ?? 'var(--st-open-dot)'
   return (
-    <span className={`pill ${s.cls}`}>
-      <span className="dot" style={{ background: s.dot }} />
-      {s.label}
+    <span className={`pill ${s?.cls || 'open'}`}>
+      <span className="dot" style={{ background: finalColor }} />
+      {finalLabel}
     </span>
   )
 }

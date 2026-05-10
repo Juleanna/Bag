@@ -11,6 +11,9 @@ import { InboxPage } from './pages/Inbox'
 import { ProfilePage } from './pages/Profile'
 import { NewBugPage } from './pages/NewBug'
 import { NewProjectPage } from './pages/NewProject'
+import { EditProjectPage } from './pages/EditProject'
+import { NewWorkspacePage } from './pages/NewWorkspace'
+import { EditWorkspacePage } from './pages/EditWorkspace'
 import { TestsPage } from './pages/Tests'
 import { TestRunsPage } from './pages/TestRuns'
 import { ReportsPage } from './pages/Reports'
@@ -28,6 +31,7 @@ import { AdminMetrics } from './pages/admin/AdminMetrics'
 import { AdminTestimonials } from './pages/admin/AdminTestimonials'
 import { AdminFaq } from './pages/admin/AdminFaq'
 import { AdminChangeLog } from './pages/admin/AdminChangeLog'
+import { AdminRegionsPage } from './pages/AdminRegions'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -112,6 +116,9 @@ export function App() {
         <Route path="bugs/new" element={<NewBugPage />} />
         <Route path="bugs/:id" element={<BugDetailPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
+        <Route path="projects/:id/edit" element={<EditProjectPage />} />
+        <Route path="workspaces/new" element={<NewWorkspacePage />} />
+        <Route path="workspaces/:id/edit" element={<EditWorkspacePage />} />
         <Route path="tests" element={<TestsPage />} />
         <Route path="tests/new" element={<NewTestPage />} />
         <Route path="runs" element={<TestRunsPage />} />
@@ -131,6 +138,7 @@ export function App() {
           </RequireStaff>
         }
       >
+        <Route path="admin/regions" element={<AdminRegionsPage />} />
         <Route path="admin/landing" element={<AdminLandingLayout />}>
           <Route index element={<AdminHero />} />
           <Route path="settings" element={<AdminSettings />} />

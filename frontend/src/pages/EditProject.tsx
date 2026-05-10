@@ -1,43 +1,48 @@
 /**
- * Сторінка створення нового проєкту (всередині простору) — за макетом прототипу:
- *  - вибір шаблону (Чистий / Web / Mobile / API / Імпорт)
- *  - блок ідентичності: іконка, колір, назва, ключ, опис
- *  - блок команди й доступу: видимість, учасники
- *  - блок інтеграцій: GitHub, Slack, GitLab, OpenAI (плейсхолдери)
- *  - блок робочого процесу: візуалізація переходів статусів
+ * Сторінка редагування існуючого проєкту.
+ * Використовує той самий API та структуру форми, що NewProject, але:
+ *  - завантажує дані по id з URL
+ *  - PATCH замість POST
+ *  - додатково: кнопка «Видалити проєкт» (архівування з підтвердженням)
  */
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { Avatar } from '../atoms/Avatar'
-import { apiPost, listAll } from '../api/client'
+import { apiDelete, apiGet, apiPatch, apiPost, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
-import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmContext'
 import type { Project, ProjectVisibility, UserShort } from '../api/types'
-
-interface ProjectTemplate {
-  id: 'blank' | 'web' | 'mobile' | 'api' | 'import'
-  name: string
-  desc: string
-  icon: keyof typeof Ic
-}
-
-const TEMPLATES: ProjectTemplate[] = [
-  { id: 'blank', name: 'Чистий проєкт', desc: 'Почати з нуля без жодних шаблонів', icon: 'Plus' },
-  { id: 'web', name: 'Web-застосунок', desc: 'Smoke + регресія + cross-browser. 24 кейси, 3 suite', icon: 'Globe' },
-  { id: 'mobile', name: 'Мобільний застосунок', desc: 'iOS + Android. Crash detection, в тому числі offline', icon: 'Mobile' },
-  { id: 'api', name: 'API / Backend', desc: 'Контракт-тести, навантаження, безпека. Postman / pytest', icon: 'Repo' },
-  { id: 'import', name: 'Імпорт з JIRA / Linear', desc: 'Перенести існуючі баги, кейси та користувачів', icon: 'Download' },
-]
+import { Skeleton } from '../components/Skeleton'
+import { WorkflowEditor } from '../components/WorkflowEditor'
 
 const COLORS = ['#5E6AD2', '#0EA5E9', '#10B981', '#D97757', '#9665C9', '#E04B43', '#D4951F', '#1F1E1A']
 const ICONS: Array<keyof typeof Ic> = ['Layout', 'Mobile', 'Repo', 'Globe', 'Beaker', 'Bug', 'Spark', 'Tag']
 
-const VISIBILITY_OPTIONS: Array<{ id: ProjectVisibility; label: string; icon: keyof typeof Ic }> = [
-  { id: 'team', label: 'Команда', icon: 'Users' },
-  { id: 'org', label: 'Уся організація', icon: 'Globe' },
-  { id: 'private', label: 'Приватний', icon: 'Eye' },
+const VISIBILITY_OPTIONS: Array<{
+  id: ProjectVisibility
+  label: string
+  icon: keyof typeof Ic
+  desc: string
+}> = [
+  { id: 'team', label: 'Команда', icon: 'Users', desc: 'Тільки запрошені учасники' },
+  { id: 'org', label: 'Організація', icon: 'Globe', desc: 'Усі в організації' },
+  { id: 'private', label: 'Приватний', icon: 'Eye', desc: 'Лише власник' },
 ]
+
+type MembershipRole = 'viewer' | 'member' | 'manager' | 'owner'
+
+const ROLE_OPTIONS: Array<{ id: MembershipRole; label: string; desc: string }> = [
+  { id: 'viewer', label: 'Спостерігач', desc: 'Лише читання' },
+  { id: 'member', label: 'Учасник', desc: 'Створює і редагує задачі' },
+  { id: 'manager', label: 'Менеджер', desc: 'Керує учасниками та налаштуваннями' },
+]
+
+interface Membership {
+  id: number
+  user: UserShort
+  role: MembershipRole
+}
 
 const INTEGRATIONS: Array<{ icon: keyof typeof Ic; name: string; desc: string }> = [
   { icon: 'Github', name: 'GitHub', desc: 'Звʼяжіть репозиторій для авто-закриття багів' },
@@ -60,12 +65,14 @@ interface WorkspaceShort {
   color: string
 }
 
-export function NewProjectPage() {
+export function EditProjectPage() {
+  const { id } = useParams<{ id: string }>()
+  const projectId = Number(id)
   const navigate = useNavigate()
   const toast = useToast()
-  const { user } = useAuth()
+  const confirm = useConfirm()
 
-  const [template, setTemplate] = useState<ProjectTemplate['id']>('blank')
+  const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
   const [key, setKey] = useState('')
   const [description, setDescription] = useState('')
@@ -74,107 +81,168 @@ export function NewProjectPage() {
   const [visibility, setVisibility] = useState<ProjectVisibility>('team')
   const [workspaceIds, setWorkspaceIds] = useState<number[]>([])
   const [workspaces, setWorkspaces] = useState<WorkspaceShort[]>([])
-  const [members, setMembers] = useState<UserShort[]>([])
+  const [workflowOpen, setWorkflowOpen] = useState(false)
+  const [memberships, setMemberships] = useState<Membership[]>([])
+  const [ownerId, setOwnerId] = useState<number | null>(null)
   const [allUsers, setAllUsers] = useState<UserShort[]>([])
   const [memberPickerOpen, setMemberPickerOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!projectId) return
     void (async () => {
       try {
-        const [ws, users] = await Promise.all([
+        const [project, ws, users, mems] = await Promise.all([
+          apiGet<Project>(`/projects/${projectId}/`),
           listAll<WorkspaceShort>('/workspaces/?page_size=50').catch(
             () => [] as WorkspaceShort[]
           ),
           listAll<UserShort>('/users/?page_size=200').catch(() => [] as UserShort[]),
+          listAll<Membership>(`/memberships/?project=${projectId}&page_size=100`).catch(
+            () => [] as Membership[]
+          ),
         ])
-        setAllUsers(users)
+        setName(project.name)
+        setKey(project.key || '')
+        setDescription(project.description || '')
+        setColor(project.color || COLORS[0])
+        setIcon((project.icon as keyof typeof Ic) || 'Layout')
+        setVisibility(project.visibility || 'team')
+        setWorkspaceIds(project.workspaces || [])
+        setOwnerId(project.owner.id)
+        setMemberships(mems)
         setWorkspaces(ws)
-        // За замовчуванням вибираємо активний простір з sidebar (якщо є), інакше перший
-        const activeId = Number(localStorage.getItem('bt:activeWorkspace') || 0)
-        const preselect = activeId && ws.find(w => w.id === activeId) ? activeId : ws[0]?.id
-        if (preselect) setWorkspaceIds([preselect])
-      } catch {
-        /* мовчки */
+        setAllUsers(users)
+      } catch (e) {
+        toast.show(e instanceof Error ? e.message : 'Не вдалось завантажити', 'error')
+        navigate('/dashboard')
+      } finally {
+        setLoading(false)
       }
     })()
-  }, [])
-
-  // Auto-key з назви
-  useEffect(() => {
-    if (key) return
-    const generated = name
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-ZА-ЯҐЄІЇ0-9 ]/g, '')
-      .split(/\s+/)
-      .slice(0, 2)
-      .map(w => w.slice(0, 3))
-      .join('')
-      .slice(0, 6)
-    setKey(generated)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name])
+  }, [projectId])
 
-  const toggleMember = (u: UserShort) => {
-    setMembers(ms => (ms.find(m => m.id === u.id) ? ms.filter(m => m.id !== u.id) : [...ms, u]))
+  // Локально додаємо учасника (запис створиться на бекенді при сабміті)
+  const addMember = (u: UserShort) => {
+    if (memberships.find(m => m.user.id === u.id)) return
+    setMemberships(ms => [
+      ...ms,
+      { id: -Date.now(), user: u, role: 'member' as MembershipRole },
+    ])
+  }
+
+  const removeMember = (mid: number) => {
+    setMemberships(ms => ms.filter(m => m.id !== mid))
+  }
+
+  const updateRole = (mid: number, role: MembershipRole) => {
+    setMemberships(ms => ms.map(m => (m.id === mid ? { ...m, role } : m)))
   }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     if (!name.trim()) {
-      setError('Вкажіть назву проєкту')
+      setError('Назва не може бути порожньою')
       return
     }
     setSubmitting(true)
     try {
-      const payload: Record<string, unknown> = {
+      await apiPatch<Project>(`/projects/${projectId}/`, {
         name: name.trim(),
         key: key.trim().toUpperCase(),
         description,
         color,
         icon,
         visibility,
-      }
-      if (workspaceIds.length > 0) payload.workspaces = workspaceIds
-      const created = await apiPost<Project>('/projects/', payload)
-      if (members.length > 0) {
-        await Promise.all(
-          members.map(m =>
-            apiPost(`/projects/${created.id}/add_member/`, {
-              user_id: m.id,
-              role: 'member',
+        workspaces: workspaceIds,
+      })
+
+      // Синхронізуємо учасників: дивимось серверний стан і обчислюємо diff
+      const serverMems = await listAll<Membership>(
+        `/memberships/?project=${projectId}&page_size=100`
+      ).catch(() => [] as Membership[])
+      const serverByUser = new Map(serverMems.map(m => [m.user.id, m]))
+      const localByUser = new Map(memberships.map(m => [m.user.id, m]))
+
+      const ops: Promise<unknown>[] = []
+      // Додавання нових / зміна ролі
+      for (const local of memberships) {
+        const server = serverByUser.get(local.user.id)
+        if (!server) {
+          ops.push(
+            apiPost(`/projects/${projectId}/add_member/`, {
+              user_id: local.user.id,
+              role: local.role,
             }).catch(() => null)
           )
-        )
+        } else if (server.role !== local.role && server.role !== 'owner') {
+          ops.push(
+            apiPatch(`/memberships/${server.id}/`, { role: local.role }).catch(() => null)
+          )
+        }
       }
-      window.dispatchEvent(new CustomEvent('project:created', { detail: created }))
-      toast.show('Проєкт створено', 'success')
-      navigate(`/bugs?project=${created.id}`)
+      // Видалення тих, кого вже немає локально (крім owner)
+      for (const server of serverMems) {
+        if (server.role === 'owner') continue
+        if (!localByUser.has(server.user.id)) {
+          ops.push(apiDelete(`/memberships/${server.id}/`).catch(() => null))
+        }
+      }
+      await Promise.all(ops)
+
+      window.dispatchEvent(new CustomEvent('project:created'))
+      toast.show('Проєкт оновлено', 'success')
+      navigate(`/bugs?project=${projectId}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Помилка створення')
+      setError(err instanceof Error ? err.message : 'Помилка збереження')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const TemplateIcon = ({ id }: { id: keyof typeof Ic }) => {
-    const Cmp = Ic[id] || Ic.Layout
-    return <Cmp sz={18} />
+  const archive = async () => {
+    const ok = await confirm({
+      title: `Архівувати проєкт «${name}»?`,
+      message:
+        'Проєкт перестане зʼявлятися у списках, але всі задачі збережуться. Можна відновити пізніше.',
+      confirmText: 'Архівувати',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await apiDelete(`/projects/${projectId}/`)
+      window.dispatchEvent(new CustomEvent('project:deleted'))
+      toast.show('Проєкт архівовано', 'success')
+      navigate('/dashboard')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="page" style={{ maxWidth: 960 }}>
+        <Skeleton width={300} height={28} />
+        <div style={{ marginTop: 12 }}>
+          <Skeleton height={400} />
+        </div>
+      </div>
+    )
   }
 
   const SelectedIcon = Ic[icon] || Ic.Layout
 
   return (
     <div className="scroll-inner">
-      <form className="form-page narrow" onSubmit={submit}>
+      <form className="form-page" onSubmit={submit}>
         <div className="form-page-head">
           <button
             type="button"
             className="btn ghost icon"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(`/bugs?project=${projectId}`)}
             title="Назад"
           >
             <Ic.Chev sz={14} style={{ transform: 'rotate(180deg)' }} />
@@ -189,7 +257,7 @@ export function NewProjectPage() {
                 color: 'var(--fg-3)',
               }}
             >
-              Створення проєкту
+              Редагування проєкту
             </div>
             <h1
               style={{
@@ -199,11 +267,18 @@ export function NewProjectPage() {
                 letterSpacing: '-0.015em',
               }}
             >
-              Налаштуйте новий проєкт
+              {name || 'Проєкт'}
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn" onClick={() => navigate('/dashboard')}>
+            <button type="button" className="btn" onClick={archive}>
+              <Ic.Trash sz={12} /> Архівувати
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => navigate(`/bugs?project=${projectId}`)}
+            >
               Скасувати
             </button>
             <button
@@ -211,14 +286,14 @@ export function NewProjectPage() {
               className="btn primary"
               disabled={submitting || !name.trim()}
             >
-              <Ic.Plus sz={13} /> {submitting ? 'Створення…' : 'Створити проєкт'}
+              <Ic.Check sz={12} /> {submitting ? 'Збереження…' : 'Зберегти'}
             </button>
           </div>
         </div>
 
         {error && <div className="bt-error-banner">{error}</div>}
 
-        {/* Простори (M2M) */}
+        {/* Простори */}
         {workspaces.length > 0 && (
           <div className="form-section">
             <label className="form-lbl">
@@ -279,33 +354,6 @@ export function NewProjectPage() {
           </div>
         )}
 
-        {/* Шаблон */}
-        <div className="form-section">
-          <label className="form-lbl">Шаблон</label>
-          <div className="tmpl-grid">
-            {TEMPLATES.map(t => (
-              <div
-                key={t.id}
-                className={`tmpl-card ${template === t.id ? 'active' : ''}`}
-                onClick={() => setTemplate(t.id)}
-              >
-                <div className="tmpl-ico">
-                  <TemplateIcon id={t.icon} />
-                </div>
-                <div className="tmpl-meta">
-                  <b>{t.name}</b>
-                  <span>{t.desc}</span>
-                </div>
-                {template === t.id && (
-                  <div className="tmpl-check">
-                    <Ic.Check sz={11} />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
         <div className="np-grid">
           {/* Ідентичність */}
           <div className="form-card">
@@ -321,8 +369,6 @@ export function NewProjectPage() {
                     className="inp"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    placeholder="Наприклад: Web App"
-                    autoFocus
                     required
                   />
                 </div>
@@ -338,7 +384,6 @@ export function NewProjectPage() {
                     value={key}
                     onChange={e => setKey(e.target.value.toUpperCase().slice(0, 10))}
                     style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}
-                    placeholder="WEB"
                   />
                 </div>
               </div>
@@ -351,7 +396,6 @@ export function NewProjectPage() {
                 rows={2}
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Призначення проєкту, стек, посилання на репозиторій"
               />
             </div>
 
@@ -400,20 +444,25 @@ export function NewProjectPage() {
           {/* Команда та доступ */}
           <div className="form-card">
             <div className="fc-section-title">Команда та доступ</div>
+
             <div className="field">
               <label>Видимість</label>
-              <div className="seg" style={{ width: '100%' }}>
+              <div className="visibility-cards">
                 {VISIBILITY_OPTIONS.map(v => {
                   const VIcn = Ic[v.icon]
+                  const active = visibility === v.id
                   return (
                     <button
                       type="button"
                       key={v.id}
-                      className={visibility === v.id ? 'active' : ''}
                       onClick={() => setVisibility(v.id)}
-                      style={{ flex: 1 }}
+                      className={`vis-card ${active ? 'active' : ''}`}
                     >
-                      <VIcn sz={11} /> {v.label}
+                      <span className="vis-ico">
+                        <VIcn sz={14} />
+                      </span>
+                      <b>{v.label}</b>
+                      <span className="vis-desc">{v.desc}</span>
                     </button>
                   )
                 })}
@@ -421,49 +470,89 @@ export function NewProjectPage() {
             </div>
 
             <div className="field" style={{ marginTop: 14 }}>
-              <label>Учасники</label>
+              <label>Учасники ({memberships.length})</label>
               <div className="member-list">
-                {user && (
-                  <div className="member-row">
-                    <Avatar user={user} />
-                    <div style={{ flex: 1 }}>
-                      <b style={{ fontWeight: 500, fontSize: 13 }}>
-                        {user.first_name || user.username}{' '}
-                        <span style={{ color: 'var(--fg-4)', fontWeight: 400 }}>(ви)</span>
-                      </b>
-                      <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{user.email}</div>
-                    </div>
-                    <span
-                      className="tag"
-                      style={{
-                        background: 'var(--accent-soft)',
-                        color: 'var(--accent-soft-fg)',
-                        borderColor: 'transparent',
-                      }}
-                    >
-                      Owner
-                    </span>
+                {memberships.length === 0 && (
+                  <div
+                    style={{
+                      padding: 10,
+                      fontSize: 12,
+                      color: 'var(--fg-3)',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Лише власник має доступ
                   </div>
                 )}
-                {members.map(m => (
-                  <div key={m.id} className="member-row">
-                    <Avatar user={m} />
-                    <div style={{ flex: 1 }}>
-                      <b style={{ fontWeight: 500, fontSize: 13 }}>
-                        {m.first_name || m.username}
-                      </b>
-                      <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{m.email}</div>
+                {memberships.map(m => {
+                  const isOwner = m.role === 'owner' || m.user.id === ownerId
+                  return (
+                    <div key={m.id} className="member-row">
+                      <Avatar user={m.user} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <b
+                          style={{
+                            fontWeight: 500,
+                            fontSize: 13,
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {m.user.first_name || m.user.username}
+                        </b>
+                        <div
+                          style={{
+                            fontSize: 11.5,
+                            color: 'var(--fg-3)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {m.user.email || `@${m.user.username}`}
+                        </div>
+                      </div>
+                      {isOwner ? (
+                        <span
+                          className="tag"
+                          style={{
+                            background: 'var(--accent-soft)',
+                            color: 'var(--accent-soft-fg)',
+                            borderColor: 'transparent',
+                          }}
+                        >
+                          Власник
+                        </span>
+                      ) : (
+                        <>
+                          <select
+                            className="inp role-select"
+                            value={m.role}
+                            onChange={e =>
+                              updateRole(m.id, e.target.value as MembershipRole)
+                            }
+                          >
+                            {ROLE_OPTIONS.map(r => (
+                              <option key={r.id} value={r.id}>
+                                {r.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="btn ghost icon sm"
+                            onClick={() => removeMember(m.id)}
+                            title="Прибрати"
+                          >
+                            <Ic.X sz={11} />
+                          </button>
+                        </>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      className="btn ghost icon sm"
-                      onClick={() => toggleMember(m)}
-                      title="Прибрати"
-                    >
-                      <Ic.X sz={11} />
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
 
                 {memberPickerOpen ? (
                   <div
@@ -484,17 +573,20 @@ export function NewProjectPage() {
                           textAlign: 'center',
                         }}
                       >
-                        Немає інших користувачів у системі
+                        Немає інших користувачів
                       </div>
                     ) : (
-                      allUsers.map(u => {
-                        const picked = !!members.find(m => m.id === u.id)
-                        return (
+                      allUsers
+                        .filter(u => !memberships.find(m => m.user.id === u.id))
+                        .map(u => (
                           <button
                             type="button"
                             key={u.id}
                             className="drop-item"
-                            onClick={() => toggleMember(u)}
+                            onClick={() => {
+                              addMember(u)
+                              setMemberPickerOpen(false)
+                            }}
                             style={{ width: '100%' }}
                           >
                             <Avatar user={u} />
@@ -508,10 +600,9 @@ export function NewProjectPage() {
                                 @{u.username}
                               </span>
                             </span>
-                            {picked && <Ic.Check sz={11} />}
+                            <Ic.Plus sz={11} />
                           </button>
-                        )
-                      })
+                        ))
                     )}
                   </div>
                 ) : (
@@ -521,7 +612,7 @@ export function NewProjectPage() {
                     style={{ marginTop: 6 }}
                     onClick={() => setMemberPickerOpen(true)}
                   >
-                    <Ic.Plus sz={11} /> Запросити людей
+                    <Ic.Plus sz={11} /> Додати учасників
                   </button>
                 )}
               </div>
@@ -549,7 +640,7 @@ export function NewProjectPage() {
                       type="button"
                       className="btn sm"
                       onClick={() => navigate('/webhooks')}
-                      title="Налаштовується після створення"
+                      title="Налаштовується через Webhooks"
                     >
                       Підключити
                     </button>
@@ -581,8 +672,8 @@ export function NewProjectPage() {
                 type="button"
                 className="btn sm ghost"
                 style={{ marginLeft: 'auto' }}
-                disabled
-                title="Налаштовується після створення"
+                onClick={() => setWorkflowOpen(true)}
+                title="Налаштувати статуси"
               >
                 <Ic.Edit sz={11} /> Налаштувати
               </button>
@@ -590,6 +681,13 @@ export function NewProjectPage() {
           </div>
         </div>
       </form>
+
+      {workflowOpen && (
+        <WorkflowEditor
+          projectId={projectId}
+          onClose={() => setWorkflowOpen(false)}
+        />
+      )}
     </div>
   )
 }

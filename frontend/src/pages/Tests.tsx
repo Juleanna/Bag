@@ -9,11 +9,12 @@ import type { TestCase, TestSuite } from '../api/extras'
 import { listAll } from '../api/client'
 import type { Project } from '../api/types'
 import { useToast } from '../context/ToastContext'
-import { useConfirm } from '../context/ConfirmContext'
+import { useConfirm, usePrompt } from '../context/ConfirmContext'
 
 export function TestsPage() {
   const toast = useToast()
   const confirm = useConfirm()
+  const prompt = usePrompt()
   const [projects, setProjects] = useState<Project[]>([])
   const [projectId, setProjectId] = useState<number | null>(null)
   const [suites, setSuites] = useState<TestSuite[]>([])
@@ -59,7 +60,13 @@ export function TestsPage() {
   }, [projectId])
 
   const addSuite = async () => {
-    const name = prompt('Назва suite (наприклад "Auth", "Billing"):')
+    const name = await prompt({
+      title: 'Новий suite',
+      message: 'Назва suite (наприклад "Auth", "Billing"):',
+      placeholder: 'Auth',
+      confirmText: 'Створити',
+      required: true,
+    })
     if (!name || !projectId) return
     try {
       await api.createTestSuite({ project: projectId, name })
@@ -76,7 +83,13 @@ export function TestsPage() {
       toast.show('Спершу оберіть suite', 'info')
       return
     }
-    const title = prompt('Назва тест-кейсу:')
+    const title = await prompt({
+      title: 'Новий тест-кейс',
+      message: 'Назва тест-кейсу:',
+      placeholder: 'Користувач може увімкнути 2FA',
+      confirmText: 'Створити',
+      required: true,
+    })
     if (!title) return
     try {
       const created = await api.createTestCase({ suite: activeSuite, title })

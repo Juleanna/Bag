@@ -17,6 +17,7 @@ from .models import (
     Notification,
     Project,
     ProjectMembership,
+    Region,
     SavedFilter,
     Sprint,
     StarredIssue,
@@ -26,6 +27,8 @@ from .models import (
     TestSuite,
     TimeLog,
     Webhook,
+    WorkflowStatus,
+    Workspace,
 )
 
 User = get_user_model()
@@ -43,6 +46,70 @@ class LabelSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "color"]
 
 
+class WorkflowStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowStatus
+        fields = [
+            "id",
+            "project",
+            "key",
+            "label",
+            "color",
+            "sort_order",
+            "is_default",
+            "is_done",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class RegionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Region
+        fields = [
+            "id",
+            "code",
+            "label",
+            "icon",
+            "sort_order",
+            "is_active",
+            "is_default",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class WorkspaceSerializer(serializers.ModelSerializer):
+    owner = UserShortSerializer(read_only=True)
+    members = UserShortSerializer(many=True, read_only=True)
+    projects_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Workspace
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "color",
+            "team_size",
+            "industry",
+            "region",
+            "auto_join_domain",
+            "domain",
+            "owner",
+            "members",
+            "projects_count",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def get_projects_count(self, obj: Workspace) -> int:
+        return obj.projects.count()
+
+
 class ProjectSerializer(serializers.ModelSerializer):
     owner = UserShortSerializer(read_only=True)
     members = UserShortSerializer(many=True, read_only=True)
@@ -53,14 +120,21 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "key",
             "description",
+            "color",
+            "icon",
+            "visibility",
+            "workspaces",
             "owner",
             "members",
+            "is_archived",
+            "archived_at",
             "created_at",
             "updated_at",
             "issues_count",
         ]
-        read_only_fields = ["created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at", "is_archived", "archived_at"]
 
     def get_issues_count(self, obj: Project) -> int:
         # Якщо annotate додав значення — використовуємо його, інакше fallback
@@ -80,8 +154,13 @@ class IssueSerializer(serializers.ModelSerializer):
     labels = serializers.PrimaryKeyRelatedField(
         queryset=Label.objects.all(), many=True, required=False
     )
-    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    status_display = serializers.SerializerMethodField()
+    status_color = serializers.SerializerMethodField()
+    status_is_done = serializers.SerializerMethodField()
     priority_display = serializers.CharField(source="get_priority_display", read_only=True)
+    workflow_status = serializers.PrimaryKeyRelatedField(
+        queryset=WorkflowStatus.objects.all(), allow_null=True, required=False
+    )
 
     class Meta:
         model = Issue
@@ -92,6 +171,9 @@ class IssueSerializer(serializers.ModelSerializer):
             "description",
             "status",
             "status_display",
+            "status_color",
+            "status_is_done",
+            "workflow_status",
             "priority",
             "priority_display",
             "assignee",
@@ -107,6 +189,24 @@ class IssueSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["reporter", "archived_at", "created_at", "updated_at"]
+
+    # status_display / status_color / status_is_done беремо з WorkflowStatus,
+    # якщо привʼязано — інакше fallback на Issue.Status.choices.
+    def get_status_display(self, obj: Issue) -> str:
+        ws = obj.workflow_status
+        if ws:
+            return ws.label
+        return obj.get_status_display()
+
+    def get_status_color(self, obj: Issue) -> str:
+        ws = obj.workflow_status
+        return ws.color if ws else "var(--st-open-dot)"
+
+    def get_status_is_done(self, obj: Issue) -> bool:
+        ws = obj.workflow_status
+        if ws:
+            return ws.is_done
+        return obj.status in ("done", "cancelled")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -125,13 +225,85 @@ class IssueSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Переносити задачу в інший проєкт заборонено")
         return value
 
+    def _sync_status_fields(self, issue: Issue, validated_data: dict) -> None:
+        """Синхронізує issue.status (legacy) ↔ issue.workflow_status (FK).
+
+        Логіка:
+         - Якщо передали workflow_status → копіюємо його key у status.
+         - Інакше якщо передали status (key) → шукаємо WorkflowStatus у проєкті
+           з цим key і привʼязуємо.
+         - Якщо нічого не передали і workflow_status порожній — підставляємо
+           дефолтний для проєкту (is_default=True або перший за sort_order).
+        """
+        ws_field = validated_data.get("workflow_status", None)
+        status_key = validated_data.get("status", None)
+
+        if ws_field is not None:
+            issue.workflow_status = ws_field
+            issue.status = ws_field.key
+        elif status_key is not None:
+            ws = WorkflowStatus.objects.filter(
+                project=issue.project, key=status_key
+            ).first()
+            if ws is None:
+                ws = WorkflowStatus.objects.create(
+                    project=issue.project,
+                    key=status_key,
+                    label=status_key.replace("_", " ").title(),
+                    sort_order=99,
+                    is_done=status_key in ("done", "cancelled"),
+                )
+            issue.workflow_status = ws
+            issue.status = ws.key
+        elif issue.workflow_status is None:
+            default_ws = (
+                WorkflowStatus.objects.filter(project=issue.project, is_default=True)
+                .first()
+                or WorkflowStatus.objects.filter(project=issue.project)
+                .order_by("sort_order")
+                .first()
+            )
+            if default_ws:
+                issue.workflow_status = default_ws
+                issue.status = default_ws.key
+
     def create(self, validated_data):
         labels = validated_data.pop("labels", [])
         validated_data["reporter"] = self.context["request"].user
+        # Витягуємо workflow_status / status щоб обробити після створення
+        ws = validated_data.pop("workflow_status", None)
         issue = super().create(validated_data)
+        # Привʼязуємо статус з урахуванням проєкту
+        self._sync_status_fields(
+            issue,
+            {
+                **({"workflow_status": ws} if ws else {}),
+                "status": validated_data.get("status"),
+            },
+        )
+        issue.save(update_fields=["status", "workflow_status"])
         if labels:
             issue.labels.set(labels)
         return issue
+
+    def update(self, instance, validated_data):
+        labels = validated_data.pop("labels", None)
+        ws = validated_data.pop("workflow_status", "__missing__")
+        status_key = validated_data.pop("status", "__missing__")
+        # Оновлюємо інші поля стандартно
+        instance = super().update(instance, validated_data)
+        # Тепер обробляємо статус
+        sync_data = {}
+        if ws != "__missing__":
+            sync_data["workflow_status"] = ws
+        if status_key != "__missing__":
+            sync_data["status"] = status_key
+        if sync_data:
+            self._sync_status_fields(instance, sync_data)
+            instance.save(update_fields=["status", "workflow_status"])
+        if labels is not None:
+            instance.labels.set(labels)
+        return instance
 
 
 class CommentSerializer(serializers.ModelSerializer):

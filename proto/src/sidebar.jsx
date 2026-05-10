@@ -11,12 +11,14 @@ function Sidebar({ route, setRoute, onOpenPalette }) {
   return (
     <aside className="sidebar">
       <div className="sb-head">
-        <div className="sb-logo">B</div>
+        <button className="sb-logo" onClick={() => setRoute('new-workspace')} title="Новий простір" style={{ border: 'none', cursor: 'pointer' }}>B</button>
         <div className="sb-brand">
           <b>BugForge</b>
           <span>Acme · Web team</span>
         </div>
-        <Ic.ChevDown sz={14} className="sb-chev"/>
+        <button onClick={() => setRoute('new-workspace')} title="Створити простір" style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4, color: 'var(--fg-3)', display: 'grid', placeItems: 'center', borderRadius: 6 }}>
+          <Ic.Plus sz={14}/>
+        </button>
       </div>
 
       <button className="sb-search" onClick={onOpenPalette}>
@@ -31,9 +33,17 @@ function Sidebar({ route, setRoute, onOpenPalette }) {
         <Item id="bugs" icon={Ic.Bug} label="Баги" count={47} hot />
         <Item id="tests" icon={Ic.Beaker} label="Тест-кейси" count={142} />
         <Item id="run" icon={Ic.Play} label="Test Runs" count={3} />
+        <Item id="sprints" icon={Ic.Lightning} label="Спринти" />
         <Item id="reports" icon={Ic.Chart} label="Звіти" />
+        <Item id="templates" icon={Ic.Layout} label="Шаблони" />
         <Item id="inbox" icon={Ic.Inbox} label="Інбокс" count="12" hot />
         <Item id="profile" icon={Ic.User} label="Особистий кабінет" />
+      </div>
+
+      <div className="sb-section">Розробникам</div>
+      <div className="sb-nav">
+        <Item id="integrations" icon={Ic.Link} label="Інтеграції" />
+        <Item id="webhooks" icon={Ic.Link} label="Webhooks" />
       </div>
 
       <div className="sb-section">

@@ -13,13 +13,38 @@ export interface UserShort {
   is_superuser?: boolean
 }
 
-export type IssueStatus = 'open' | 'in_progress' | 'done' | 'cancelled'
-export type IssuePriority = 'low' | 'medium' | 'high'
+// Раніше це був enum, але після інтеграції з WorkflowStatus статуси стали
+// кастомні — приймаємо будь-який рядок-ключ.
+export type IssueStatus = string
+
+export interface WorkflowStatus {
+  id: number
+  project: number
+  key: string
+  label: string
+  color: string
+  sort_order: number
+  is_default: boolean
+  is_done: boolean
+}
+export type IssuePriority = 'low' | 'medium' | 'high' | 'critical'
+
+export type ProjectVisibility = 'team' | 'org' | 'private'
 
 export interface Project {
   id: number
   name: string
+  key?: string
+  slug?: string
   description: string
+  color?: string
+  icon?: string
+  visibility?: ProjectVisibility
+  workspaces?: number[]
+  team_size?: string
+  industry?: string
+  region?: string
+  auto_join_domain?: boolean
   owner: UserShort
   members: UserShort[]
   issues_count: number
@@ -36,6 +61,9 @@ export interface Issue {
   project: number
   status: IssueStatus
   status_display: string
+  status_color?: string
+  status_is_done?: boolean
+  workflow_status?: number | null
   priority: IssuePriority
   priority_display: string
   assignee: number | null

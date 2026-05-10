@@ -9,6 +9,7 @@ import type { TestResult, TestRun } from '../api/extras'
 import { listAll } from '../api/client'
 import type { Project } from '../api/types'
 import { useToast } from '../context/ToastContext'
+import { usePrompt } from '../context/ConfirmContext'
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   planned: { bg: 'var(--st-closed-bg)', fg: 'var(--st-closed-fg)' },
@@ -27,6 +28,7 @@ const RESULT_COLORS: Record<string, { bg: string; fg: string }> = {
 
 export function TestRunsPage() {
   const toast = useToast()
+  const prompt = usePrompt()
   const [projects, setProjects] = useState<Project[]>([])
   const [projectId, setProjectId] = useState<number | null>(null)
   const [runs, setRuns] = useState<TestRun[]>([])
@@ -56,7 +58,13 @@ export function TestRunsPage() {
 
   const createRun = async () => {
     if (!projectId) return
-    const name = prompt('Назва Test Run (наприклад "Smoke v4.18"):')
+    const name = await prompt({
+      title: 'Новий Test Run',
+      message: 'Назва Test Run (наприклад "Smoke v4.18"):',
+      placeholder: 'Smoke v4.18',
+      confirmText: 'Створити',
+      required: true,
+    })
     if (!name) return
     const cases = await api.listTestCases({ project: projectId })
     if (cases.length === 0) {

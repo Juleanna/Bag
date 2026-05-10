@@ -25,7 +25,10 @@ from .models import (
     Notification,
     Project,
     ProjectMembership,
+    Region,
     StarredIssue,
+    WorkflowStatus,
+    Workspace,
 )
 from .permissions import (
     IsAuthenticatedAndMember,
@@ -45,7 +48,10 @@ from .serializers import (
     NotificationSerializer,
     ProjectMembershipSerializer,
     ProjectSerializer,
+    RegionSerializer,
     StarredIssueSerializer,
+    WorkflowStatusSerializer,
+    WorkspaceSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,6 +119,104 @@ class StandardResultsSetPagination(pagination.PageNumberPagination):
     max_page_size = 100
 
 
+class UserListView(viewsets.ReadOnlyModelViewSet):
+    """Список користувачів (для invite-пікерів). Лише id/username/email/імʼя."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_serializer_class(self):
+        from .serializers import UserShortSerializer
+        return UserShortSerializer
+
+    def get_queryset(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        qs = User.objects.filter(is_active=True).order_by("username")
+        # Простий пошук: ?q=foo шукає у username, email, first_name, last_name
+        q = self.request.query_params.get("q")
+        if q:
+            qs = qs.filter(
+                Q(username__icontains=q)
+                | Q(email__icontains=q)
+                | Q(first_name__icontains=q)
+                | Q(last_name__icontains=q)
+            )
+        # Виключаємо самого себе
+        return qs.exclude(pk=self.request.user.pk)
+
+
+class IsStaffOrReadOnly(permissions.BasePermission):
+    """Перегляд — для будь-якого автентифікованого; зміни — лише для staff."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return bool(request.user.is_staff)
+
+
+class RegionViewSet(viewsets.ModelViewSet):
+    """Список регіонів зберігання даних. Read — усі авторизовані;
+    CUD — лише адміністратори (is_staff)."""
+
+    queryset = Region.objects.all()
+    serializer_class = RegionSerializer
+    permission_classes = [IsStaffOrReadOnly]
+    pagination_class = None  # короткий список — без пагінації
+
+
+class WorkflowStatusViewSet(viewsets.ModelViewSet):
+    """CRUD статусів робочого процесу для проєкту. Дозволено учасникам проєкту."""
+
+    serializer_class = WorkflowStatusSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # короткий список — без пагінації
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        qs = WorkflowStatus.objects.filter(project__in=user_projects)
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs.order_by("sort_order", "id")
+
+
+class WorkspaceViewSet(viewsets.ModelViewSet):
+    """Простори (workspaces) — організаційні одиниці. Доступні тільки власникам
+    та учасникам конкретного простору."""
+
+    serializer_class = WorkspaceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        user = self.request.user
+        return Workspace.objects.filter(
+            Q(owner=user) | Q(members=user)
+        ).distinct()
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            workspace = serializer.save(owner=self.request.user)
+            workspace.members.add(self.request.user)
+
+    def perform_destroy(self, instance):
+        """При видаленні простору:
+         - якщо проєкт належить лише цьому простору → видаляємо проєкт
+         - якщо проєкт прив'язаний до інших просторів → лише знімаємо
+           прив'язку до цього простору
+        """
+        with transaction.atomic():
+            for project in instance.projects.all():
+                if project.workspaces.count() <= 1:
+                    project.delete()
+                else:
+                    project.workspaces.remove(instance)
+            instance.delete()
+
+
 class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [IsProjectOwner]
@@ -131,10 +235,17 @@ class ProjectViewSet(viewsets.ModelViewSet):
         qs = _user_projects_cached(self.request, include_archived=include_archived)
         if only_archived:
             qs = qs.filter(is_archived=True)
+
+        # Фільтр за простором (?workspace=<id>) — повертає лише проєкти, що
+        # належать цьому простору (один проєкт може бути у декількох просторах).
+        ws_id = self.request.query_params.get("workspace")
+        if ws_id:
+            qs = qs.filter(workspaces__id=ws_id)
+
         return (
             qs.annotate(issues_count=Count("issues", distinct=True))
             .select_related("owner")
-            .prefetch_related("members")
+            .prefetch_related("members", "workspaces")
         )
 
     def perform_create(self, serializer):
@@ -172,6 +283,27 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if project.owner_id != request.user.id:
             return Response({"error": "Тільки власник може відновлювати"}, status=403)
         project.restore()
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["post"], url_path="add_member")
+    def add_member(self, request, pk=None):
+        """Додає учасника до проєкту через ProjectMembership."""
+        project = self.get_object()
+        if project.owner_id != request.user.id:
+            return Response(
+                {"error": "Тільки власник може додавати учасників"}, status=403
+            )
+        user_id = request.data.get("user_id")
+        role = request.data.get("role", "member")
+        if not user_id:
+            return Response({"error": "Не вказано user_id"}, status=400)
+        if role not in dict(ProjectMembership.Role.choices):
+            return Response({"error": "Невідома роль"}, status=400)
+        ProjectMembership.objects.get_or_create(
+            project=project,
+            user_id=user_id,
+            defaults={"role": role},
+        )
         return Response({"ok": True})
 
     @action(detail=True, methods=["get"], url_path="export")

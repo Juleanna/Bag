@@ -13,7 +13,7 @@ import { gradientFor, initialsFor } from '../atoms/Avatar'
 import { apiPatch, apiPost } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { useConfirm } from '../context/ConfirmContext'
+import { useConfirm, usePrompt } from '../context/ConfirmContext'
 import { api as extras } from '../api/extras'
 import type { ApiToken, LoginEvent } from '../api/extras'
 
@@ -248,7 +248,7 @@ function SecurityForm({ onChanged }: { onChanged: () => void }) {
 function TwoFactorPanel() {
   const { user, refresh } = useAuth()
   const toast = useToast()
-  const confirm = useConfirm()
+  const prompt = usePrompt()
   const [enrollment, setEnrollment] = useState<{ secret: string; otpauth_uri: string } | null>(null)
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -285,14 +285,13 @@ function TwoFactorPanel() {
   }
 
   const disable = async () => {
-    const ok = await confirm({
+    const c = await prompt({
       title: 'Вимкнути 2FA?',
-      message: 'Введіть поточний код з застосунку, щоб підтвердити.',
+      message: 'Введіть поточний 6-значний код з TOTP-додатка, щоб підтвердити.',
+      placeholder: '000000',
       confirmText: 'Вимкнути',
-      danger: true,
+      required: true,
     })
-    if (!ok) return
-    const c = prompt('Поточний 6-значний код:')
     if (!c) return
     setBusy(true)
     try {

@@ -72,7 +72,7 @@ function Reports({ goto }) {
           </div>
           <div className="right">
             <button className="btn"><Ic.Star sz={12}/> Додати в обране</button>
-            <button className="btn primary"><Ic.Plus sz={13}/> Новий звіт</button>
+            <button className="btn primary" onClick={() => goto('new-report')}><Ic.Plus sz={13}/> Новий звіт</button>
           </div>
         </div>
 

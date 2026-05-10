@@ -12,7 +12,45 @@ from django.contrib.auth.signals import user_logged_in, user_login_failed
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .models import Comment, Issue, LoginEvent, TestRun, Webhook, WebhookDelivery
+from .models import (
+    Comment,
+    Issue,
+    LoginEvent,
+    Project,
+    TestRun,
+    Webhook,
+    WebhookDelivery,
+    WorkflowStatus,
+)
+
+
+# Дефолтний набір статусів, що створюється для кожного нового проєкту.
+DEFAULT_WORKFLOW = [
+    {"key": "open", "label": "Відкрито", "color": "var(--st-open-dot)", "is_done": False, "is_default": True},
+    {"key": "in_progress", "label": "В процесі", "color": "var(--st-progress-dot)", "is_done": False, "is_default": False},
+    {"key": "blocked", "label": "Заблоковано", "color": "var(--st-blocked-dot)", "is_done": False, "is_default": False},
+    {"key": "done", "label": "Готово", "color": "var(--st-resolved-dot)", "is_done": True, "is_default": False},
+    {"key": "cancelled", "label": "Скасовано", "color": "var(--st-closed-dot)", "is_done": True, "is_default": False},
+]
+
+
+@receiver(post_save, sender=Project)
+def _seed_workflow_for_new_project(sender, instance, created, **kwargs):
+    """Створює дефолтні WorkflowStatus при створенні нового проєкту."""
+    if not created:
+        return
+    for i, s in enumerate(DEFAULT_WORKFLOW):
+        WorkflowStatus.objects.get_or_create(
+            project=instance,
+            key=s["key"],
+            defaults={
+                "label": s["label"],
+                "color": s["color"],
+                "is_done": s["is_done"],
+                "is_default": s["is_default"],
+                "sort_order": i,
+            },
+        )
 
 logger = logging.getLogger(__name__)
 

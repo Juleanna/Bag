@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { Avatar } from '../atoms/Avatar'
-import { StatusPill, PriorityBadge, STATUS_MAP, PRIORITY_MAP } from '../atoms/Status'
+import { StatusPill, PriorityBadge, PRIORITY_MAP } from '../atoms/Status'
+import { useWorkflow } from '../hooks/useWorkflow'
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
@@ -72,6 +73,7 @@ export function BugDetailPage() {
   const [timeNote, setTimeNote] = useState('')
 
   const issueId = Number(id)
+  const { statuses: workflowStatuses } = useWorkflow(project?.id ?? null)
 
   const reload = async () => {
     if (!issueId) return
@@ -552,9 +554,9 @@ export function BugDetailPage() {
               onChange={e => updateField({ status: e.target.value as IssueStatus })}
               style={{ width: '100%' }}
             >
-              {Object.entries(STATUS_MAP).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v.label}
+              {workflowStatuses.map(s => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
                 </option>
               ))}
             </select>
@@ -616,7 +618,11 @@ export function BugDetailPage() {
             <Ic.Eye sz={11} /> Поточний стан
           </h4>
           <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <StatusPill value={issue.status} />
+            <StatusPill
+              value={issue.status}
+              label={issue.status_display}
+              color={issue.status_color}
+            />
             <PriorityBadge value={issue.priority} />
           </div>
         </div>
