@@ -6,10 +6,24 @@ def _get_project_for_obj(obj):
     # Сам об'єкт є проєктом
     if hasattr(obj, "members") and hasattr(obj, "owner"):
         return obj
-    # Об'єкт прив'язаний прямо до проєкту (Issue, Membership, Invitation)
+    # Об'єкт прив'язаний прямо до проєкту (Issue, Membership, Invitation,
+    # TestSuite, TestRun, Sprint, Webhook тощо)
     project = getattr(obj, "project", None)
     if project is not None:
         return project
+    # TestCase — через suite -> project
+    suite = getattr(obj, "suite", None)
+    if suite is not None:
+        return getattr(suite, "project", None)
+    # TestResult — через run -> project (або через test_case -> suite -> project)
+    run = getattr(obj, "run", None)
+    if run is not None:
+        return getattr(run, "project", None)
+    test_case = getattr(obj, "test_case", None)
+    if test_case is not None:
+        tc_suite = getattr(test_case, "suite", None)
+        if tc_suite is not None:
+            return getattr(tc_suite, "project", None)
     # Об'єкт прив'язаний через issue (Comment, Attachment, ChecklistItem, IssueActivity, Notification)
     issue = getattr(obj, "issue", None)
     if issue is not None:

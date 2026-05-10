@@ -16,8 +16,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bugtracker_dev}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # БД доступна лише з мережі compose (web/celery), назовні не виставляємо
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bugtracker}"]
       interval: 10s
@@ -26,8 +27,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    # Redis доступний лише з мережі compose, назовні не виставляємо
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -49,8 +51,9 @@ services:
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
-    ports:
-      - "8000:8000"
+    # Gunicorn доступний лише через nginx (через мережу compose), не назовні
+    expose:
+      - "8000"
     depends_on:
       db:
         condition: service_healthy
@@ -89,8 +92,10 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
+    # Хост:Контейнер — на хості порт 8082 (бо 80 зайнятий), всередині nginx
+    # все одно слухає 80. Доступ ззовні: http://<IP>:8082
     ports:
-      - "80:80"
+      - "8082:80"
     depends_on:
       - web
 

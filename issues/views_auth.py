@@ -42,13 +42,13 @@ def _check_throttle(request, scope):
 
 
 def _user_json(user, request=None):
-    """Серіалізація користувача для відповідей API."""
+    """Серіалізація користувача для відповідей API.
+    avatar_url повертаємо як відносний шлях (/media/...), щоб уникнути
+    проблем з Docker-DNS (backend:8000 не резолвиться у браузері)."""
     profile = getattr(user, "profile", None)
     avatar_url = None
     if profile and profile.avatar and hasattr(profile.avatar, "url"):
         avatar_url = profile.avatar.url
-        if request:
-            avatar_url = request.build_absolute_uri(avatar_url)
     totp_enabled = bool(profile and profile.totp_enabled)
     return {
         "id": user.id,

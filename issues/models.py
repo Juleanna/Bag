@@ -788,6 +788,12 @@ class TestResult(models.Model):
         max_length=20, choices=Result.choices, default=Result.PENDING, db_index=True
     )
     note = models.TextField(blank=True)
+    # Snapshot даних кейса на момент створення run-результату.
+    # Дозволяє детектити drift після редагування TestCase і пропонувати
+    # оновити run з кейса або кейс з ран'у.
+    case_title_snapshot = models.CharField(max_length=255, blank=True)
+    case_steps_snapshot = models.JSONField(default=list, blank=True)
+    case_preconditions_snapshot = models.TextField(blank=True)
     related_issue = models.ForeignKey(
         Issue,
         null=True,

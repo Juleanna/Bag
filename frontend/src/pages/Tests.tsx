@@ -603,10 +603,7 @@ export function TestsPage() {
                       >
                         <td
                           className="checkbox-col"
-                          onClick={e => {
-                            e.stopPropagation()
-                            toggleSelect(c.id)
-                          }}
+                          onClick={e => e.stopPropagation()}
                         >
                           <input
                             type="checkbox"
@@ -701,6 +698,7 @@ export function TestsPage() {
                                   username: c.created_by_name,
                                   first_name: '',
                                   last_name: '',
+                                  avatar_url: c.created_by_avatar,
                                 }}
                               />
                               <span

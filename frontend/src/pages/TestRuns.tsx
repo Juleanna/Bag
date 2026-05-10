@@ -1,48 +1,74 @@
 /**
- * Test Runs: створення run'у з виборкою кейсів, start/finish, оновлення
- * результатів кожного кейсу під час прогону.
+ * Test Runs — список тестових прогонів за стилем Tests.tsx:
+ *  - sidebar з фільтром за статусом (Усі / Заплановані / В процесі / Завершені)
+ *  - таблиця: ID / Назва / Статус / Кейсів / Pass / Fail / Прогрес / Створено
+ *  - search + bulk-вибір
+ *  - клік відкриває сторінку прогону /runs/<id>
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { api } from '../api/extras'
-import type { TestResult, TestRun } from '../api/extras'
+import type { TestRun } from '../api/extras'
 import { listAll } from '../api/client'
 import type { Project } from '../api/types'
 import { useToast } from '../context/ToastContext'
-import { usePrompt } from '../context/ConfirmContext'
+import { useConfirm, usePrompt } from '../context/ConfirmContext'
 
-const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
-  planned: { bg: 'var(--st-closed-bg)', fg: 'var(--st-closed-fg)' },
-  in_progress: { bg: 'var(--st-progress-bg)', fg: 'var(--st-progress-fg)' },
-  completed: { bg: 'var(--st-resolved-bg)', fg: 'var(--st-resolved-fg)' },
-  aborted: { bg: 'var(--st-open-bg)', fg: 'var(--st-open-fg)' },
+type StatusFilter = 'all' | 'planned' | 'in_progress' | 'completed' | 'aborted'
+
+const STATUS_LABELS: Record<TestRun['status'], { label: string; cls: string; dot: string }> = {
+  planned: { label: 'Заплановано', cls: 'closed', dot: 'var(--st-closed-dot)' },
+  in_progress: { label: 'В процесі', cls: 'progress', dot: 'var(--st-progress-dot)' },
+  completed: { label: 'Завершено', cls: 'resolved', dot: 'var(--st-resolved-dot)' },
+  aborted: { label: 'Перервано', cls: 'open', dot: 'var(--st-open-dot)' },
 }
 
-const RESULT_COLORS: Record<string, { bg: string; fg: string }> = {
-  pass: { bg: 'var(--st-resolved-bg)', fg: 'var(--st-resolved-fg)' },
-  fail: { bg: 'var(--st-open-bg)', fg: 'var(--st-open-fg)' },
-  blocked: { bg: 'var(--st-blocked-bg)', fg: 'var(--st-blocked-fg)' },
-  skip: { bg: 'var(--st-closed-bg)', fg: 'var(--st-closed-fg)' },
-  pending: { bg: 'var(--bg-2)', fg: 'var(--fg-3)' },
+function formatRelative(iso: string): string {
+  const d = new Date(iso)
+  const diff = (Date.now() - d.getTime()) / 1000
+  if (diff < 60) return 'щойно'
+  if (diff < 3600) return `${Math.floor(diff / 60)} хв тому`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} год тому`
+  if (diff < 30 * 86400) return `${Math.floor(diff / 86400)} дн тому`
+  return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export function TestRunsPage() {
+  const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
   const prompt = usePrompt()
+
   const [projects, setProjects] = useState<Project[]>([])
   const [projectId, setProjectId] = useState<number | null>(null)
   const [runs, setRuns] = useState<TestRun[]>([])
-  const [activeRun, setActiveRun] = useState<TestRun | null>(null)
-  const [results, setResults] = useState<TestResult[]>([])
   const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<number>>(new Set())
 
-  useEffect(() => {
-    void (async () => {
+  const reload = async () => {
+    setLoading(true)
+    try {
       const ps = await listAll<Project>('/projects/?page_size=50')
       setProjects(ps)
-      if (ps[0]) setProjectId(ps[0].id)
+      if (ps.length === 0) {
+        setLoading(false)
+        return
+      }
+      const pid = projectId || ps[0].id
+      setProjectId(pid)
+      const rs = await api.listTestRuns(pid)
+      setRuns(rs)
+    } finally {
       setLoading(false)
-    })()
+    }
+  }
+
+  useEffect(() => {
+    void reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -50,11 +76,36 @@ export function TestRunsPage() {
     void api.listTestRuns(projectId).then(setRuns)
   }, [projectId])
 
-  useEffect(() => {
-    if (activeRun) {
-      void api.listTestResults(activeRun.id).then(setResults)
+  const filtered = useMemo(() => {
+    return runs.filter(r => {
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false
+      if (search) {
+        const q = search.toLowerCase()
+        if (!r.name.toLowerCase().includes(q) && !String(r.id).includes(q)) return false
+      }
+      return true
+    })
+  }, [runs, statusFilter, search])
+
+  const stats = useMemo(() => {
+    return {
+      total: runs.length,
+      planned: runs.filter(r => r.status === 'planned').length,
+      inProgress: runs.filter(r => r.status === 'in_progress').length,
+      completed: runs.filter(r => r.status === 'completed').length,
+      aborted: runs.filter(r => r.status === 'aborted').length,
     }
-  }, [activeRun])
+  }, [runs])
+
+  // Pass-rate серед завершених прогонів
+  const passRate = useMemo(() => {
+    const completed = runs.filter(r => r.status === 'completed')
+    if (completed.length === 0) return 0
+    const totalCases = completed.reduce((s, r) => s + r.cases_total, 0)
+    if (totalCases === 0) return 0
+    const totalPass = completed.reduce((s, r) => s + r.pass_count, 0)
+    return Math.round((totalPass / totalCases) * 100)
+  }, [runs])
 
   const createRun = async () => {
     if (!projectId) return
@@ -78,171 +129,350 @@ export function TestRunsPage() {
         test_cases: cases.map(c => c.id),
       })
       setRuns(rs => [run, ...rs])
-      setActiveRun(run)
-      toast.show('Run створено', 'success')
+      toast.show('Run створено — натисніть, щоб запустити', 'success')
+      navigate(`/runs/${run.id}`)
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
     }
   }
 
-  const startRun = async () => {
-    if (!activeRun) return
+  const removeRun = async (r: TestRun) => {
+    const ok = await confirm({
+      title: `Видалити «${r.name}»?`,
+      message: 'Усі результати кейсів цього прогону будуть видалені.',
+      confirmText: 'Видалити',
+      danger: true,
+    })
+    if (!ok) return
     try {
-      const r = await api.startTestRun(activeRun.id)
-      setActiveRun(r)
-      const res = await api.listTestResults(r.id)
-      setResults(res)
-      toast.show('Run запущено', 'success')
+      await api.deleteTestRun(r.id)
+      setRuns(arr => arr.filter(x => x.id !== r.id))
+      toast.show('Видалено', 'success')
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
     }
   }
 
-  const finishRun = async () => {
-    if (!activeRun) return
-    try {
-      const r = await api.finishTestRun(activeRun.id)
-      setActiveRun(r)
-      toast.show('Run завершено', 'success')
-    } catch (e) {
-      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
-    }
+  const toggleSelect = (id: number) => {
+    setSelected(s => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }
+  const selectAll = () => {
+    if (selected.size === filtered.length) setSelected(new Set())
+    else setSelected(new Set(filtered.map(r => r.id)))
   }
 
-  const setResult = async (id: number, result: TestResult['result']) => {
-    try {
-      const updated = await api.updateTestResult(id, { result })
-      setResults(rs => rs.map(r => (r.id === id ? updated : r)))
-    } catch (e) {
-      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
-    }
+  if (loading) {
+    return (
+      <div className="bt-loading-overlay">
+        <div className="bt-spinner" />
+      </div>
+    )
   }
 
-  if (loading) return <div className="bt-loading-overlay"><div className="bt-spinner" /></div>
+  if (projects.length === 0) {
+    return (
+      <div className="page">
+        <div className="empty">
+          <Ic.Play sz={36} />
+          <h4>Немає проєктів</h4>
+          <p>Створіть проєкт, щоб запускати тести</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="page" style={{ maxWidth: 1480 }}>
-      <div className="page-head">
+    <>
+      <div className="page-head" style={{ padding: '20px 24px 0', maxWidth: 'unset' }}>
         <div>
           <h1>Test Runs</h1>
-          <div className="sub">{runs.length} прогонів</div>
+          <div className="sub">
+            {stats.total} {stats.total === 1 ? 'прогін' : 'прогонів'} ·{' '}
+            {stats.inProgress} в процесі · {passRate}% pass-rate
+          </div>
         </div>
         <div className="right">
           <select
             className="inp"
             value={projectId ?? ''}
             onChange={e => setProjectId(Number(e.target.value))}
-            style={{ height: 28 }}
+            style={{ minWidth: 160, width: 'auto' }}
           >
             {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
             ))}
           </select>
-          <button className="btn primary" onClick={createRun}><Ic.Plus sz={13} /> Новий run</button>
+          <button className="btn primary" onClick={createRun}>
+            <Ic.Plus sz={13} /> Новий run
+          </button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {runs.length === 0 && (
-            <div style={{ fontSize: 13, color: 'var(--fg-3)', padding: '6px 8px' }}>
-              Прогонів ще немає
+      <div className="filters">
+        <input
+          className="search-input"
+          placeholder="Пошук прогонів…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        {statusFilter !== 'all' && (
+          <button
+            type="button"
+            className="chip applied"
+            onClick={() => setStatusFilter('all')}
+          >
+            <span style={{ color: 'var(--fg-3)' }}>Статус:</span>
+            <span style={{ color: 'var(--accent-soft-fg)', fontWeight: 500 }}>
+              {STATUS_LABELS[statusFilter as TestRun['status']]?.label}
+            </span>
+            <Ic.X sz={11} />
+          </button>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '220px minmax(0,1fr)',
+          minHeight: 0,
+        }}
+      >
+        <aside
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            background: 'var(--surface-2)',
+            borderRight: '1px solid var(--border)',
+            padding: '12px 8px',
+          }}
+        >
+          <div>
+            <div className="sb-section" style={{ padding: '4px 8px 6px' }}>
+              <span className="sb-section-label">Статус</span>
             </div>
-          )}
-          {runs.map(r => {
-            const c = STATUS_COLORS[r.status]
-            return (
+            <div className="sb-nav" style={{ padding: 0 }}>
               <button
-                key={r.id}
-                className={`sb-item ${activeRun?.id === r.id ? 'active' : ''}`}
-                onClick={() => setActiveRun(r)}
+                className={`sb-item ${statusFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('all')}
               >
-                <span className="pill" style={{ background: c.bg, color: c.fg }}>
-                  {r.status}
-                </span>
-                <span style={{ flex: 1 }}>{r.name}</span>
-                <span className="sb-count">{r.cases_total}</span>
+                <Ic.Layout sz={14} />
+                <span>Усі</span>
+                <span className="sb-count">{stats.total}</span>
               </button>
-            )
-          })}
+              <button
+                className={`sb-item ${statusFilter === 'planned' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('planned')}
+              >
+                <Ic.Calendar sz={14} />
+                <span>Заплановані</span>
+                <span className="sb-count">{stats.planned}</span>
+              </button>
+              <button
+                className={`sb-item ${statusFilter === 'in_progress' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('in_progress')}
+              >
+                <Ic.Play sz={14} />
+                <span>В процесі</span>
+                <span className="sb-count">{stats.inProgress}</span>
+              </button>
+              <button
+                className={`sb-item ${statusFilter === 'completed' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('completed')}
+              >
+                <Ic.Check sz={14} />
+                <span>Завершені</span>
+                <span className="sb-count">{stats.completed}</span>
+              </button>
+              <button
+                className={`sb-item ${statusFilter === 'aborted' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('aborted')}
+              >
+                <Ic.X sz={14} />
+                <span>Перервані</span>
+                <span className="sb-count">{stats.aborted}</span>
+              </button>
+            </div>
+          </div>
         </aside>
 
-        <div className="card" style={{ padding: 18 }}>
-          {!activeRun ? (
-            <div className="empty">
+        <div style={{ minWidth: 0 }}>
+          {filtered.length === 0 ? (
+            <div className="empty" style={{ padding: 60 }}>
               <Ic.Play sz={32} />
-              <p>Оберіть run або створіть новий</p>
+              <h4>Прогонів немає</h4>
+              <p>Створіть перший Test Run для прогону тест-кейсів</p>
             </div>
           ) : (
-            <>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <h2 style={{ margin: 0, fontSize: 18 }}>{activeRun.name}</h2>
-                  <div className="sub">
-                    {activeRun.cases_total} кейсів · ✅ {activeRun.pass_count} · ❌ {activeRun.fail_count}
-                  </div>
-                </div>
-                {activeRun.status === 'planned' && (
-                  <button className="btn primary" onClick={startRun}>
-                    <Ic.Play sz={12} /> Запустити
-                  </button>
-                )}
-                {activeRun.status === 'in_progress' && (
-                  <button className="btn primary" onClick={finishRun}>
-                    <Ic.Check sz={12} /> Завершити
-                  </button>
-                )}
-              </div>
-
-              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {results.length === 0 ? (
-                  <div className="empty">
-                    <p>Запустіть run, щоб побачити кейси</p>
-                  </div>
-                ) : (
-                  results.map(r => {
-                    const c = RESULT_COLORS[r.result]
+            <div className="tbl-wrap" style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ tableLayout: 'fixed', width: '100%' }}>
+                <colgroup>
+                  <col style={{ width: 36 }} />
+                  <col style={{ width: 72 }} />
+                  <col />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 70 }} />
+                  <col style={{ width: 70 }} />
+                  <col style={{ width: 70 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 36 }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="checkbox-col">
+                      <input
+                        type="checkbox"
+                        className="cb"
+                        checked={selected.size > 0 && selected.size === filtered.length}
+                        onChange={selectAll}
+                      />
+                    </th>
+                    <th>ID</th>
+                    <th>Назва</th>
+                    <th>Статус</th>
+                    <th>Кейсів</th>
+                    <th>Pass</th>
+                    <th>Fail</th>
+                    <th>Прогрес</th>
+                    <th>Створено</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(r => {
+                    const status = STATUS_LABELS[r.status]
+                    const done = r.pass_count + r.fail_count
+                    const pct = r.cases_total === 0 ? 0 : Math.round((done / r.cases_total) * 100)
+                    const isSelected = selected.has(r.id)
                     return (
-                      <div
+                      <tr
                         key={r.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '8px 10px',
-                          border: '1px solid var(--border)',
-                          borderRadius: 8,
-                          background: 'var(--surface-2)',
-                        }}
+                        className={isSelected ? 'selected' : ''}
+                        onClick={() => navigate(`/runs/${r.id}`)}
+                        style={{ cursor: 'pointer' }}
                       >
-                        <span className="id-cell">TC-{r.test_case}</span>
-                        <span style={{ flex: 1, fontSize: 13 }}>{r.case_title}</span>
-                        <span className="pill" style={{ background: c.bg, color: c.fg }}>
-                          {r.result}
-                        </span>
-                        {(['pass', 'fail', 'blocked', 'skip'] as const).map(v => (
-                          <button
-                            key={v}
-                            className="btn sm"
-                            onClick={() => setResult(r.id, v)}
+                        <td
+                          className="checkbox-col"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            className="cb"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(r.id)}
+                          />
+                        </td>
+                        <td className="id-cell" style={{ whiteSpace: 'nowrap' }}>
+                          TR-{r.id}
+                        </td>
+                        <td>
+                          <span
+                            className="title-cell"
                             style={{
-                              background: r.result === v ? RESULT_COLORS[v].bg : undefined,
-                              color: r.result === v ? RESULT_COLORS[v].fg : undefined,
-                              fontWeight: r.result === v ? 600 : undefined,
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
                             }}
+                            title={r.name}
                           >
-                            {v}
+                            {r.name}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`pill ${status.cls}`}>
+                            <span className="dot" style={{ background: status.dot }} />
+                            {status.label}
+                          </span>
+                        </td>
+                        <td className="muted" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {r.cases_total}
+                        </td>
+                        <td
+                          style={{
+                            color: 'var(--st-resolved-fg)',
+                            fontWeight: 500,
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {r.pass_count}
+                        </td>
+                        <td
+                          style={{
+                            color: r.fail_count > 0 ? 'var(--st-open-fg)' : 'var(--fg-4)',
+                            fontWeight: 500,
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {r.fail_count}
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              width: '100%',
+                              height: 6,
+                              background: 'var(--bg-2)',
+                              borderRadius: 999,
+                              overflow: 'hidden',
+                              display: 'flex',
+                            }}
+                            title={`${pct}%`}
+                          >
+                            <div
+                              style={{
+                                width: `${
+                                  r.cases_total
+                                    ? (r.pass_count / r.cases_total) * 100
+                                    : 0
+                                }%`,
+                                background: 'var(--st-resolved-dot)',
+                              }}
+                            />
+                            <div
+                              style={{
+                                width: `${
+                                  r.cases_total
+                                    ? (r.fail_count / r.cases_total) * 100
+                                    : 0
+                                }%`,
+                                background: 'var(--st-open-dot)',
+                              }}
+                            />
+                          </div>
+                        </td>
+                        <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                          {formatRelative(r.created_at)}
+                        </td>
+                        <td
+                          className="right"
+                          style={{ paddingRight: 12 }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <button
+                            className="btn ghost icon sm"
+                            onClick={() => removeRun(r)}
+                            title="Видалити"
+                          >
+                            <Ic.Trash sz={12} />
                           </button>
-                        ))}
-                      </div>
+                        </td>
+                      </tr>
                     )
-                  })
-                )}
-              </div>
-            </>
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
-    </div>
+    </>
   )
 }

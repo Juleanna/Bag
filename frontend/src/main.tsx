@@ -28,7 +28,12 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <TweaksProvider>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <AuthProvider>
           <ToastProvider>
             <ConfirmProvider>

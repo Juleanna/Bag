@@ -42,13 +42,11 @@ class UserShortSerializer(serializers.ModelSerializer):
         fields = ["id", "username", "first_name", "last_name", "avatar_url"]
 
     def get_avatar_url(self, obj):
+        # Повертаємо відносний шлях — браузер сам додасть свій origin
+        # (Docker-host 'backend:8000' не резолвиться у браузері).
         profile = getattr(obj, "profile", None)
         if profile and profile.avatar and hasattr(profile.avatar, "url"):
-            request = self.context.get("request") if hasattr(self, "context") else None
-            url = profile.avatar.url
-            if request:
-                return request.build_absolute_uri(url)
-            return url
+            return profile.avatar.url
         return None
 
 
@@ -580,19 +578,33 @@ class TestCaseSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(
         source="created_by.username", read_only=True, default=None
     )
+    created_by_avatar = serializers.SerializerMethodField()
     steps_count = serializers.SerializerMethodField()
+    last_result = serializers.SerializerMethodField()
+    last_run_at = serializers.SerializerMethodField()
 
     class Meta:
         model = TestCase
         fields = "__all__"
         read_only_fields = ("created_by", "created_at", "updated_at")
 
+    def get_created_by_avatar(self, obj):
+        if not obj.created_by_id:
+            return None
+        try:
+            profile = obj.created_by.profile
+        except Exception:
+            return None
+        if not profile or not profile.avatar:
+            return None
+        try:
+            return profile.avatar.url
+        except Exception:
+            return None
+
     def get_steps_count(self, obj):
         steps = obj.steps or []
         return len(steps) if isinstance(steps, list) else 0
-
-    last_result = serializers.SerializerMethodField()
-    last_run_at = serializers.SerializerMethodField()
 
     def get_last_result(self, obj):
         """Останній статус виконання кейса (з найновішого TestResult)."""

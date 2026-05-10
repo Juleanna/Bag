@@ -12,13 +12,16 @@ import { ProfilePage } from './pages/Profile'
 import { NewBugPage } from './pages/NewBug'
 import { NewProjectPage } from './pages/NewProject'
 import { EditProjectPage } from './pages/EditProject'
+import { ProjectArchivePage } from './pages/ProjectArchive'
 import { NewWorkspacePage } from './pages/NewWorkspace'
 import { EditWorkspacePage } from './pages/EditWorkspace'
 import { TestsPage } from './pages/Tests'
 import { TestRunsPage } from './pages/TestRuns'
+import { TestRunDetailPage } from './pages/TestRunDetail'
 import { ReportsPage } from './pages/Reports'
 import { NewTestPage } from './pages/NewTest'
 import { EditTestPage } from './pages/EditTest'
+import { TestCaseDetailPage } from './pages/TestCaseDetail'
 import { SprintsPage } from './pages/Sprints'
 import { WebhooksPage } from './pages/Webhooks'
 import { TemplatesPage } from './pages/Templates'
@@ -117,13 +120,16 @@ export function App() {
         <Route path="bugs/new" element={<NewBugPage />} />
         <Route path="bugs/:id" element={<BugDetailPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
+        <Route path="projects/archive" element={<ProjectArchivePage />} />
         <Route path="projects/:id/edit" element={<EditProjectPage />} />
         <Route path="workspaces/new" element={<NewWorkspacePage />} />
         <Route path="workspaces/:id/edit" element={<EditWorkspacePage />} />
         <Route path="tests" element={<TestsPage />} />
         <Route path="tests/new" element={<NewTestPage />} />
-        <Route path="tests/:id" element={<EditTestPage />} />
+        <Route path="tests/:id" element={<TestCaseDetailPage />} />
+        <Route path="tests/:id/edit" element={<EditTestPage />} />
         <Route path="runs" element={<TestRunsPage />} />
+        <Route path="runs/:id" element={<TestRunDetailPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="sprints" element={<SprintsPage />} />
         <Route path="webhooks" element={<WebhooksPage />} />

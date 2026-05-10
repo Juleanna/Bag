@@ -461,6 +461,13 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
         </button>
         <button
           className="add"
+          onClick={() => navigate('/projects/archive')}
+          title="Архів проєктів"
+        >
+          <Ic.Trash sz={12} />
+        </button>
+        <button
+          className="add"
           onClick={() => navigate('/projects/new')}
           title={
             workspaces.length === 0

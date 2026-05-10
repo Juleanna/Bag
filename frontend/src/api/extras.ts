@@ -72,6 +72,7 @@ export interface TestCase {
   automation_link: string
   created_by: number | null
   created_by_name?: string | null
+  created_by_avatar?: string | null
   steps_count?: number
   last_result?: 'pass' | 'fail' | 'blocked' | 'skip' | 'pending' | null
   last_run_at?: string | null
@@ -99,6 +100,9 @@ export interface TestResult {
   run: number
   test_case: number
   case_title: string
+  case_title_snapshot?: string
+  case_steps_snapshot?: Array<{ step: string; expected?: string }>
+  case_preconditions_snapshot?: string
   result: 'pass' | 'fail' | 'blocked' | 'skip' | 'pending'
   note: string
   related_issue: number | null
@@ -219,10 +223,26 @@ export const api = {
   finishTestRun: (id: number) => apiPost<TestRun>(`/test-runs/${id}/finish/`, {}),
   deleteTestRun: (id: number) => apiDelete(`/test-runs/${id}/`),
 
-  listTestResults: async (runId: number) =>
-    unwrap(await apiGet<PaginatedResponse<TestResult>>(`/test-results/?run=${runId}`)),
+  listTestResults: async (filter: number | { run?: number; test_case?: number }) => {
+    const qs = new URLSearchParams()
+    if (typeof filter === 'number') {
+      qs.set('run', String(filter))
+    } else {
+      if (filter.run) qs.set('run', String(filter.run))
+      if (filter.test_case) qs.set('test_case', String(filter.test_case))
+    }
+    return unwrap(
+      await apiGet<PaginatedResponse<TestResult>>(`/test-results/?${qs}`)
+    )
+  },
   updateTestResult: (id: number, data: Partial<TestResult>) =>
     apiPatch<TestResult>(`/test-results/${id}/`, data),
+  // Drift-resolve: оновити snapshot result-а з актуального TestCase (run += case)
+  syncResultFromCase: (id: number) =>
+    apiPost<TestResult>(`/test-results/${id}/sync_from_case/`, {}),
+  // Drift-resolve: вставити snapshot result-а у TestCase (case := run)
+  syncResultToCase: (id: number) =>
+    apiPost<TestResult>(`/test-results/${id}/sync_to_case/`, {}),
 
   // API tokens
   listApiTokens: async () =>

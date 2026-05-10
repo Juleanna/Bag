@@ -1113,9 +1113,17 @@ class TestRunViewSet(viewsets.ModelViewSet):
         run.status = TestRun.Status.IN_PROGRESS
         run.started_at = tz.now()
         run.save(update_fields=["status", "started_at"])
+        # Зберігаємо snapshot даних кейса для подальшого drift-detection
         TestResult.objects.bulk_create(
             [
-                TestResult(run=run, test_case=tc, result=TestResult.Result.PENDING)
+                TestResult(
+                    run=run,
+                    test_case=tc,
+                    result=TestResult.Result.PENDING,
+                    case_title_snapshot=tc.title,
+                    case_steps_snapshot=tc.steps or [],
+                    case_preconditions_snapshot=tc.preconditions or "",
+                )
                 for tc in run.test_cases.all()
             ],
             ignore_conflicts=True,
@@ -1146,12 +1154,47 @@ class TestResultViewSet(viewsets.ModelViewSet):
         run_id = self.request.query_params.get("run")
         if run_id:
             qs = qs.filter(run_id=run_id)
-        return qs
+        tc_id = self.request.query_params.get("test_case")
+        if tc_id:
+            qs = qs.filter(test_case_id=tc_id)
+        return qs.order_by("-id")
 
     def perform_update(self, serializer):
         from django.utils import timezone as tz
 
         serializer.save(executed_by=self.request.user, executed_at=tz.now())
+
+    @action(detail=True, methods=["post"], url_path="sync_from_case")
+    def sync_from_case(self, request, pk=None):
+        """Оновити snapshot result-а з актуальних даних TestCase."""
+        result = self.get_object()
+        tc = result.test_case
+        result.case_title_snapshot = tc.title
+        result.case_steps_snapshot = tc.steps or []
+        result.case_preconditions_snapshot = tc.preconditions or ""
+        result.save(
+            update_fields=[
+                "case_title_snapshot",
+                "case_steps_snapshot",
+                "case_preconditions_snapshot",
+            ]
+        )
+        return Response(self.get_serializer(result).data)
+
+    @action(detail=True, methods=["post"], url_path="sync_to_case")
+    def sync_to_case(self, request, pk=None):
+        """Зворотний напрям: вставити snapshot result-а у TestCase
+        (тобто прийняти стару версію з рану як актуальну)."""
+        result = self.get_object()
+        tc = result.test_case
+        if result.case_title_snapshot:
+            tc.title = result.case_title_snapshot
+        if result.case_steps_snapshot is not None:
+            tc.steps = result.case_steps_snapshot
+        if result.case_preconditions_snapshot:
+            tc.preconditions = result.case_preconditions_snapshot
+        tc.save(update_fields=["title", "steps", "preconditions"])
+        return Response(self.get_serializer(result).data)
 
 
 # ============================================================================
