@@ -7,11 +7,23 @@ import { NotificationsPopover } from '../components/NotificationsPopover'
 import { HelpModal } from '../components/HelpModal'
 import { TweaksPanel } from '../components/TweaksPanel'
 
+const SIDEBAR_COLLAPSED_KEY = 'bt:sidebarCollapsed'
+
 export function AppShell() {
   const navigate = useNavigate()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+  )
+  const toggleSidebar = () => {
+    setSidebarCollapsed(c => {
+      const next = !c
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0')
+      return next
+    })
+  }
 
   // Глобальні гарячі клавіші
   useEffect(() => {
@@ -33,6 +45,9 @@ export function AppShell() {
       } else if (e.key === '?' && !inField) {
         e.preventDefault()
         setHelpOpen(o => !o)
+      } else if (e.key === '[' && !inField && !meta) {
+        e.preventDefault()
+        toggleSidebar()
       } else if (meta && /^[1-4]$/.test(e.key)) {
         e.preventDefault()
         const map: Record<string, string> = { '1': '/dashboard', '2': '/bugs', '3': '/tests', '4': '/runs' }
@@ -52,8 +67,12 @@ export function AppShell() {
   }, [navigate])
 
   return (
-    <div className="app">
-      <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
+    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <Sidebar
+        onOpenPalette={() => setPaletteOpen(true)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={toggleSidebar}
+      />
       <main className="main">
         <Topbar
           onOpenNotif={() => setNotifOpen(true)}

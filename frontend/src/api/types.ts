@@ -11,6 +11,8 @@ export interface UserShort {
   // is_staff і is_superuser приходять лише з /auth/whoami/, не з обʼєктів issues
   is_staff?: boolean
   is_superuser?: boolean
+  avatar_url?: string | null
+  totp_enabled?: boolean
 }
 
 // Раніше це був enum, але після інтеграції з WorkflowStatus статуси стали

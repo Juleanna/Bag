@@ -6,16 +6,17 @@
  *  - API-токени (створення/відкликання)
  *  - Історія входів (останні 50 спроб)
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { gradientFor, initialsFor } from '../atoms/Avatar'
-import { apiPatch, apiPost } from '../api/client'
+import { apiDelete, apiPatch, apiPost, apiUpload, listAll } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useConfirm, usePrompt } from '../context/ConfirmContext'
 import { api as extras } from '../api/extras'
 import type { ApiToken, LoginEvent } from '../api/extras'
+import type { Issue, Project } from '../api/types'
 
 type TabKey = 'general' | 'security' | 'tfa' | 'tokens' | 'logins'
 
@@ -24,24 +25,85 @@ export function ProfilePage() {
   const navigate = useNavigate()
   const toast = useToast()
   const [tab, setTab] = useState<TabKey>('general')
+  const [stats, setStats] = useState<{
+    bugs: number
+    closed: number
+    projects: number
+    lastLogin: string | null
+  }>({ bugs: 0, closed: 0, projects: 0, lastLogin: null })
+
+  // Підвантажуємо легку статистику для hero-блоку
+  useEffect(() => {
+    if (!user) return
+    void (async () => {
+      try {
+        const [issues, projects, logins] = await Promise.all([
+          listAll<Issue>('/issues/?page_size=200').catch(() => [] as Issue[]),
+          listAll<Project>('/projects/?page_size=50').catch(() => [] as Project[]),
+          extras.listLoginEvents().catch(() => [] as LoginEvent[]),
+        ])
+        const mine = issues.filter(i => i.reporter?.id === user.id)
+        setStats({
+          bugs: mine.length,
+          closed: mine.filter(i => i.status_is_done).length,
+          projects: projects.length,
+          lastLogin:
+            logins.find(l => l.success && l.user === user.id)?.created_at || null,
+        })
+      } catch {
+        /* мовчки */
+      }
+    })()
+  }, [user])
+
+  const memberSince = useMemo(() => {
+    // У UserShort немає date_joined — показуємо null, fallback на «—»
+    return null
+  }, [])
 
   if (!user) return null
+
+  const fullName =
+    user.first_name || user.last_name
+      ? `${user.first_name} ${user.last_name}`.trim()
+      : user.username
 
   return (
     <div>
       <div className="profile-banner">
-        <div className="pb-bg" />
+        <div className="pb-bg">
+          <div className="pb-blob pb-blob-1" />
+          <div className="pb-blob pb-blob-2" />
+        </div>
         <div className="pb-row">
-          <div className="pb-avatar" style={{ background: gradientFor(user.id) }}>
-            {initialsFor(user)}
-          </div>
+          <AvatarUploader
+            user={user}
+            onChanged={() => refresh()}
+          />
           <div className="pb-meta">
-            <h1>
-              {user.first_name || user.last_name
-                ? `${user.first_name} ${user.last_name}`.trim()
-                : user.username}
-            </h1>
-            <div className="pb-sub">@{user.username} · {user.email}</div>
+            <h1>{fullName}</h1>
+            <div className="pb-sub">
+              <span className="pb-handle">@{user.username}</span>
+              <span style={{ margin: '0 6px', color: 'var(--fg-4)' }}>·</span>
+              <Ic.Inbox sz={11} style={{ marginRight: 4, color: 'var(--fg-3)' }} />
+              <a href={`mailto:${user.email}`} style={{ color: 'var(--fg-2)' }}>
+                {user.email}
+              </a>
+            </div>
+            {user.is_staff && (
+              <span
+                className="tag"
+                style={{
+                  marginTop: 8,
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent-soft-fg)',
+                  borderColor: 'transparent',
+                  fontWeight: 500,
+                }}
+              >
+                <Ic.Shield sz={10} style={{ marginRight: 3 }} /> Адміністратор
+              </span>
+            )}
           </div>
           <div className="pb-actions">
             <button
@@ -54,6 +116,31 @@ export function ProfilePage() {
               <Ic.LogOut sz={13} /> Вийти
             </button>
           </div>
+        </div>
+
+        <div className="pb-stats">
+          <ProfileStat
+            icon={<Ic.Bug sz={14} />}
+            label="Створено багів"
+            value={stats.bugs}
+          />
+          <ProfileStat
+            icon={<Ic.Check2 sz={14} />}
+            label="Закрито"
+            value={stats.closed}
+            tone="resolved"
+          />
+          <ProfileStat
+            icon={<Ic.Layout sz={14} />}
+            label="Проєктів"
+            value={stats.projects}
+          />
+          <ProfileStat
+            icon={<Ic.Clock sz={14} />}
+            label="Останній вхід"
+            value={stats.lastLogin ? formatRelative(stats.lastLogin) : '—'}
+            small
+          />
         </div>
       </div>
 
@@ -78,30 +165,190 @@ export function ProfilePage() {
           </div>
 
           <div className="profile-side">
-            <div className="card" style={{ padding: 16 }}>
-              <h4 style={{ margin: 0, fontSize: 12, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Інформація
+            <div className="card profile-info-card">
+              <h4>
+                <Ic.Layout sz={11} /> Інформація
               </h4>
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--fg-3)' }}>ID</span>
-                  <span style={{ fontFamily: 'var(--font-mono)' }}>{user.id}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--fg-3)' }}>Логін</span>
-                  <span>{user.username}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--fg-3)' }}>Пошта</span>
-                  <span style={{ fontSize: 12 }}>{user.email || '—'}</span>
-                </div>
-              </div>
+              <InfoRow icon={<Ic.User sz={11} />} label="ID">
+                <span style={{ fontFamily: 'var(--font-mono)' }}>#{user.id}</span>
+              </InfoRow>
+              <InfoRow icon={<Ic.User sz={11} />} label="Логін">
+                {user.username}
+              </InfoRow>
+              <InfoRow icon={<Ic.Inbox sz={11} />} label="Пошта">
+                {user.email || '—'}
+              </InfoRow>
+              <InfoRow icon={<Ic.Shield sz={11} />} label="Роль">
+                {user.is_staff ? 'Адміністратор' : 'Користувач'}
+              </InfoRow>
+              {memberSince && (
+                <InfoRow icon={<Ic.Calendar sz={11} />} label="З нами з">
+                  {memberSince}
+                </InfoRow>
+              )}
             </div>
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function AvatarUploader({
+  user,
+  onChanged,
+}: {
+  user: NonNullable<ReturnType<typeof useAuth>['user']>
+  onChanged: () => void
+}) {
+  const toast = useToast()
+  const confirm = useConfirm()
+  const [busy, setBusy] = useState(false)
+
+  const upload = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.show('Максимальний розмір — 5 MB', 'error')
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      toast.show('Очікується зображення', 'error')
+      return
+    }
+    setBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('avatar', file)
+      await apiUpload('/auth/avatar/', fd)
+      toast.show('Аватар оновлено', 'success')
+      onChanged()
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async () => {
+    const ok = await confirm({
+      title: 'Видалити аватар?',
+      message: 'Повернетесь до автоматичних ініціалів.',
+      confirmText: 'Видалити',
+      danger: true,
+    })
+    if (!ok) return
+    setBusy(true)
+    try {
+      await apiDelete('/auth/avatar/')
+      toast.show('Аватар видалено', 'success')
+      onChanged()
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) void upload(file)
+    e.target.value = '' // дозволяємо обрати той самий файл повторно
+  }
+
+  return (
+    <div className="pb-avatar-wrap">
+      <label
+        className="pb-avatar"
+        style={{
+          background: user.avatar_url ? 'var(--bg-2)' : gradientFor(user.id),
+          boxShadow: 'var(--shadow-md)',
+          cursor: busy ? 'wait' : 'pointer',
+          backgroundImage: user.avatar_url ? `url(${user.avatar_url})` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          color: user.avatar_url ? 'transparent' : 'white',
+        }}
+        title="Натисніть, щоб змінити"
+      >
+        {!user.avatar_url && initialsFor(user)}
+        <input
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={onPick}
+          disabled={busy}
+        />
+        <span className="pb-avatar-status" title="Онлайн" />
+        <span className="pb-avatar-edit">
+          <Ic.Edit sz={12} />
+        </span>
+      </label>
+      {user.avatar_url && (
+        <button
+          type="button"
+          className="btn ghost sm pb-avatar-remove"
+          onClick={remove}
+          disabled={busy}
+          title="Видалити аватар"
+        >
+          <Ic.X sz={11} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ProfileStat({
+  icon,
+  label,
+  value,
+  small,
+  tone,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: React.ReactNode
+  small?: boolean
+  tone?: 'resolved'
+}) {
+  return (
+    <div className={`pb-stat ${tone || ''}`}>
+      <div className="pb-stat-ico">{icon}</div>
+      <div className="pb-stat-meta">
+        <div className="pb-stat-value" style={small ? { fontSize: 14 } : undefined}>
+          {value}
+        </div>
+        <div className="pb-stat-label">{label}</div>
+      </div>
+    </div>
+  )
+}
+
+function InfoRow({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="pf-info-row">
+      <span className="pf-info-ico">{icon}</span>
+      <span className="pf-info-label">{label}</span>
+      <span className="pf-info-value">{children}</span>
+    </div>
+  )
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso)
+  const diff = (Date.now() - d.getTime()) / 1000
+  if (diff < 60) return 'щойно'
+  if (diff < 3600) return `${Math.floor(diff / 60)} хв тому`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} год тому`
+  if (diff < 30 * 86400) return `${Math.floor(diff / 86400)} дн тому`
+  return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function TabBtn({

@@ -542,6 +542,8 @@ class UserProfile(models.Model):
     totp_enabled = models.BooleanField(default=False)
     # Onboarding — чи пройшов початковий тур
     onboarding_done = models.BooleanField(default=False)
+    # Аватарка користувача (необовʼязкова — fallback на ініціали)
+    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
 
     def __str__(self) -> str:
         return f"Profile of {self.user}"

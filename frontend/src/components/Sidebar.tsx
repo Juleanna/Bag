@@ -9,6 +9,8 @@ import type { Project, Notification } from '../api/types'
 
 interface SidebarProps {
   onOpenPalette: () => void
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
 }
 
 interface CountState {
@@ -25,7 +27,7 @@ interface WorkspaceShort {
 
 const ACTIVE_WS_KEY = 'bt:activeWorkspace'
 
-export function Sidebar({ onOpenPalette }: SidebarProps) {
+export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }: SidebarProps) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
@@ -91,11 +93,18 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
     }
   }
 
+  // Ref на activeWs, щоб слухачі подій бачили актуальне значення
+  // (звичайне замикання у addEventListener фіксує копію з моменту useEffect).
+  const activeWsRef = useRef(activeWs)
+  useEffect(() => {
+    activeWsRef.current = activeWs
+  }, [activeWs])
+
   // Перший рендер + слухачі подій
   useEffect(() => {
     void reloadWorkspacesAndNotifs()
     const onWsChange = () => void reloadWorkspacesAndNotifs()
-    const onProjectChange = () => void reloadProjects(activeWs)
+    const onProjectChange = () => void reloadProjects(activeWsRef.current)
     window.addEventListener('workspace:created', onWsChange)
     window.addEventListener('workspace:deleted', onWsChange)
     window.addEventListener('project:created', onProjectChange)
@@ -156,7 +165,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
   )
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sb-head" ref={switcherRef} style={{ position: 'relative' }}>
         <button
           type="button"
@@ -192,16 +201,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
           type="button"
           onClick={() => navigate('/workspaces/new')}
           title="Створити простір"
-          style={{
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            padding: 4,
-            color: 'var(--fg-3)',
-            display: 'grid',
-            placeItems: 'center',
-            borderRadius: 6,
-          }}
+          className="sb-head-btn"
         >
           <Ic.Plus sz={14} />
         </button>
@@ -450,6 +450,24 @@ export function Sidebar({ onOpenPalette }: SidebarProps) {
           <Ic.Settings sz={14} />
         </button>
       </div>
+
+      {onToggleCollapsed && (
+        <button
+          className="sb-collapse-bar"
+          type="button"
+          onClick={onToggleCollapsed}
+          title={collapsed ? 'Розгорнути сайдбар ([)' : 'Згорнути сайдбар ([)'}
+        >
+          <Ic.Chev
+            sz={12}
+            style={{
+              transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+              transition: 'transform 0.15s',
+            }}
+          />
+          {!collapsed && <span>Згорнути</span>}
+        </button>
+      )}
     </aside>
   )
 }

@@ -83,6 +83,7 @@ urlpatterns = [
     path("auth/register/", auth.register, name="auth-register"),
     path("auth/logout/", auth.logout, name="auth-logout"),
     path("auth/profile/", auth.update_profile, name="auth-profile"),
+    path("auth/avatar/", auth.avatar_view, name="auth-avatar"),
     path("auth/password/", auth.change_password, name="auth-password"),
     # Email confirmation / password reset
     path("auth/email/request/", views_email.request_confirm_email, name="auth-email-request"),

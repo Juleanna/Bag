@@ -41,17 +41,25 @@ def _check_throttle(request, scope):
     return True, 0
 
 
-def _user_json(user):
+def _user_json(user, request=None):
     """Серіалізація користувача для відповідей API."""
+    profile = getattr(user, "profile", None)
+    avatar_url = None
+    if profile and profile.avatar and hasattr(profile.avatar, "url"):
+        avatar_url = profile.avatar.url
+        if request:
+            avatar_url = request.build_absolute_uri(avatar_url)
+    totp_enabled = bool(profile and profile.totp_enabled)
     return {
         "id": user.id,
         "username": user.username,
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        # is_staff потрібен фронту для умовного показу /admin-panel
         "is_staff": user.is_staff,
         "is_superuser": user.is_superuser,
+        "avatar_url": avatar_url,
+        "totp_enabled": totp_enabled,
     }
 
 
@@ -273,4 +281,40 @@ def update_profile(request):
     if changed:
         user.save()
 
-    return JsonResponse({"ok": True, "user": _user_json(user)})
+    return JsonResponse({"ok": True, "user": _user_json(user, request)})
+
+
+@require_http_methods(["POST", "DELETE"])
+@csrf_protect
+def avatar_view(request):
+    """POST → завантаження аватара (multipart 'avatar'), DELETE → видалення."""
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "Не автентифіковано"}, status=401)
+    from .models import UserProfile
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if request.method == "DELETE":
+        if profile.avatar:
+            profile.avatar.delete(save=False)
+        profile.avatar = None
+        profile.save(update_fields=["avatar"])
+        return JsonResponse({"ok": True, "user": _user_json(request.user, request)})
+
+    file = request.FILES.get("avatar")
+    if not file:
+        return JsonResponse({"ok": False, "error": "Файл не передано"}, status=400)
+    if file.size > 5 * 1024 * 1024:
+        return JsonResponse(
+            {"ok": False, "error": "Максимум 5 MB"}, status=400
+        )
+    if not (file.content_type or "").startswith("image/"):
+        return JsonResponse(
+            {"ok": False, "error": "Очікується зображення"}, status=400
+        )
+    # Видаляємо старе зображення, якщо було
+    if profile.avatar:
+        profile.avatar.delete(save=False)
+    profile.avatar = file
+    profile.save(update_fields=["avatar"])
+    return JsonResponse({"ok": True, "user": _user_json(request.user, request)})

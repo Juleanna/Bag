@@ -222,6 +222,25 @@ export function EditProjectPage() {
     }
   }
 
+  const remove = async () => {
+    const ok = await confirm({
+      title: `Видалити проєкт «${name}» назавжди?`,
+      message:
+        'Усі задачі, коментарі, вкладення та звʼязки будуть знищені без можливості відновлення. Цю дію неможливо скасувати.',
+      confirmText: 'Видалити назавжди',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await apiDelete(`/projects/${projectId}/?force=true`)
+      window.dispatchEvent(new CustomEvent('project:deleted'))
+      toast.show('Проєкт видалено', 'success')
+      navigate('/dashboard')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
   if (loading) {
     return (
       <div className="page" style={{ maxWidth: 960 }}>
@@ -273,6 +292,9 @@ export function EditProjectPage() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn" onClick={archive}>
               <Ic.Trash sz={12} /> Архівувати
+            </button>
+            <button type="button" className="btn danger" onClick={remove}>
+              <Ic.X sz={12} /> Видалити
             </button>
             <button
               type="button"

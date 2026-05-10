@@ -35,9 +35,21 @@ User = get_user_model()
 
 
 class UserShortSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name"]
+        fields = ["id", "username", "first_name", "last_name", "avatar_url"]
+
+    def get_avatar_url(self, obj):
+        profile = getattr(obj, "profile", None)
+        if profile and profile.avatar and hasattr(profile.avatar, "url"):
+            request = self.context.get("request") if hasattr(self, "context") else None
+            url = profile.avatar.url
+            if request:
+                return request.build_absolute_uri(url)
+            return url
+        return None
 
 
 class LabelSerializer(serializers.ModelSerializer):
