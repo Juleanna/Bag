@@ -97,7 +97,12 @@ USE_TZ = True
 # Статичні файли
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+    # Vite-бандл — collectstatic копіює assets/, sw.js, маніфести й іконки
+    # у /app/staticfiles, звідки WhiteNoise їх віддає у проді.
+    BASE_DIR / "frontend" / "dist",
+]
 
 STORAGES = {
     "default": {
