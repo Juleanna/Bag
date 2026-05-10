@@ -1,18 +1,25 @@
-version: "3.8"
+# Production стек: web (Gunicorn) + celery + celery-beat + db + redis + nginx.
+# Використовує образ, побудований з кореневого Dockerfile (multi-stage).
+#
+# Запуск:
+#   docker compose up -d --build       — підняти стек
+#   docker compose logs -f web         — логи бекенду
+#   docker compose exec web python manage.py createsuperuser
+#   docker compose down                — зупинити (volumes лишаються)
 
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: bugtracker
-      POSTGRES_USER: bugtracker
-      POSTGRES_PASSWORD: bugtracker_dev
+      POSTGRES_DB: ${POSTGRES_DB:-bugtracker}
+      POSTGRES_USER: ${POSTGRES_USER:-bugtracker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bugtracker_dev}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bugtracker"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bugtracker}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,17 +38,19 @@ services:
 
   web:
     build: .
-    command: gunicorn bugtracker.wsgi:application --bind 0.0.0.0:8000 --workers 4
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn bugtracker.wsgi:application --bind 0.0.0.0:8000 --workers 3 --access-logfile - --error-logfile -"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-bugtracker}:${POSTGRES_PASSWORD:-bugtracker_dev}@db:5432/${POSTGRES_DB:-bugtracker}
+      - REDIS_URL=redis://redis:6379/0
     volumes:
-      - .:/app
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     ports:
       - "8000:8000"
-    environment:
-      - DEBUG=False
-      - DATABASE_URL=postgres://bugtracker:bugtracker_dev@db:5432/bugtracker
-      - REDIS_URL=redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
@@ -51,28 +60,28 @@ services:
   celery:
     build: .
     command: celery -A bugtracker worker -l info
-    volumes:
-      - .:/app
+    env_file: .env
     environment:
-      - DEBUG=False
-      - DATABASE_URL=postgres://bugtracker:bugtracker_dev@db:5432/bugtracker
+      - DATABASE_URL=postgres://${POSTGRES_USER:-bugtracker}:${POSTGRES_PASSWORD:-bugtracker_dev}@db:5432/${POSTGRES_DB:-bugtracker}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   celery-beat:
     build: .
     command: celery -A bugtracker beat -l info
-    volumes:
-      - .:/app
+    env_file: .env
     environment:
-      - DEBUG=False
-      - DATABASE_URL=postgres://bugtracker:bugtracker_dev@db:5432/bugtracker
+      - DATABASE_URL=postgres://${POSTGRES_USER:-bugtracker}:${POSTGRES_PASSWORD:-bugtracker_dev}@db:5432/${POSTGRES_DB:-bugtracker}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -86,7 +95,6 @@ services:
       - web
 
   # ---- Опціональний моніторинг (profile: monitoring) ----
-  # Запуск:  docker compose --profile monitoring up
   prometheus:
     image: prom/prometheus:latest
     profiles: ["monitoring"]
@@ -114,9 +122,9 @@ services:
     profiles: ["backups"]
     environment:
       - POSTGRES_HOST=db
-      - POSTGRES_DB=bugtracker
-      - POSTGRES_USER=bugtracker
-      - POSTGRES_PASSWORD=bugtracker_dev
+      - POSTGRES_DB=${POSTGRES_DB:-bugtracker}
+      - POSTGRES_USER=${POSTGRES_USER:-bugtracker}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bugtracker_dev}
       - SCHEDULE=@daily
       - BACKUP_KEEP_DAYS=7
       - BACKUP_KEEP_WEEKS=4

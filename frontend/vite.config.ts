@@ -1,17 +1,22 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+// Target бекенду для proxy. У Docker — http://backend:8000 (DNS-імʼя сервісу),
+// локально — http://localhost:8000. Перевизначається через env BACKEND_URL.
+const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
+
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: 'localhost',
+    host: '0.0.0.0',
     port: 5173,
     strictPort: false,
-    open: true,
+    // open=true відкриває браузер локально, у Docker xdg-open відсутній —
+    // через VITE_NO_OPEN вимикаємо (Compose його встановлює).
+    open: !process.env.VITE_NO_OPEN,
     proxy: {
-      // API і медіа проксіюємо до Django
-      '/api': { target: 'http://localhost:8000', changeOrigin: true },
-      '/media': { target: 'http://localhost:8000', changeOrigin: true },
+      '/api': { target: BACKEND, changeOrigin: true },
+      '/media': { target: BACKEND, changeOrigin: true },
     },
   },
   build: {

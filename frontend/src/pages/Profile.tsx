@@ -834,40 +834,62 @@ function LoginHistoryPanel() {
           <p>Немає записів</p>
         </div>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Коли</th>
-              <th>Результат</th>
-              <th>IP</th>
-              <th>User Agent</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.map(e => (
-              <tr key={e.id}>
-                <td className="muted">{formatDate(e.created_at)}</td>
-                <td>
-                  {e.success ? (
-                    <span className="pill resolved">
-                      <Ic.Check2 sz={10} /> Успіх
-                    </span>
-                  ) : (
-                    <span className="pill open">
-                      <Ic.X sz={10} /> Невдача
-                    </span>
-                  )}
-                </td>
-                <td className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                  {e.ip_address || '—'}
-                </td>
-                <td className="muted" style={{ fontSize: 11, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {e.user_agent}
-                </td>
+        <div style={{ overflowX: 'auto', minWidth: 0 }}>
+          <table className="table" style={{ tableLayout: 'fixed', width: '100%' }}>
+            <colgroup>
+              <col style={{ width: 160 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 110 }} />
+              <col />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Коли</th>
+                <th>Результат</th>
+                <th>IP</th>
+                <th>User Agent</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {events.map(e => (
+                <tr key={e.id}>
+                  <td className="muted" style={{ whiteSpace: 'nowrap' }}>
+                    {formatDate(e.created_at)}
+                  </td>
+                  <td>
+                    {e.success ? (
+                      <span className="pill resolved">
+                        <Ic.Check2 sz={10} /> Успіх
+                      </span>
+                    ) : (
+                      <span className="pill open">
+                        <Ic.X sz={10} /> Невдача
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="muted"
+                    style={{ fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'nowrap' }}
+                  >
+                    {e.ip_address || '—'}
+                  </td>
+                  <td
+                    className="muted"
+                    style={{
+                      fontSize: 11,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={e.user_agent}
+                  >
+                    {e.user_agent}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

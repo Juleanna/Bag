@@ -462,7 +462,17 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
         <button
           className="add"
           onClick={() => navigate('/projects/new')}
-          title="Новий проєкт"
+          title={
+            workspaces.length === 0
+              ? 'Спершу створіть простір'
+              : 'Новий проєкт'
+          }
+          disabled={workspaces.length === 0}
+          style={
+            workspaces.length === 0
+              ? { opacity: 0.4, cursor: 'not-allowed' }
+              : undefined
+          }
         >
           <Ic.Plus sz={12} />
         </button>

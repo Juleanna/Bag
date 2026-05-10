@@ -91,6 +91,12 @@ export function NewProjectPage() {
         ])
         setAllUsers(users)
         setWorkspaces(ws)
+        // Без простору проєкт створити не можна — редиректимо на створення простору
+        if (ws.length === 0) {
+          toast.show('Спершу створіть простір', 'info')
+          navigate('/workspaces/new')
+          return
+        }
         // За замовчуванням вибираємо активний простір з sidebar (якщо є), інакше перший
         const activeId = Number(localStorage.getItem('bt:activeWorkspace') || 0)
         const preselect = activeId && ws.find(w => w.id === activeId) ? activeId : ws[0]?.id
@@ -99,6 +105,7 @@ export function NewProjectPage() {
         /* мовчки */
       }
     })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Auto-key з назви
@@ -128,6 +135,10 @@ export function NewProjectPage() {
       setError('Вкажіть назву проєкту')
       return
     }
+    if (workspaceIds.length === 0) {
+      setError('Оберіть принаймні один простір')
+      return
+    }
     setSubmitting(true)
     try {
       const payload: Record<string, unknown> = {
@@ -137,8 +148,8 @@ export function NewProjectPage() {
         color,
         icon,
         visibility,
+        workspaces: workspaceIds,
       }
-      if (workspaceIds.length > 0) payload.workspaces = workspaceIds
       const created = await apiPost<Project>('/projects/', payload)
       if (members.length > 0) {
         await Promise.all(

@@ -6,6 +6,7 @@ import { CommandPalette } from '../components/CommandPalette'
 import { NotificationsPopover } from '../components/NotificationsPopover'
 import { HelpModal } from '../components/HelpModal'
 import { TweaksPanel } from '../components/TweaksPanel'
+import { OnboardingPrompt } from '../components/OnboardingPrompt'
 
 const SIDEBAR_COLLAPSED_KEY = 'bt:sidebarCollapsed'
 
@@ -88,6 +89,7 @@ export function AppShell() {
       <NotificationsPopover open={notifOpen} onClose={() => setNotifOpen(false)} />
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       <TweaksPanel />
+      <OnboardingPrompt />
     </div>
   )
 }

@@ -1,6 +1,9 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { Ic } from '../icons/Ic'
+import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmContext'
+import { MOD_KEY } from '../utils/shortcuts'
 
 interface Crumb {
   icon?: typeof Ic.Bug
@@ -49,8 +52,21 @@ interface TopbarProps {
 export function Topbar({ onOpenNotif, onOpenHelp, onOpenPalette }: TopbarProps) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { logout } = useAuth()
+  const confirm = useConfirm()
   const crumbs = buildCrumbs(location.pathname)
   const [createOpen, setCreateOpen] = useState(false)
+
+  const handleLogout = async () => {
+    const ok = await confirm({
+      title: 'Вийти з акаунту?',
+      message: 'Будь-який незбережений ввід може бути втрачений.',
+      confirmText: 'Вийти',
+    })
+    if (!ok) return
+    await logout()
+    navigate('/login')
+  }
 
   return (
     <div className="topbar">
@@ -90,11 +106,18 @@ export function Topbar({ onOpenNotif, onOpenHelp, onOpenPalette }: TopbarProps) 
         >
           <Ic.Bell sz={14} />
         </button>
-        <button className="btn ghost icon" title="Пошук (⌘K)" onClick={onOpenPalette}>
+        <button
+          className="btn ghost icon"
+          title={MOD_KEY === '⌘' ? 'Пошук (⌘K)' : 'Пошук (Ctrl+K)'}
+          onClick={onOpenPalette}
+        >
           <Ic.Search sz={14} />
         </button>
         <button className="btn ghost icon" title="Допомога (?)" onClick={onOpenHelp}>
           <Ic.Help sz={14} />
+        </button>
+        <button className="btn ghost icon" title="Вийти" onClick={handleLogout}>
+          <Ic.LogOut sz={14} />
         </button>
 
         <div style={{ position: 'relative' }}>
@@ -151,7 +174,25 @@ export function Topbar({ onOpenNotif, onOpenHelp, onOpenPalette }: TopbarProps) 
                   </span>
                   <div>
                     <b>Проєкт</b>
-                    <span>Новий QA-простір</span>
+                    <span>QA-простір з багами і тестами</span>
+                  </div>
+                </button>
+                <div className="cm-sep" />
+                <button
+                  onClick={() => {
+                    setCreateOpen(false)
+                    navigate('/workspaces/new')
+                  }}
+                >
+                  <span
+                    className="cm-ico"
+                    style={{ background: 'var(--bg-2)', color: 'var(--fg-2)' }}
+                  >
+                    <Ic.Plus sz={13} />
+                  </span>
+                  <div>
+                    <b>Простір</b>
+                    <span>Окрема організація</span>
                   </div>
                 </button>
               </div>
