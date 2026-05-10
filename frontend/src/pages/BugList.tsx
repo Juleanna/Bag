@@ -324,6 +324,41 @@ export function BugListPage() {
     setFilters({ ...DEFAULT_FILTERS, ...(f.params as Partial<Filters>) })
   }
 
+  const renameSavedFilter = async (f: SavedFilter) => {
+    const name = await prompt({
+      title: 'Перейменувати smart view',
+      message: 'Нова назва:',
+      defaultValue: f.name,
+      confirmText: 'Зберегти',
+      required: true,
+    })
+    if (!name || name === f.name) return
+    try {
+      const updated = await extras.updateSavedFilter(f.id, { name })
+      setSavedFilters(s => s.map(x => (x.id === f.id ? updated : x)))
+      toast.show('Перейменовано', 'success')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
+  const deleteSavedFilter = async (f: SavedFilter) => {
+    const ok = await confirm({
+      title: `Видалити smart view «${f.name}»?`,
+      message: 'Збережений фільтр буде видалено. Це не вплине на самі задачі.',
+      confirmText: 'Видалити',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await extras.deleteSavedFilter(f.id)
+      setSavedFilters(s => s.filter(x => x.id !== f.id))
+      toast.show('Видалено', 'success')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ padding: '20px 24px', maxWidth: 1480 }}>
@@ -419,7 +454,7 @@ export function BugListPage() {
         </div>
       </div>
 
-      {/* Saved filters як чіпи */}
+      {/* Saved filters як чіпи з hover-actions для редагування/видалення */}
       {savedFilters.length > 0 && !isTrashMode && (
         <div
           style={{
@@ -434,9 +469,33 @@ export function BugListPage() {
             Smart views:
           </span>
           {savedFilters.map(sf => (
-            <button key={sf.id} className="btn sm" onClick={() => applySavedFilter(sf)}>
-              <Ic.Filter sz={11} /> {sf.name}
-            </button>
+            <div key={sf.id} className="smart-view-chip">
+              <button
+                type="button"
+                className="smart-view-apply"
+                onClick={() => applySavedFilter(sf)}
+                title="Застосувати фільтр"
+              >
+                <Ic.Filter sz={11} />
+                <span>{sf.name}</span>
+              </button>
+              <button
+                type="button"
+                className="smart-view-action"
+                onClick={() => renameSavedFilter(sf)}
+                title="Перейменувати"
+              >
+                <Ic.Edit sz={10} />
+              </button>
+              <button
+                type="button"
+                className="smart-view-action"
+                onClick={() => deleteSavedFilter(sf)}
+                title="Видалити"
+              >
+                <Ic.X sz={10} />
+              </button>
+            </div>
           ))}
         </div>
       )}

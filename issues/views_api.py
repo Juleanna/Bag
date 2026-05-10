@@ -285,6 +285,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project.restore()
         return Response({"ok": True})
 
+    @action(detail=True, methods=["post"], url_path="apply_template")
+    def apply_template(self, request, pk=None):
+        """Застосовує шаблон (web/mobile/api) до проєкту — створює
+        набір TestSuite + TestCase. Повертає кількість створеного."""
+        from .project_templates import TEMPLATES, apply_template as run_template
+
+        project = self.get_object()
+        template_id = request.data.get("template")
+        if template_id not in TEMPLATES:
+            return Response(
+                {"error": f"Невідомий шаблон: {template_id}"}, status=400
+            )
+        result = run_template(project, template_id, user=request.user)
+        return Response({"ok": True, **result})
+
     @action(detail=True, methods=["post"], url_path="add_member")
     def add_member(self, request, pk=None):
         """Додає учасника до проєкту через ProjectMembership."""

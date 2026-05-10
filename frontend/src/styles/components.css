@@ -900,3 +900,121 @@ button.sb-section:hover,
   place-items: center;
   flex-shrink: 0;
 }
+
+/* ───────── Smart-view чіпи (saved filters) з hover-actions ───────── */
+.smart-view-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.smart-view-chip:hover { background: var(--surface-2); }
+.smart-view-apply {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  padding: 0 8px;
+  font: inherit;
+  color: inherit;
+}
+.smart-view-action {
+  border: none;
+  border-left: 1px solid var(--divider);
+  background: transparent;
+  cursor: pointer;
+  width: 22px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-3);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.smart-view-chip:hover .smart-view-action { opacity: 1; }
+.smart-view-action:hover { background: var(--bg-2); color: var(--fg); }
+
+/* ───────── Suite-рядок з hover-actions ───────── */
+.suite-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-radius: 6px;
+}
+.suite-row .sb-item { width: auto; flex: 1; }
+.suite-action {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px 7px;
+  color: var(--fg-3);
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.suite-row:hover .suite-action { opacity: 1; }
+.suite-action:hover { background: var(--bg-2); color: var(--fg); }
+
+/* ───────── Type picker (Manual / Auto) — більш візуальний за seg ───────── */
+.type-picker {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  flex: 1;
+}
+.type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+.type-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-2);
+}
+.type-card.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 12%, transparent);
+}
+.type-card .type-ico {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--fg-2);
+  margin-bottom: 4px;
+}
+.type-card.active .type-ico {
+  background: var(--accent);
+  color: white;
+}
+.type-card b { font-size: 13px; font-weight: 600; color: var(--fg); }
+.type-card.active b { color: var(--accent-soft-fg); }
+.type-card .type-desc {
+  font-size: 11px;
+  color: var(--fg-3);
+  line-height: 1.3;
+}

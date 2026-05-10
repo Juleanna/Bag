@@ -258,15 +258,26 @@ function AvatarUploader({
     <div className="pb-avatar-wrap">
       <label
         className="pb-avatar"
-        style={{
-          background: user.avatar_url ? 'var(--bg-2)' : gradientFor(user.id),
-          boxShadow: 'var(--shadow-md)',
-          cursor: busy ? 'wait' : 'pointer',
-          backgroundImage: user.avatar_url ? `url(${user.avatar_url})` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          color: user.avatar_url ? 'transparent' : 'white',
-        }}
+        style={
+          user.avatar_url
+            ? {
+                // Розділяємо backgroundColor + backgroundImage, бо shorthand
+                // 'background' скидає інші background-* властивості
+                backgroundColor: 'var(--bg-2)',
+                backgroundImage: `url(${user.avatar_url})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                boxShadow: 'var(--shadow-md)',
+                cursor: busy ? 'wait' : 'pointer',
+                color: 'transparent',
+              }
+            : {
+                background: gradientFor(user.id),
+                boxShadow: 'var(--shadow-md)',
+                cursor: busy ? 'wait' : 'pointer',
+                color: 'white',
+              }
+        }
         title="Натисніть, щоб змінити"
       >
         {!user.avatar_url && initialsFor(user)}

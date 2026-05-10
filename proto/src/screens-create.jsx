@@ -736,9 +736,9 @@ function HelpModal({ open, onClose, goto }) {
               <Ic.Help sz={13}/> Часті питання
             </button>
             <div className="help-tabs-divider"/>
-            <button><Ic.Globe sz={13}/> Документація</button>
-            <button><Ic.Comment sz={13}/> Звʼязатися з підтримкою</button>
-            <button><Ic.Github sz={13}/> Changelog</button>
+            <button onClick={() => { onClose?.(); goto?.('docs'); }}><Ic.Globe sz={13}/> Документація</button>
+            <button onClick={() => { onClose?.(); goto?.('contact'); }}><Ic.Comment sz={13}/> Звʼязатися з підтримкою</button>
+            <button onClick={() => { onClose?.(); goto?.('changelog'); }}><Ic.Github sz={13}/> Changelog</button>
           </aside>
 
           <div className="help-content">

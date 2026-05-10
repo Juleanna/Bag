@@ -47,9 +47,15 @@ interface TopbarProps {
   onOpenNotif: () => void
   onOpenHelp: () => void
   onOpenPalette: () => void
+  onOpenTweaks?: () => void
 }
 
-export function Topbar({ onOpenNotif, onOpenHelp, onOpenPalette }: TopbarProps) {
+export function Topbar({
+  onOpenNotif,
+  onOpenHelp,
+  onOpenPalette,
+  onOpenTweaks,
+}: TopbarProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { logout } = useAuth()
@@ -116,6 +122,15 @@ export function Topbar({ onOpenNotif, onOpenHelp, onOpenPalette }: TopbarProps) 
         <button className="btn ghost icon" title="Допомога (?)" onClick={onOpenHelp}>
           <Ic.Help sz={14} />
         </button>
+        {onOpenTweaks && (
+          <button
+            className="btn ghost icon"
+            title="Налаштування вигляду"
+            onClick={onOpenTweaks}
+          >
+            <Ic.Settings sz={14} />
+          </button>
+        )}
         <button className="btn ghost icon" title="Вийти" onClick={handleLogout}>
           <Ic.LogOut sz={14} />
         </button>

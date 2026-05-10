@@ -42,6 +42,25 @@ export function Avatar({ user, size = 'sm', title }: AvatarProps) {
       </span>
     )
   }
+  // Якщо є завантажена аватарка — показуємо її як фонове зображення.
+  if (user.avatar_url) {
+    return (
+      <span
+        className={`avatar ${size === 'lg' ? 'lg' : ''}`}
+        style={{
+          backgroundImage: `url(${user.avatar_url})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundColor: 'var(--bg-2)',
+          color: 'transparent',
+        }}
+        title={title || user.username}
+      >
+        {/* Прозорий fallback на випадок, якщо зображення не завантажиться */}
+        {initialsFor(user)}
+      </span>
+    )
+  }
   const initials = initialsFor(user)
   return (
     <span

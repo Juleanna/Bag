@@ -44,6 +44,10 @@ const CRUMBS = {
   'new-template':[{ icon: Ic.Layout, label: 'Шаблони', go: 'templates' }, { label: 'Новий' }],
   'new-webhook':[{ icon: Ic.Link, label: 'Webhooks', go: 'webhooks' }, { label: 'Новий' }],
   'new-report': [{ icon: Ic.Chart, label: 'Звіти', go: 'reports' }, { label: 'Новий' }],
+  'docs':       [{ icon: Ic.Help, label: 'Довідковий центр' }, { label: 'Документація' }],
+  'contact':    [{ icon: Ic.Help, label: 'Довідковий центр' }, { label: 'Звʼязатись з нами' }],
+  'changelog':  [{ icon: Ic.Help, label: 'Довідковий центр' }, { label: 'Changelog' }],
+  'billing':    [{ icon: Ic.Card, label: 'Білінг та плани' }],
 };
 
 function Topbar({ route, goto, onOpenNotif, onOpenHelp }) {
@@ -197,6 +201,10 @@ function App() {
           {route === 'new-template' && <NewTemplate goto={goto}/>}
           {route === 'new-webhook'  && <NewWebhook goto={goto}/>}
           {route === 'new-report'   && <NewReport goto={goto}/>}
+          {route === 'docs'         && <Documentation goto={goto}/>}
+          {route === 'contact'      && <Contact goto={goto}/>}
+          {route === 'changelog'    && <Changelog goto={goto}/>}
+          {route === 'billing'      && <Billing goto={goto}/>}
         </div>
       </main>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} goto={goto}/>

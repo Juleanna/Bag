@@ -60,5 +60,14 @@ const Ic = {
   Check2: _i(<><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></>),
   Help: _i(<><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4M12 17v.01"/></>),
   Bell: _i(<><path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9z"/><path d="M10 21a2 2 0 0 0 4 0"/></>),
+  Mail: _i(<><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></>),
+  Send: _i(<><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></>),
+  File: _i(<><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></>),
+  Card: _i(<><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></>),
+  Building: _i(<><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/></>),
+  Rss: _i(<><path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.4" fill="currentColor"/></>),
+  Doc: _i(<><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></>),
+  Code: _i(<><path d="m9 18-6-6 6-6M15 6l6 6-6 6M14 4l-4 16"/></>),
+  Lock: _i(<><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></>),
 };
 window.Ic = Ic;

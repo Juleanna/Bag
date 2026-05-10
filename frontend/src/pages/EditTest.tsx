@@ -1,23 +1,23 @@
 /**
- * Сторінка створення тест-кейсу — за макетом прототипу:
- *  - двоколонковий form-layout (form-main + form-side)
- *  - велике поле title + опис/передумови
- *  - таблиця кроків (action / expected) з можливістю додавання
- *  - sidebar: Suite, Тип, Пріоритет (pri-picker), Автор, Тривалість
- *  - Категорії (теги — зберігаються у custom_fields)
- *  - Запуск: браузери, CI (поки візуально, через custom_fields)
- *  - Вкладення dropzone (відкладене завантаження після створення)
+ * Сторінка редагування тест-кейсу — структура така ж як NewTest:
+ *  - двоколонковий form-layout
+ *  - title, опис/передумови, кроки, вкладення
+ *  - sidebar: Suite, Тип (картки), Пріоритет, Виконавець, Тривалість
+ *  - Категорії, Запуск (браузери / CI)
+ * Відмінності: PATCH замість POST + кнопка «Видалити».
  */
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { PriorityBadge } from '../atoms/Status'
 import { api } from '../api/extras'
-import type { TestSuite } from '../api/extras'
-import { listAll } from '../api/client'
+import type { TestCase, TestSuite } from '../api/extras'
+import { apiGet, listAll } from '../api/client'
 import type { IssuePriority, Project, UserShort } from '../api/types'
 import { useToast } from '../context/ToastContext'
+import { useConfirm } from '../context/ConfirmContext'
 import { useAuth } from '../context/AuthContext'
+import { Skeleton } from '../components/Skeleton'
 
 type CaseType = 'manual' | 'automated'
 type CasePriority = 'critical' | 'high' | 'medium' | 'low'
@@ -43,12 +43,16 @@ function formatBytes(b: number): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-export function NewTestPage() {
+export function EditTestPage() {
+  const { id } = useParams<{ id: string }>()
+  const caseId = Number(id)
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
   const { user } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [loading, setLoading] = useState(true)
   const [projects, setProjects] = useState<Project[]>([])
   const [suites, setSuites] = useState<TestSuite[]>([])
   const [users, setUsers] = useState<UserShort[]>([])
@@ -59,7 +63,6 @@ export function NewTestPage() {
   const [steps, setSteps] = useState<StepRow[]>([{ action: '', expected: '' }])
   const [type, setType] = useState<CaseType>('manual')
   const [priority, setPriority] = useState<CasePriority>('medium')
-  const [authorId, setAuthorId] = useState<number | null>(null)
   const [assigneeId, setAssigneeId] = useState<number | null>(null)
   const [duration, setDuration] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -71,54 +74,60 @@ export function NewTestPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!caseId) return
     void (async () => {
-      const [ps, us] = await Promise.all([
-        listAll<Project>('/projects/?page_size=50'),
-        listAll<UserShort>('/users/?page_size=200').catch(() => [] as UserShort[]),
-      ])
-      setProjects(ps)
-      setUsers(us)
-      if (ps[0]) setProjectId(ps[0].id)
-      if (user) {
-        setAuthorId(user.id)
-        setAssigneeId(user.id)
+      try {
+        const [tc, ps, us] = await Promise.all([
+          apiGet<TestCase>(`/test-cases/${caseId}/`),
+          listAll<Project>('/projects/?page_size=50'),
+          listAll<UserShort>('/users/?page_size=200').catch(() => [] as UserShort[]),
+        ])
+        setProjects(ps)
+        setUsers(us)
+        setProjectId(tc.project)
+        const sl = await api.listTestSuites(tc.project)
+        setSuites(sl)
+        setSuiteId(tc.suite)
+        setTitle(tc.title)
+        setPreconditions(tc.preconditions || '')
+        setSteps(
+          tc.steps && tc.steps.length > 0
+            ? tc.steps.map(s => ({
+                action: s.step || '',
+                expected: s.expected || '',
+              }))
+            : [{ action: '', expected: '' }]
+        )
+        setType(tc.type)
+        setPriority(tc.priority)
+        setAssigneeId(tc.created_by ?? user?.id ?? null)
+      } catch (e) {
+        toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+        navigate('/tests')
+      } finally {
+        setLoading(false)
       }
     })()
-  }, [user])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId])
 
+  // Перезавантажуємо suites при зміні проєкту
   useEffect(() => {
     if (!projectId) return
     void api.listTestSuites(projectId).then(sl => {
       setSuites(sl)
-      setSuiteId(sl[0]?.id ?? null)
+      if (!sl.find(s => s.id === suiteId)) {
+        setSuiteId(sl[0]?.id ?? null)
+      }
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
-  const addStep = () =>
-    setSteps(s => [...s, { action: '', expected: '' }])
+  const addStep = () => setSteps(s => [...s, { action: '', expected: '' }])
   const updateStep = (i: number, patch: Partial<StepRow>) =>
     setSteps(s => s.map((x, idx) => (idx === i ? { ...x, ...patch } : x)))
   const removeStep = (i: number) =>
     setSteps(s => (s.length > 1 ? s.filter((_, idx) => idx !== i) : s))
-
-  const generateStepsFromDescription = () => {
-    if (!preconditions.trim()) {
-      toast.show('Спершу заповніть опис', 'info')
-      return
-    }
-    // Простий "AI-помічник" без LLM: бере перші 3 речення з опису як кроки
-    const sentences = preconditions
-      .split(/[.!?\n]+/)
-      .map(s => s.trim())
-      .filter(s => s.length > 5)
-      .slice(0, 5)
-    if (sentences.length === 0) {
-      toast.show('Не вдалось згенерувати кроки', 'info')
-      return
-    }
-    setSteps(sentences.map(s => ({ action: s, expected: '' })))
-    toast.show(`Згенеровано ${sentences.length} кроків — відредагуйте за потреби`, 'success')
-  }
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase()
@@ -127,7 +136,6 @@ export function NewTestPage() {
     setTagInput('')
   }
   const removeTag = (t: string) => setTags(tags.filter(x => x !== t))
-
   const toggleBrowser = (b: string) =>
     setBrowsers(arr => (arr.includes(b) ? arr.filter(x => x !== b) : [...arr, b]))
 
@@ -141,7 +149,6 @@ export function NewTestPage() {
     }))
     setFiles(p => [...p, ...next])
   }
-
   const removeFile = (id: string) => setFiles(p => p.filter(f => f.id !== id))
 
   const submit = async (e: React.FormEvent) => {
@@ -152,7 +159,7 @@ export function NewTestPage() {
       return
     }
     if (!suiteId) {
-      setError('Спершу створіть suite на сторінці Тест-кейси')
+      setError('Оберіть набір')
       return
     }
     setSubmitting(true)
@@ -160,7 +167,7 @@ export function NewTestPage() {
       const cleanSteps = steps
         .map(s => ({ step: s.action.trim(), expected: s.expected.trim() }))
         .filter(s => s.step)
-      await api.createTestCase({
+      await api.updateTestCase(caseId, {
         suite: suiteId,
         title: title.trim(),
         preconditions,
@@ -168,22 +175,38 @@ export function NewTestPage() {
         type,
         priority,
       })
-      toast.show('Кейс створено', 'success')
+      toast.show('Кейс оновлено', 'success')
       navigate('/tests')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Помилка створення')
+      setError(err instanceof Error ? err.message : 'Помилка збереження')
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (projects.length === 0) {
+  const remove = async () => {
+    const ok = await confirm({
+      title: 'Видалити тест-кейс?',
+      message: 'Цю дію неможливо скасувати.',
+      confirmText: 'Видалити',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await api.deleteTestCase(caseId)
+      toast.show('Кейс видалено', 'success')
+      navigate('/tests')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
+  if (loading) {
     return (
-      <div className="page" style={{ maxWidth: 720 }}>
-        <div className="empty" style={{ marginTop: 60 }}>
-          <Ic.Beaker sz={36} />
-          <h4>Немає проєктів</h4>
-          <p>Створіть проєкт, щоб додавати тест-кейси</p>
+      <div className="page" style={{ maxWidth: 1480 }}>
+        <Skeleton width={300} height={28} />
+        <div style={{ marginTop: 12 }}>
+          <Skeleton height={400} />
         </div>
       </div>
     )
@@ -211,7 +234,7 @@ export function NewTestPage() {
                 color: 'var(--fg-3)',
               }}
             >
-              Новий тест-кейс
+              Редагування тест-кейсу
             </div>
             <h1
               style={{
@@ -221,10 +244,13 @@ export function NewTestPage() {
                 letterSpacing: '-0.015em',
               }}
             >
-              Опишіть сценарій тестування
+              TC-{caseId} · {title || 'Тест-кейс'}
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn danger" onClick={remove}>
+              <Ic.Trash sz={12} /> Видалити
+            </button>
             <button type="button" className="btn" onClick={() => navigate('/tests')}>
               Скасувати
             </button>
@@ -233,7 +259,7 @@ export function NewTestPage() {
               className="btn primary"
               disabled={submitting || !title.trim()}
             >
-              <Ic.Plus sz={13} /> {submitting ? 'Створення…' : 'Створити кейс'}
+              <Ic.Check sz={12} /> {submitting ? 'Збереження…' : 'Зберегти'}
             </button>
           </div>
         </div>
@@ -248,7 +274,6 @@ export function NewTestPage() {
                 placeholder="Назва кейса…"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                autoFocus
                 required
               />
             </div>
@@ -273,18 +298,9 @@ export function NewTestPage() {
                 }}
               >
                 <label className="form-lbl">Кроки</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    type="button"
-                    className="btn sm ghost"
-                    onClick={generateStepsFromDescription}
-                  >
-                    <Ic.AI sz={11} /> Згенерувати з опису
-                  </button>
-                  <button type="button" className="btn sm ghost" onClick={addStep}>
-                    <Ic.Plus sz={11} /> Додати крок
-                  </button>
-                </div>
+                <button type="button" className="btn sm ghost" onClick={addStep}>
+                  <Ic.Plus sz={11} /> Додати крок
+                </button>
               </div>
               <table className="step-table">
                 <thead>
@@ -418,7 +434,7 @@ export function NewTestPage() {
                   disabled={suites.length === 0}
                 >
                   {suites.length === 0 ? (
-                    <option value="">Немає suites — створіть</option>
+                    <option value="">Немає suites</option>
                   ) : (
                     suites.map(s => (
                       <option key={s.id} value={s.id}>
@@ -472,13 +488,16 @@ export function NewTestPage() {
                 </div>
               </div>
               <div className="fc-row">
-                <span className="fc-lbl">Автор</span>
+                <span className="fc-lbl">Виконавець</span>
                 <select
                   className="inp"
                   style={{ flex: 1 }}
-                  value={authorId ?? ''}
-                  onChange={e => setAuthorId(e.target.value ? Number(e.target.value) : null)}
+                  value={assigneeId ?? ''}
+                  onChange={e =>
+                    setAssigneeId(e.target.value ? Number(e.target.value) : null)
+                  }
                 >
+                  <option value="">Не призначено</option>
                   {user && <option value={user.id}>{user.username} (ви)</option>}
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
@@ -574,14 +593,7 @@ export function NewTestPage() {
               </div>
               <div className="fc-row">
                 <span className="fc-lbl">CI</span>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    flex: 1,
-                  }}
-                >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 1 }}>
                   <span
                     className={ciOnPR ? 'toggle on' : 'toggle'}
                     onClick={() => setCiOnPR(c => !c)}
@@ -589,29 +601,8 @@ export function NewTestPage() {
                   >
                     <span />
                   </span>
-                  <span style={{ color: 'var(--fg-3)', fontSize: 12.5 }}>
-                    На кожен PR
-                  </span>
+                  <span style={{ color: 'var(--fg-3)', fontSize: 12.5 }}>На кожен PR</span>
                 </span>
-              </div>
-              <div className="fc-row">
-                <span className="fc-lbl">Виконавець</span>
-                <select
-                  className="inp"
-                  style={{ flex: 1 }}
-                  value={assigneeId ?? ''}
-                  onChange={e =>
-                    setAssigneeId(e.target.value ? Number(e.target.value) : null)
-                  }
-                >
-                  <option value="">Не призначено</option>
-                  {user && <option value={user.id}>{user.username} (ви)</option>}
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.username}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
           </aside>

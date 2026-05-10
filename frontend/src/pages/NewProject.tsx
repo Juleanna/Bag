@@ -33,10 +33,15 @@ const TEMPLATES: ProjectTemplate[] = [
 const COLORS = ['#5E6AD2', '#0EA5E9', '#10B981', '#D97757', '#9665C9', '#E04B43', '#D4951F', '#1F1E1A']
 const ICONS: Array<keyof typeof Ic> = ['Layout', 'Mobile', 'Repo', 'Globe', 'Beaker', 'Bug', 'Spark', 'Tag']
 
-const VISIBILITY_OPTIONS: Array<{ id: ProjectVisibility; label: string; icon: keyof typeof Ic }> = [
-  { id: 'team', label: 'Команда', icon: 'Users' },
-  { id: 'org', label: 'Уся організація', icon: 'Globe' },
-  { id: 'private', label: 'Приватний', icon: 'Eye' },
+const VISIBILITY_OPTIONS: Array<{
+  id: ProjectVisibility
+  label: string
+  icon: keyof typeof Ic
+  desc: string
+}> = [
+  { id: 'team', label: 'Команда', icon: 'Users', desc: 'Тільки запрошені учасники' },
+  { id: 'org', label: 'Організація', icon: 'Globe', desc: 'Усі в організації' },
+  { id: 'private', label: 'Приватний', icon: 'Eye', desc: 'Лише власник' },
 ]
 
 const INTEGRATIONS: Array<{ icon: keyof typeof Ic; name: string; desc: string }> = [
@@ -161,8 +166,33 @@ export function NewProjectPage() {
           )
         )
       }
+      // Застосовуємо шаблон тестів (web/mobile/api). Для blank/import — нічого.
+      if (template === 'web' || template === 'mobile' || template === 'api') {
+        try {
+          const r = await apiPost<{ suites: number; cases: number }>(
+            `/projects/${created.id}/apply_template/`,
+            { template }
+          )
+          if (r.suites > 0) {
+            toast.show(
+              `Шаблон застосовано: ${r.suites} suite, ${r.cases} тест-кейсів`,
+              'success'
+            )
+          }
+        } catch {
+          /* мовчки — проєкт вже створено */
+        }
+      }
       window.dispatchEvent(new CustomEvent('project:created', { detail: created }))
       toast.show('Проєкт створено', 'success')
+      if (template === 'import') {
+        // Імпорт з JIRA/Linear поки що — інформаційний шлях; направляємо
+        // на список багів проєкту, щоб користувач міг імпортувати CSV
+        toast.show(
+          'Готово! Імпорт з JIRA/Linear доступний у налаштуваннях проєкту',
+          'info'
+        )
+      }
       navigate(`/bugs?project=${created.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Помилка створення')
@@ -171,16 +201,11 @@ export function NewProjectPage() {
     }
   }
 
-  const TemplateIcon = ({ id }: { id: keyof typeof Ic }) => {
-    const Cmp = Ic[id] || Ic.Layout
-    return <Cmp sz={18} />
-  }
-
   const SelectedIcon = Ic[icon] || Ic.Layout
 
   return (
     <div className="scroll-inner">
-      <form className="form-page narrow" onSubmit={submit}>
+      <form className="form-page" onSubmit={submit}>
         <div className="form-page-head">
           <button
             type="button"
@@ -290,30 +315,33 @@ export function NewProjectPage() {
           </div>
         )}
 
-        {/* Шаблон */}
+        {/* Шаблон — створює пресет TestSuite + TestCase після збереження */}
         <div className="form-section">
           <label className="form-lbl">Шаблон</label>
           <div className="tmpl-grid">
-            {TEMPLATES.map(t => (
-              <div
-                key={t.id}
-                className={`tmpl-card ${template === t.id ? 'active' : ''}`}
-                onClick={() => setTemplate(t.id)}
-              >
-                <div className="tmpl-ico">
-                  <TemplateIcon id={t.icon} />
-                </div>
-                <div className="tmpl-meta">
-                  <b>{t.name}</b>
-                  <span>{t.desc}</span>
-                </div>
-                {template === t.id && (
-                  <div className="tmpl-check">
-                    <Ic.Check sz={11} />
+            {TEMPLATES.map(t => {
+              const Icn = Ic[t.icon] || Ic.Layout
+              return (
+                <div
+                  key={t.id}
+                  className={`tmpl-card ${template === t.id ? 'active' : ''}`}
+                  onClick={() => setTemplate(t.id)}
+                >
+                  <div className="tmpl-ico">
+                    <Icn sz={18} />
                   </div>
-                )}
-              </div>
-            ))}
+                  <div className="tmpl-meta">
+                    <b>{t.name}</b>
+                    <span>{t.desc}</span>
+                  </div>
+                  {template === t.id && (
+                    <div className="tmpl-check">
+                      <Ic.Check sz={11} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
@@ -413,18 +441,22 @@ export function NewProjectPage() {
             <div className="fc-section-title">Команда та доступ</div>
             <div className="field">
               <label>Видимість</label>
-              <div className="seg" style={{ width: '100%' }}>
+              <div className="visibility-cards">
                 {VISIBILITY_OPTIONS.map(v => {
                   const VIcn = Ic[v.icon]
+                  const active = visibility === v.id
                   return (
                     <button
                       type="button"
                       key={v.id}
-                      className={visibility === v.id ? 'active' : ''}
                       onClick={() => setVisibility(v.id)}
-                      style={{ flex: 1 }}
+                      className={`vis-card ${active ? 'active' : ''}`}
                     >
-                      <VIcn sz={11} /> {v.label}
+                      <span className="vis-ico">
+                        <VIcn sz={14} />
+                      </span>
+                      <b>{v.label}</b>
+                      <span className="vis-desc">{v.desc}</span>
                     </button>
                   )
                 })}

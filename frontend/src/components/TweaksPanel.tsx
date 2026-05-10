@@ -1,54 +1,54 @@
-import { useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Ic } from '../icons/Ic'
 import { useTweaks } from '../context/TweaksContext'
 
 const ACCENT_PRESETS = ['#5E6AD2', '#0EA5E9', '#10B981', '#D97757', '#9665C9', '#1F1E1A']
 
-export function TweaksPanel() {
+interface TweaksPanelProps {
+  open: boolean
+  onClose: () => void
+}
+
+export function TweaksPanel({ open, onClose }: TweaksPanelProps) {
   const { tweaks, set, reset } = useTweaks()
-  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Закриваємо по кліку поза межами панелі
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current) return
+      if (!ref.current.contains(e.target as Node)) onClose()
+    }
+    // Невелика затримка щоб клік-ініціатор не закривав одразу
+    const t = setTimeout(() => document.addEventListener('mousedown', onDoc), 0)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('mousedown', onDoc)
+    }
+  }, [open, onClose])
+
+  if (!open) return null
 
   return (
     <>
-      <button
-        onClick={() => setOpen(o => !o)}
-        title="Налаштування вигляду"
+      <div
+        ref={ref}
         style={{
           position: 'fixed',
           right: 14,
-          bottom: 14,
-          width: 38,
-          height: 38,
-          borderRadius: '50%',
+          top: 60,
+          width: 280,
           background: 'var(--surface)',
           border: '1px solid var(--border)',
-          boxShadow: 'var(--shadow-md)',
-          display: 'grid',
-          placeItems: 'center',
-          color: 'var(--fg-2)',
-          cursor: 'pointer',
-          zIndex: 80,
+          borderRadius: 12,
+          boxShadow: 'var(--shadow-lg)',
+          zIndex: 81,
+          padding: 14,
+          maxHeight: '70vh',
+          overflow: 'auto',
         }}
       >
-        <Ic.Settings sz={16} />
-      </button>
-      {open && (
-        <div
-          style={{
-            position: 'fixed',
-            right: 14,
-            bottom: 60,
-            width: 280,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 12,
-            boxShadow: 'var(--shadow-lg)',
-            zIndex: 81,
-            padding: 14,
-            maxHeight: '70vh',
-            overflow: 'auto',
-          }}
-        >
           <div
             style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}
           >
@@ -56,7 +56,7 @@ export function TweaksPanel() {
             <button
               className="btn ghost sm"
               style={{ marginLeft: 'auto' }}
-              onClick={() => setOpen(false)}
+              onClick={onClose}
             >
               <Ic.X sz={12} />
             </button>
@@ -142,8 +142,7 @@ export function TweaksPanel() {
           >
             <Ic.Refresh sz={12} /> Скинути
           </button>
-        </div>
-      )}
+      </div>
     </>
   )
 }

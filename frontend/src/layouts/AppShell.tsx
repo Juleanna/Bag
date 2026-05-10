@@ -15,6 +15,7 @@ export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [tweaksOpen, setTweaksOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
   )
@@ -79,6 +80,7 @@ export function AppShell() {
           onOpenNotif={() => setNotifOpen(true)}
           onOpenHelp={() => setHelpOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
+          onOpenTweaks={() => setTweaksOpen(true)}
         />
         <div className="scroll" style={{ display: 'flex', flexDirection: 'column' }}>
           <Outlet />
@@ -88,7 +90,7 @@ export function AppShell() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <NotificationsPopover open={notifOpen} onClose={() => setNotifOpen(false)} />
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
-      <TweaksPanel />
+      <TweaksPanel open={tweaksOpen} onClose={() => setTweaksOpen(false)} />
       <OnboardingPrompt />
     </div>
   )

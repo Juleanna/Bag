@@ -86,6 +86,7 @@ export function EditProjectPage() {
   const [ownerId, setOwnerId] = useState<number | null>(null)
   const [allUsers, setAllUsers] = useState<UserShort[]>([])
   const [memberPickerOpen, setMemberPickerOpen] = useState(false)
+  const [isArchived, setIsArchived] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -93,8 +94,9 @@ export function EditProjectPage() {
     if (!projectId) return
     void (async () => {
       try {
+        // archived=all потрібно щоб дістати і архівований проєкт
         const [project, ws, users, mems] = await Promise.all([
-          apiGet<Project>(`/projects/${projectId}/`),
+          apiGet<Project>(`/projects/${projectId}/?archived=all`),
           listAll<WorkspaceShort>('/workspaces/?page_size=50').catch(
             () => [] as WorkspaceShort[]
           ),
@@ -110,6 +112,7 @@ export function EditProjectPage() {
         setIcon((project.icon as keyof typeof Ic) || 'Layout')
         setVisibility(project.visibility || 'team')
         setWorkspaceIds(project.workspaces || [])
+        setIsArchived(!!project.is_archived)
         setOwnerId(project.owner.id)
         setMemberships(mems)
         setWorkspaces(ws)
@@ -203,6 +206,17 @@ export function EditProjectPage() {
     }
   }
 
+  const restore = async () => {
+    try {
+      await apiPost(`/projects/${projectId}/restore/`, {})
+      setIsArchived(false)
+      window.dispatchEvent(new CustomEvent('project:created'))
+      toast.show('Проєкт відновлено', 'success')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
   const archive = async () => {
     const ok = await confirm({
       title: `Архівувати проєкт «${name}»?`,
@@ -290,9 +304,15 @@ export function EditProjectPage() {
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn" onClick={archive}>
-              <Ic.Trash sz={12} /> Архівувати
-            </button>
+            {isArchived ? (
+              <button type="button" className="btn primary" onClick={restore}>
+                <Ic.Refresh sz={12} /> Відновити
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={archive}>
+                <Ic.Trash sz={12} /> Архівувати
+              </button>
+            )}
             <button type="button" className="btn danger" onClick={remove}>
               <Ic.X sz={12} /> Видалити
             </button>
@@ -314,6 +334,32 @@ export function EditProjectPage() {
         </div>
 
         {error && <div className="bt-error-banner">{error}</div>}
+
+        {isArchived && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '12px 16px',
+              margin: '0 0 16px',
+              background: 'var(--st-closed-bg)',
+              color: 'var(--st-closed-fg)',
+              borderRadius: 10,
+              border: '1px solid var(--border)',
+              fontSize: 13,
+            }}
+          >
+            <Ic.Trash sz={14} />
+            <span style={{ flex: 1 }}>
+              <b>Цей проєкт архівований</b> — не зʼявляється у списках. Натисніть{' '}
+              «Відновити», щоб повернути його у роботу.
+            </span>
+            <button type="button" className="btn primary sm" onClick={restore}>
+              <Ic.Refresh sz={11} /> Відновити
+            </button>
+          </div>
+        )}
 
         {/* Простори */}
         {workspaces.length > 0 && (

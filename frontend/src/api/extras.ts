@@ -71,6 +71,10 @@ export interface TestCase {
   priority: 'critical' | 'high' | 'medium' | 'low'
   automation_link: string
   created_by: number | null
+  created_by_name?: string | null
+  steps_count?: number
+  last_result?: 'pass' | 'fail' | 'blocked' | 'skip' | 'pending' | null
+  last_run_at?: string | null
   created_at: string
 }
 
@@ -179,6 +183,8 @@ export const api = {
     unwrap(await apiGet<PaginatedResponse<SavedFilter>>('/saved-filters/')),
   createSavedFilter: (data: Partial<SavedFilter>) =>
     apiPost<SavedFilter>('/saved-filters/', data),
+  updateSavedFilter: (id: number, data: Partial<SavedFilter>) =>
+    apiPatch<SavedFilter>(`/saved-filters/${id}/`, data),
   deleteSavedFilter: (id: number) => apiDelete(`/saved-filters/${id}/`),
 
   // Test management
@@ -188,6 +194,8 @@ export const api = {
   },
   createTestSuite: (data: Partial<TestSuite>) =>
     apiPost<TestSuite>('/test-suites/', data),
+  updateTestSuite: (id: number, data: Partial<TestSuite>) =>
+    apiPatch<TestSuite>(`/test-suites/${id}/`, data),
   deleteTestSuite: (id: number) => apiDelete(`/test-suites/${id}/`),
 
   listTestCases: async (params?: { suite?: number; project?: number }) => {

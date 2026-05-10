@@ -577,11 +577,34 @@ class TestSuiteSerializer(serializers.ModelSerializer):
 class TestCaseSerializer(serializers.ModelSerializer):
     suite_name = serializers.CharField(source="suite.name", read_only=True)
     project = serializers.IntegerField(source="suite.project_id", read_only=True)
+    created_by_name = serializers.CharField(
+        source="created_by.username", read_only=True, default=None
+    )
+    steps_count = serializers.SerializerMethodField()
 
     class Meta:
         model = TestCase
         fields = "__all__"
         read_only_fields = ("created_by", "created_at", "updated_at")
+
+    def get_steps_count(self, obj):
+        steps = obj.steps or []
+        return len(steps) if isinstance(steps, list) else 0
+
+    last_result = serializers.SerializerMethodField()
+    last_run_at = serializers.SerializerMethodField()
+
+    def get_last_result(self, obj):
+        """Останній статус виконання кейса (з найновішого TestResult)."""
+        last = obj.results.order_by("-id").first() if hasattr(obj, "results") else None
+        return last.result if last else None
+
+    def get_last_run_at(self, obj):
+        """Час останнього виконання кейса (executed_at останнього TestResult)."""
+        last = obj.results.order_by("-id").first() if hasattr(obj, "results") else None
+        if last and last.executed_at:
+            return last.executed_at.isoformat()
+        return None
 
 
 class TestResultSerializer(serializers.ModelSerializer):

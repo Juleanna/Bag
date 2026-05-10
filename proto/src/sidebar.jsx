@@ -44,6 +44,7 @@ function Sidebar({ route, setRoute, onOpenPalette }) {
       <div className="sb-nav">
         <Item id="integrations" icon={Ic.Link} label="Інтеграції" />
         <Item id="webhooks" icon={Ic.Link} label="Webhooks" />
+        <Item id="billing" icon={Ic.Card} label="Білінг та плани" />
       </div>
 
       <div className="sb-section">
