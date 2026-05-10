@@ -68,10 +68,19 @@ COPY --chown=bugtracker:bugtracker . .
 # Готовий frontend-bundle із попереднього stage
 COPY --from=frontend --chown=bugtracker:bugtracker /app/frontend/dist ./frontend/dist
 
-# collectstatic запускаємо у build-time, щоб образ був готовий до запуску
-RUN python manage.py collectstatic --noinput || true
+# Створюємо writable-папки ДО переключення user-а:
+# - logs/ — RotatingFileHandler з logging_config.py
+# - staticfiles/ — collectstatic (та named-volume у compose)
+# - media/ — завантаження користувачів (та named-volume у compose)
+# Якщо створювати їх вже під bugtracker, root-owned /app не дозволив би mkdir.
+RUN mkdir -p /app/logs /app/staticfiles /app/media \
+    && chown -R bugtracker:bugtracker /app/logs /app/staticfiles /app/media
 
 USER bugtracker
+
+# collectstatic у build-time під непривілейованим користувачем, щоб
+# результат належав bugtracker (інакше runtime не зможе перезаписати)
+RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 8000
 
