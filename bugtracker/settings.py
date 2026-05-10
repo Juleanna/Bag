@@ -104,7 +104,11 @@ STORAGES = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        # CompressedStaticFilesStorage стискає файли, але НЕ додає хешів —
+        # бо Vite сам кладе хеш у назву (`assets/main-BDmDVxMI.css`).
+        # Manifest-варіант (CompressedManifestStaticFilesStorage) подвоював
+        # би хешування і ламав посилання django-vite на ассети.
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
 
