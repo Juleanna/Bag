@@ -68,12 +68,15 @@ COPY --chown=bugtracker:bugtracker . .
 # Готовий frontend-bundle із попереднього stage
 COPY --from=frontend --chown=bugtracker:bugtracker /app/frontend/dist ./frontend/dist
 
-# Створюємо writable-папки ДО переключення user-а:
+# Готуємо writable-локації ДО переключення user-а:
+# - /app — chown самої папки (її створив WORKDIR як root, а bugtracker
+#   має створювати у ній celerybeat-schedule, worker-state, тощо)
 # - logs/ — RotatingFileHandler з logging_config.py
 # - staticfiles/ — collectstatic (та named-volume у compose)
 # - media/ — завантаження користувачів (та named-volume у compose)
-# Якщо створювати їх вже під bugtracker, root-owned /app не дозволив би mkdir.
+# Вміст /app уже належить bugtracker через COPY --chown, тому -R тут зайве.
 RUN mkdir -p /app/logs /app/staticfiles /app/media \
+    && chown bugtracker:bugtracker /app \
     && chown -R bugtracker:bugtracker /app/logs /app/staticfiles /app/media
 
 USER bugtracker
