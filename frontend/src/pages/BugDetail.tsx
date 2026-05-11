@@ -44,6 +44,11 @@ function parseTimeInput(s: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
+/** Чи виглядає назва файлу як зображення (за розширенням). */
+function isImageName(name: string): boolean {
+  return /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(name)
+}
+
 /** Форматуємо хвилини → "Xh Ym" */
 function formatMinutes(m: number): string {
   if (!m) return '0m'
@@ -76,6 +81,8 @@ export function BugDetailPage() {
   const [titleDraft, setTitleDraft] = useState('')
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState('')
+  // Lightbox для зображень-вкладень (null — закрито).
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
 
   const issueId = Number(id)
   const { statuses: workflowStatuses } = useWorkflow(project?.id ?? null)
@@ -109,6 +116,16 @@ export function BugDetailPage() {
     void reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueId])
+
+  // Закриваємо lightbox по Esc
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [lightbox])
 
   // Гарячі клавіші для BugDetail (мають бути перед умовним return для React rules)
   useGlobalShortcut({
@@ -425,46 +442,88 @@ export function BugDetailPage() {
 
           {attachments.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {attachments.map(a => (
-                <div
-                  key={a.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '8px 12px',
-                    background: 'var(--surface-2)',
-                    borderRadius: 8,
-                    fontSize: 13,
-                  }}
-                >
-                  <Ic.Paperclip sz={14} />
-                  <a
-                    href={a.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+              {attachments.map(a => {
+                const isImg = isImageName(a.name)
+                const openLightbox = () => setLightbox({ url: a.url, name: a.name })
+                return (
+                  <div
+                    key={a.id}
                     style={{
-                      flex: 1,
-                      color: 'var(--fg)',
-                      textDecoration: 'none',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 12px',
+                      background: 'var(--surface-2)',
+                      borderRadius: 8,
+                      fontSize: 13,
                     }}
                   >
-                    {a.name}
-                  </a>
-                  <span style={{ color: 'var(--fg-3)', fontSize: 11.5 }}>
-                    {formatWhen(a.created_at)}
-                  </span>
-                  <button
-                    className="btn ghost icon sm"
-                    onClick={() => removeAttachment(a.id)}
-                    title="Видалити"
-                  >
-                    <Ic.X sz={12} />
-                  </button>
-                </div>
-              ))}
+                    {isImg ? (
+                      <img
+                        src={a.url}
+                        alt={a.name}
+                        onClick={openLightbox}
+                        style={{
+                          width: 40,
+                          height: 40,
+                          objectFit: 'cover',
+                          borderRadius: 4,
+                          cursor: 'zoom-in',
+                          flexShrink: 0,
+                        }}
+                      />
+                    ) : (
+                      <Ic.Paperclip sz={14} />
+                    )}
+                    {isImg ? (
+                      <button
+                        type="button"
+                        onClick={openLightbox}
+                        style={{
+                          flex: 1,
+                          background: 'transparent',
+                          border: 'none',
+                          padding: 0,
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          color: 'var(--fg)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          font: 'inherit',
+                        }}
+                      >
+                        {a.name}
+                      </button>
+                    ) : (
+                      <a
+                        href={a.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          flex: 1,
+                          color: 'var(--fg)',
+                          textDecoration: 'none',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {a.name}
+                      </a>
+                    )}
+                    <span style={{ color: 'var(--fg-3)', fontSize: 11.5 }}>
+                      {formatWhen(a.created_at)}
+                    </span>
+                    <button
+                      className="btn ghost icon sm"
+                      onClick={() => removeAttachment(a.id)}
+                      title="Видалити"
+                    >
+                      <Ic.X sz={12} />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -723,6 +782,80 @@ export function BugDetailPage() {
           </div>
         </div>
       </div>
+
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightbox.name}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 1000,
+            cursor: 'zoom-out',
+            padding: 24,
+          }}
+        >
+          <img
+            src={lightbox.url}
+            alt={lightbox.name}
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: 8,
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+              cursor: 'default',
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            title="Закрити (Esc)"
+            style={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              border: 'none',
+              background: 'rgba(255,255,255,0.15)',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 18,
+            }}
+          >
+            ✕
+          </button>
+          <a
+            href={lightbox.url}
+            download={lightbox.name}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              bottom: 16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              color: 'white',
+              fontSize: 12,
+              textDecoration: 'underline',
+              opacity: 0.85,
+            }}
+          >
+            {lightbox.name} — завантажити
+          </a>
+        </div>
+      )}
     </div>
   )
 }
