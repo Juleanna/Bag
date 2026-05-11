@@ -1021,11 +1021,13 @@ export function BugDetailPage() {
             position: 'fixed',
             inset: 0,
             background: 'rgba(0, 0, 0, 0.85)',
-            display: 'grid',
-            placeItems: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             zIndex: 1000,
             cursor: 'zoom-out',
             padding: 24,
+            overflow: 'auto',
           }}
         >
           <img
@@ -1033,8 +1035,10 @@ export function BugDetailPage() {
             alt={lightbox.name}
             onClick={e => e.stopPropagation()}
             style={{
-              maxWidth: '100%',
-              maxHeight: '100%',
+              maxWidth: 'calc(100vw - 48px)',
+              maxHeight: 'calc(100vh - 96px)',
+              width: 'auto',
+              height: 'auto',
               objectFit: 'contain',
               borderRadius: 8,
               boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
