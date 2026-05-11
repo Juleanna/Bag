@@ -520,7 +520,23 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
       )}
 
       <div className="sb-foot">
-        {user && <Avatar user={user} />}
+        {user && (
+          <button
+            type="button"
+            onClick={() => navigate('/profile')}
+            title="Особистий кабінет"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              cursor: 'pointer',
+              borderRadius: '50%',
+              lineHeight: 0,
+            }}
+          >
+            <Avatar user={user} />
+          </button>
+        )}
         <div className="sb-foot-meta">
           <b>{user?.username || 'Гість'}</b>
           <span>{user?.email || '—'}</span>
