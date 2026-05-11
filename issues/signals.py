@@ -17,11 +17,30 @@ from .models import (
     Issue,
     LoginEvent,
     Project,
+    ProjectMembership,
     TestRun,
     Webhook,
     WebhookDelivery,
     WorkflowStatus,
 )
+
+
+@receiver(post_save, sender=ProjectMembership)
+def _sync_workspace_membership(sender, instance, created, **kwargs):
+    """Додає користувача у всі workspaces проєкту при додаванні до проєкту.
+
+    Інакше юзер не побачить проєкт у sidebar (він фільтрує по активному workspace),
+    хоча через ProjectMembership формально має доступ до багів проєкту.
+    """
+    if not created:
+        return
+    try:
+        for ws in instance.project.workspaces.all():
+            ws.members.add(instance.user_id)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Не вдалося синхронізувати workspace-членство для membership %s", instance.pk
+        )
 
 
 # Дефолтний набір статусів, що створюється для кожного нового проєкту.

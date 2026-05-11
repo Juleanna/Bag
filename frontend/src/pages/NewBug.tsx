@@ -10,11 +10,11 @@
  *  - блок "Звʼязки" (плейсхолдер під майбутні relations)
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { Avatar } from '../atoms/Avatar'
 import { PriorityBadge, PRIORITY_MAP, STATUS_MAP } from '../atoms/Status'
-import { apiPost, apiUpload, listAll } from '../api/client'
+import { apiGet, apiPatch, apiPost, apiUpload, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import type { Issue, IssuePriority, IssueStatus, Project, UserShort } from '../api/types'
@@ -220,11 +220,46 @@ function formatBytes(b: number): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-export function NewBugPage() {
+/**
+ * Зворот `buildDescription` — розпарсити markdown-опис на компоненти.
+ * Виокремлюємо preamble (текст до першого ###) і список кроків з блоку "### Кроки відтворення".
+ * Решта блоків (Очікуваний/Фактичний/Середовище) ігноруються — вони є в custom_fields.
+ */
+function parseDescription(md: string): { preamble: string; steps: string[] } {
+  if (!md) return { preamble: '', steps: [] }
+  const lines = md.split('\n')
+  const preambleLines: string[] = []
+  const steps: string[] = []
+  let section: 'preamble' | 'steps' | 'other' = 'preamble'
+  for (const raw of lines) {
+    const h = raw.match(/^###\s+(.*)$/)
+    if (h) {
+      const title = h[1].trim().toLowerCase()
+      if (title.includes('крок')) section = 'steps'
+      else section = 'other'
+      continue
+    }
+    if (section === 'preamble') {
+      preambleLines.push(raw)
+    } else if (section === 'steps') {
+      const m = raw.match(/^\s*\d+\.\s*(.*)$/)
+      if (m && m[1].trim()) steps.push(m[1].trim())
+    }
+  }
+  return { preamble: preambleLines.join('\n').trim(), steps }
+}
+
+interface BugFormPageProps {
+  mode?: 'new' | 'edit'
+}
+
+export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
   const navigate = useNavigate()
   const toast = useToast()
   const { user } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { id: editId } = useParams<{ id?: string }>()
+  const isEdit = mode === 'edit' && !!editId
 
   const [projects, setProjects] = useState<Project[]>([])
   const [project, setProject] = useState<number | null>(null)
@@ -269,7 +304,35 @@ export function NewBugPage() {
       ])
       setProjects(ps)
       setAllIssues(iss)
-      // Спершу пробуємо відновити чернетку
+
+      // Edit-режим: завантажити існуючий баг і заповнити форму
+      if (isEdit && editId) {
+        try {
+          const existing = await apiGet<Issue>(`/issues/${editId}/`)
+          setProject(existing.project)
+          setTitle(existing.title)
+          setStatus(existing.status)
+          setPriority(existing.priority)
+          setAssignee(existing.assignee)
+          setDueDate(existing.due_date || '')
+          const { preamble, steps: parsedSteps } = parseDescription(existing.description || '')
+          setDescription(preamble)
+          setSteps(parsedSteps.length ? parsedSteps : [''])
+          const cf = (existing.custom_fields || {}) as Record<string, unknown>
+          setExpectedResult(typeof cf.expected_result === 'string' ? cf.expected_result : '')
+          setActualResult(typeof cf.actual_result === 'string' ? cf.actual_result : '')
+          setTags(Array.isArray(cf.tags) ? (cf.tags as string[]) : [])
+          setEnv(typeof cf.env === 'string' ? cf.env : ENV_OPTIONS[0])
+          setBrowser(typeof cf.browser === 'string' ? cf.browser : BROWSER_OPTIONS[0])
+          setOs(typeof cf.os === 'string' ? cf.os : OS_OPTIONS[0])
+          setVersion(typeof cf.version === 'string' ? cf.version : '')
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'Не вдалося завантажити баг')
+        }
+        return
+      }
+
+      // New-режим: пробуємо відновити чернетку
       const raw = localStorage.getItem(DRAFT_KEY)
       if (raw) {
         try {
@@ -296,7 +359,7 @@ export function NewBugPage() {
       }
       if (ps[0]) setProject(ps[0].id)
     })()
-  }, [])
+  }, [isEdit, editId])
 
   const currentProject = useMemo(
     () => projects.find(p => p.id === project) || null,
@@ -432,16 +495,29 @@ export function NewBugPage() {
           actual_result: actualResult,
         },
       }
-      if (assignee) payload.assignee = assignee
-      if (dueDate) payload.due_date = dueDate
-      const created = await apiPost<Issue>('/issues/', payload)
+      // assignee та due_date в edit-режимі мають передаватись завжди (включно з null),
+      // щоб користувач міг очистити поле. У new-режимі — лише якщо вибрано.
+      if (isEdit) {
+        payload.assignee = assignee
+        payload.due_date = dueDate || null
+      } else {
+        if (assignee) payload.assignee = assignee
+        if (dueDate) payload.due_date = dueDate
+      }
 
-      // Завантажуємо вкладення, якщо є
+      let saved: Issue
+      if (isEdit && editId) {
+        saved = await apiPatch<Issue>(`/issues/${editId}/`, payload)
+      } else {
+        saved = await apiPost<Issue>('/issues/', payload)
+      }
+
+      // Завантажуємо вкладення, якщо є (тільки нові)
       if (pendingFiles.length) {
         await Promise.all(
           pendingFiles.map(p => {
             const fd = new FormData()
-            fd.append('issue', String(created.id))
+            fd.append('issue', String(saved.id))
             fd.append('file', p.file)
             fd.append('name', p.name)
             return apiUpload('/attachments/', fd).catch(() => null)
@@ -449,11 +525,11 @@ export function NewBugPage() {
         )
       }
 
-      localStorage.removeItem(DRAFT_KEY)
-      toast.show('Баг створено', 'success')
-      navigate(`/bugs/${created.id}`)
+      if (!isEdit) localStorage.removeItem(DRAFT_KEY)
+      toast.show(isEdit ? 'Збережено' : 'Баг створено', 'success')
+      navigate(`/bugs/${saved.id}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Помилка створення')
+      setError(err instanceof Error ? err.message : isEdit ? 'Помилка збереження' : 'Помилка створення')
     } finally {
       setSubmitting(false)
     }
@@ -500,7 +576,7 @@ export function NewBugPage() {
                 color: 'var(--fg-3)',
               }}
             >
-              Новий баг
+              {isEdit ? `BUG-${editId}` : 'Новий баг'}
             </div>
             <h1
               style={{
@@ -510,19 +586,25 @@ export function NewBugPage() {
                 letterSpacing: '-0.015em',
               }}
             >
-              Опишіть проблему
+              {isEdit ? 'Редагування бага' : 'Опишіть проблему'}
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {draftSavedAt && (
+            {!isEdit && draftSavedAt && (
               <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
                 Збережено о {draftSavedAt}
               </span>
             )}
-            <button type="button" className="btn" onClick={saveDraft}>
-              Зберегти чернетку
-            </button>
-            <button type="button" className="btn" onClick={() => navigate('/bugs')}>
+            {!isEdit && (
+              <button type="button" className="btn" onClick={saveDraft}>
+                Зберегти чернетку
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => navigate(isEdit && editId ? `/bugs/${editId}` : '/bugs')}
+            >
               Скасувати
             </button>
             <button
@@ -530,7 +612,13 @@ export function NewBugPage() {
               className="btn primary"
               disabled={submitting || !title.trim()}
             >
-              <Ic.Plus sz={13} /> {submitting ? 'Створення…' : 'Створити баг'}
+              {isEdit ? (
+                submitting ? 'Збереження…' : 'Зберегти'
+              ) : (
+                <>
+                  <Ic.Plus sz={13} /> {submitting ? 'Створення…' : 'Створити баг'}
+                </>
+              )}
             </button>
           </div>
         </div>
