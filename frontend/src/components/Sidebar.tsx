@@ -234,9 +234,11 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
           <div
             style={{
               position: 'absolute',
-              top: 'calc(100% + 4px)',
-              left: 8,
-              right: 8,
+              // У згорнутому стані виїздимо вбік (flyout); у розгорнутому —
+              // розкривається під логотипом і займає всю ширину сайдбара.
+              ...(collapsed
+                ? { top: 0, left: 'calc(100% + 6px)', width: 260 }
+                : { top: 'calc(100% + 4px)', left: 8, right: 8 }),
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               borderRadius: 10,
