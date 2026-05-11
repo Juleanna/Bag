@@ -14,6 +14,7 @@ import { apiPost, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import type { Project, ProjectVisibility, UserShort } from '../api/types'
+import { displayName } from '../utils/user'
 
 interface ProjectTemplate {
   id: 'blank' | 'web' | 'mobile' | 'api' | 'import'
@@ -471,7 +472,7 @@ export function NewProjectPage() {
                     <Avatar user={user} />
                     <div style={{ flex: 1 }}>
                       <b style={{ fontWeight: 500, fontSize: 13 }}>
-                        {user.first_name || user.username}{' '}
+                        {displayName(user)}{' '}
                         <span style={{ color: 'var(--fg-4)', fontWeight: 400 }}>(ви)</span>
                       </b>
                       <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{user.email}</div>
@@ -493,7 +494,7 @@ export function NewProjectPage() {
                     <Avatar user={m} />
                     <div style={{ flex: 1 }}>
                       <b style={{ fontWeight: 500, fontSize: 13 }}>
-                        {m.first_name || m.username}
+                        {displayName(m)}
                       </b>
                       <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{m.email}</div>
                     </div>
@@ -543,7 +544,7 @@ export function NewProjectPage() {
                             <Avatar user={u} />
                             <span style={{ flex: 1, textAlign: 'left' }}>
                               <b style={{ fontWeight: 500 }}>
-                                {u.first_name || u.username}
+                                {displayName(u)}
                               </b>
                               <span
                                 style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 6 }}

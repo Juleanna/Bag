@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { useGlobalShortcut } from '../hooks/useGlobalShortcut'
 import { api as extras } from '../api/extras'
+import { displayName } from '../utils/user'
 import type { TimeLog } from '../api/extras'
 import type {
   Attachment,
@@ -468,7 +469,7 @@ export function BugDetailPage() {
           <span className="id">BUG-{issue.id}</span>
           <span>·</span>
           <span>
-            відкрито <b style={{ color: 'var(--fg-2)', fontWeight: 500 }}>{issue.reporter.username}</b> {formatWhen(issue.created_at)}
+            відкрито <b style={{ color: 'var(--fg-2)', fontWeight: 500 }}>{displayName(issue.reporter)}</b> {formatWhen(issue.created_at)}
           </span>
           <span>·</span>
           <StatusPill value={issue.status} label={issue.status_display} color={issue.status_color} />
@@ -765,7 +766,7 @@ export function BugDetailPage() {
                   <Avatar user={c.author} />
                   <div>
                     <div className="head">
-                      <b>{c.author.username}</b>
+                      <b>{displayName(c.author)}</b>
                       <span className="when">{formatWhen(c.created_at)}</span>
                       {user && c.author.id === user.id && (
                         <button
@@ -802,7 +803,7 @@ export function BugDetailPage() {
                     <Ic.Activity sz={11} />
                   </div>
                   <div>
-                    <b>{a.user.username}</b> {actionLabel(a.action)}
+                    <b>{displayName(a.user)}</b> {actionLabel(a.action)}
                     {(a.old_value || a.new_value) && (
                       <>
                         {' '}— <span style={{ color: 'var(--fg-3)' }}>
@@ -889,13 +890,13 @@ export function BugDetailPage() {
                   >
                     <option value="">Не призначено</option>
                     {members.map((m: UserShort) => (
-                      <option key={m.id} value={m.id}>{m.username}</option>
+                      <option key={m.id} value={m.id}>{displayName(m)}</option>
                     ))}
                   </select>
                 ) : assignee ? (
                   <>
                     <Avatar user={assignee} />
-                    <span>{assignee.username}</span>
+                    <span>{displayName(assignee)}</span>
                   </>
                 ) : (
                   <span style={{ color: 'var(--fg-3)' }}>Не призначено</span>
@@ -906,7 +907,7 @@ export function BugDetailPage() {
               <span className="lbl">Репортер</span>
               <span className="val">
                 <Avatar user={issue.reporter} />
-                <span>{issue.reporter.username}</span>
+                <span>{displayName(issue.reporter)}</span>
               </span>
             </div>
             <div className="side-row">

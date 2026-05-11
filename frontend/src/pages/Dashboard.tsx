@@ -8,6 +8,7 @@ import { listAll } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import type { Issue, IssueActivity, Project } from '../api/types'
 import { Skeleton, SkeletonCard } from '../components/Skeleton'
+import { displayName } from '../utils/user'
 
 interface MetricProps {
   icon: React.ReactNode
@@ -186,7 +187,7 @@ function ActivityRow({ a }: { a: IssueActivity }) {
     <div className="act-row">
       <Avatar user={a.user} />
       <div className="body">
-        <b>{a.user.username}</b> {actionLabel(a.action)}{' '}
+        <b>{displayName(a.user)}</b> {actionLabel(a.action)}{' '}
         <span className="lnk">#{a.issue}</span>
         {(a.old_value || a.new_value) && (
           <div style={{ color: 'var(--fg-3)', fontSize: 12, marginTop: 2 }}>
@@ -287,7 +288,7 @@ export function DashboardPage() {
     if (hour < 18) return 'Добрий день'
     return 'Доброго вечора'
   })()
-  const userName = user?.first_name || user?.username || 'друже'
+  const userName = user?.first_name || (user ? displayName(user) : 'друже')
 
   return (
     <div className="page">

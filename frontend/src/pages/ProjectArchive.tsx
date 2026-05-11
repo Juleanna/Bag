@@ -10,6 +10,7 @@ import type { Project } from '../api/types'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { Skeleton } from '../components/Skeleton'
+import { displayName } from '../utils/user'
 
 export function ProjectArchivePage() {
   const navigate = useNavigate()
@@ -156,7 +157,7 @@ export function ProjectArchivePage() {
                       : '—'}
                   </td>
                   <td className="muted" style={{ fontSize: 12.5 }}>
-                    {p.owner?.username || '—'}
+                    {p.owner ? displayName(p.owner) : '—'}
                   </td>
                   <td className="right" style={{ paddingRight: 18 }}>
                     <button

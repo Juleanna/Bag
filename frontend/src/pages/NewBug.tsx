@@ -18,6 +18,7 @@ import { apiPost, apiUpload, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import type { Issue, IssuePriority, IssueStatus, Project, UserShort } from '../api/types'
+import { displayName } from '../utils/user'
 
 const DRAFT_KEY = 'bt:newbug:draft'
 
@@ -844,7 +845,7 @@ export function NewBugPage() {
                   <option value="">Не призначено</option>
                   {members.map(m => (
                     <option key={m.id} value={m.id}>
-                      {m.username}
+                      {displayName(m)}
                     </option>
                   ))}
                 </select>
@@ -861,7 +862,7 @@ export function NewBugPage() {
                       fontSize: 13,
                     }}
                   >
-                    <Avatar user={user} /> {user.username}
+                    <Avatar user={user} /> {displayName(user)}
                   </div>
                 )}
               </div>

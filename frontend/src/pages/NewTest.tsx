@@ -16,6 +16,7 @@ import { api } from '../api/extras'
 import type { TestSuite } from '../api/extras'
 import { listAll } from '../api/client'
 import type { IssuePriority, Project, UserShort } from '../api/types'
+import { displayName } from '../utils/user'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 
@@ -479,10 +480,10 @@ export function NewTestPage() {
                   value={authorId ?? ''}
                   onChange={e => setAuthorId(e.target.value ? Number(e.target.value) : null)}
                 >
-                  {user && <option value={user.id}>{user.username} (ви)</option>}
+                  {user && <option value={user.id}>{displayName(user)} (ви)</option>}
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
-                      {u.username}
+                      {displayName(u)}
                     </option>
                   ))}
                 </select>
@@ -605,10 +606,10 @@ export function NewTestPage() {
                   }
                 >
                   <option value="">Не призначено</option>
-                  {user && <option value={user.id}>{user.username} (ви)</option>}
+                  {user && <option value={user.id}>{displayName(user)} (ви)</option>}
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
-                      {u.username}
+                      {displayName(u)}
                     </option>
                   ))}
                 </select>

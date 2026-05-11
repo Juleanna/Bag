@@ -19,6 +19,7 @@ import { useToast } from '../context/ToastContext'
 import { useConfirm, usePrompt } from '../context/ConfirmContext'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
 import { Skeleton } from '../components/Skeleton'
+import { displayName } from '../utils/user'
 
 type ViewMode = 'list' | 'kanban'
 type SortKey = 'updated' | 'created' | 'priority' | 'status' | 'id'
@@ -219,7 +220,7 @@ export function BugListPage() {
       STATUS_MAP[i.status]?.label || i.status,
       PRIORITY_MAP[i.priority]?.label || i.priority,
       projectMap.get(i.project)?.name || '',
-      i.assignee ? memberMap.get(i.assignee)?.username || '' : '',
+      i.assignee ? (() => { const m = memberMap.get(i.assignee!); return m ? displayName(m) : '' })() : '',
       i.created_at,
       i.updated_at,
     ])
@@ -940,7 +941,7 @@ function ListView({
                     {assignee ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Avatar user={assignee} />
-                        <span style={{ fontSize: 12.5 }}>{assignee.username}</span>
+                        <span style={{ fontSize: 12.5 }}>{displayName(assignee)}</span>
                       </div>
                     ) : (
                       <span className="muted">—</span>

@@ -1,4 +1,5 @@
 import type { UserShort } from '../api/types'
+import { displayName } from '../utils/user'
 
 // Гарантовано детермінований колір аватара від ID/username.
 // 6 градієнтів — як у прототипі.
@@ -54,7 +55,7 @@ export function Avatar({ user, size = 'sm', title }: AvatarProps) {
           backgroundColor: 'var(--bg-2)',
           color: 'transparent',
         }}
-        title={title || user.username}
+        title={title || displayName(user)}
       >
         {/* Прозорий fallback на випадок, якщо зображення не завантажиться */}
         {initialsFor(user)}

@@ -15,6 +15,7 @@ import { useConfirm } from '../context/ConfirmContext'
 import type { Project, ProjectVisibility, UserShort } from '../api/types'
 import { Skeleton } from '../components/Skeleton'
 import { WorkflowEditor } from '../components/WorkflowEditor'
+import { displayName } from '../utils/user'
 
 const COLORS = ['#5E6AD2', '#0EA5E9', '#10B981', '#D97757', '#9665C9', '#E04B43', '#D4951F', '#1F1E1A']
 const ICONS: Array<keyof typeof Ic> = ['Layout', 'Mobile', 'Repo', 'Globe', 'Beaker', 'Bug', 'Spark', 'Tag']
@@ -568,7 +569,7 @@ export function EditProjectPage() {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {m.user.first_name || m.user.username}
+                          {displayName(m.user)}
                         </b>
                         <div
                           style={{
@@ -660,7 +661,7 @@ export function EditProjectPage() {
                             <Avatar user={u} />
                             <span style={{ flex: 1, textAlign: 'left' }}>
                               <b style={{ fontWeight: 500 }}>
-                                {u.first_name || u.username}
+                                {displayName(u)}
                               </b>
                               <span
                                 style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 6 }}

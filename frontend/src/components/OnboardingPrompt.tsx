@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { listAll } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { displayName } from '../utils/user'
 
 interface ShortItem {
   id: number
@@ -75,7 +76,7 @@ export function OnboardingPrompt() {
 
   if (stage === 'none' || !user || onCreatePage) return null
 
-  const userName = user.first_name || user.username
+  const userName = user.first_name || displayName(user)
 
   const isStageWorkspace = stage === 'workspace'
 

@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { MOD_KEY } from '../utils/shortcuts'
 import { listAll } from '../api/client'
 import type { Project, Notification } from '../api/types'
+import { displayName } from '../utils/user'
 
 interface SidebarProps {
   onOpenPalette: () => void
@@ -154,12 +155,7 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
   }, [activeWs])
 
   const currentWs = workspaces.find(w => w.id === activeWs) || workspaces[0]
-  const teamLabel = (() => {
-    if (!user) return 'Гість'
-    const name =
-      [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username
-    return name
-  })()
+  const teamLabel = user ? displayName(user) : 'Гість'
 
   const Item = ({
     to,
@@ -538,7 +534,7 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
           </button>
         )}
         <div className="sb-foot-meta">
-          <b>{user?.username || 'Гість'}</b>
+          <b>{user ? displayName(user) : 'Гість'}</b>
           <span>{user?.email || '—'}</span>
         </div>
         <button
