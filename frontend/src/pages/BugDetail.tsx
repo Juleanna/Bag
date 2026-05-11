@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { Avatar } from '../atoms/Avatar'
@@ -17,6 +17,7 @@ import type {
   Issue,
   IssueActivity,
   IssuePriority,
+  IssueRelation,
   IssueStatus,
   Project,
   UserShort,
@@ -27,11 +28,9 @@ function formatWhen(iso: string): string {
   return d.toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-/** Парсимо рядки як "30m", "1h", "1h30m", "90", "1.5h" → хвилини. */
 function parseTimeInput(s: string): number {
   const trimmed = s.trim().toLowerCase()
   if (!trimmed) return 0
-  // "1h30m" або "30m" або "2h"
   const re = /(?:(\d+(?:\.\d+)?)h)?\s*(?:(\d+)m)?/
   const m = trimmed.match(re)
   if (m && (m[1] || m[2])) {
@@ -39,17 +38,14 @@ function parseTimeInput(s: string): number {
     const min = m[2] ? parseInt(m[2], 10) : 0
     return Math.round(h * 60 + min)
   }
-  // Чистий int = хвилини
   const n = parseInt(trimmed, 10)
   return Number.isFinite(n) ? n : 0
 }
 
-/** Чи виглядає назва файлу як зображення (за розширенням). */
 function isImageName(name: string): boolean {
   return /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(name)
 }
 
-/** Форматуємо хвилини → "Xh Ym" */
 function formatMinutes(m: number): string {
   if (!m) return '0m'
   const h = Math.floor(m / 60)
@@ -57,6 +53,75 @@ function formatMinutes(m: number): string {
   if (h && min) return `${h}h ${min}m`
   if (h) return `${h}h`
   return `${min}m`
+}
+
+// Колірний градієнт для прев'ю файла за розширенням — так само як у прототипі.
+function attachGradient(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  if (/^(png|jpe?g|gif|webp|bmp|avif|svg)$/.test(ext)) return 'linear-gradient(135deg,#FCE8E4,#F4A261)'
+  if (/^(log|txt|md)$/.test(ext)) return 'linear-gradient(135deg,#DDEFDC,#4CA85C)'
+  if (/^(json|xml|yaml|yml|har)$/.test(ext)) return 'linear-gradient(135deg,#ECEDFB,#5E6AD2)'
+  if (/^(mov|mp4|webm|avi|mkv)$/.test(ext)) return 'linear-gradient(160deg,#1F1E1A,#3D3C38)'
+  if (/^(pdf|doc|docx)$/.test(ext)) return 'linear-gradient(135deg,#FFE7C2,#E08E45)'
+  if (/^(zip|tar|gz|rar|7z)$/.test(ext)) return 'linear-gradient(135deg,#E6E6E6,#6B7280)'
+  return 'linear-gradient(135deg,#E4E4E7,#71717A)'
+}
+
+/** Мінімальний парсер маркдауну: `### Заг.`, **bold**, `code`, порожні рядки = новий абзац. */
+function renderMarkdown(text: string) {
+  if (!text) return null
+  const lines = text.split('\n')
+  const blocks: { kind: 'h' | 'p'; level?: number; text: string }[] = []
+  let buf: string[] = []
+  const flush = () => {
+    if (buf.length) {
+      blocks.push({ kind: 'p', text: buf.join('\n') })
+      buf = []
+    }
+  }
+  for (const raw of lines) {
+    const m = raw.match(/^(#{1,4})\s+(.*)$/)
+    if (m) {
+      flush()
+      blocks.push({ kind: 'h', level: m[1].length, text: m[2].trim() })
+    } else if (raw.trim() === '') {
+      flush()
+    } else {
+      buf.push(raw)
+    }
+  }
+  flush()
+  const inline = (s: string) => {
+    const parts: (string | { code?: string; bold?: string })[] = []
+    const re = /(`[^`]+`|\*\*[^*]+\*\*)/g
+    let last = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(s)) !== null) {
+      if (m.index > last) parts.push(s.slice(last, m.index))
+      if (m[0].startsWith('`')) parts.push({ code: m[0].slice(1, -1) })
+      else parts.push({ bold: m[0].slice(2, -2) })
+      last = re.lastIndex
+    }
+    if (last < s.length) parts.push(s.slice(last))
+    return parts.map((p, i) => {
+      if (typeof p === 'string') return <Fragment key={i}>{p}</Fragment>
+      if ('code' in p) return <code key={i}>{p.code}</code>
+      return <b key={i}>{p.bold}</b>
+    })
+  }
+  return blocks.map((b, i) => {
+    if (b.kind === 'h') {
+      const Tag = (b.level && b.level <= 3 ? 'h4' : 'h5') as 'h4' | 'h5'
+      return (
+        <Tag key={i} style={{ margin: '14px 0 6px', fontSize: 13.5, fontWeight: 600, color: 'var(--fg)' }}>
+          {inline(b.text)}
+        </Tag>
+      )
+    }
+    return <p key={i}>{b.text.split('\n').map((line, j) => (
+      <Fragment key={j}>{j > 0 && <br />}{inline(line)}</Fragment>
+    ))}</p>
+  })
 }
 
 export function BugDetailPage() {
@@ -72,17 +137,18 @@ export function BugDetailPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [activities, setActivities] = useState<IssueActivity[]>([])
   const [timeLogs, setTimeLogs] = useState<TimeLog[]>([])
+  const [relations, setRelations] = useState<IssueRelation[]>([])
   const [loading, setLoading] = useState(true)
   const [comment, setComment] = useState('')
   const [timeMin, setTimeMin] = useState('')
   const [timeNote, setTimeNote] = useState('')
-  // Inline-редагування заголовка та опису. draft зберігається до save/cancel.
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState('')
-  // Lightbox для зображень-вкладень (null — закрито).
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
+  // Який рядок Властивостей зараз у режимі редагування (показуємо select замість пілки).
+  const [editingField, setEditingField] = useState<null | 'status' | 'priority' | 'assignee' | 'due'>(null)
 
   const issueId = Number(id)
   const { statuses: workflowStatuses } = useWorkflow(project?.id ?? null)
@@ -94,16 +160,18 @@ export function BugDetailPage() {
       setIssue(iss)
       const proj = await apiGet<Project>(`/projects/${iss.project}/`)
       setProject(proj)
-      const [cm, at, ac, tl] = await Promise.all([
+      const [cm, at, ac, tl, rel] = await Promise.all([
         listAll<Comment>(`/comments/?issue=${issueId}&page_size=100`),
         listAll<Attachment>(`/attachments/?issue=${issueId}&page_size=50`),
         listAll<IssueActivity>(`/activities/?issue=${issueId}&page_size=50`),
         extras.listTimeLogs(issueId).catch(() => [] as TimeLog[]),
+        listAll<IssueRelation>(`/relations/?from_issue=${issueId}&page_size=50`).catch(() => [] as IssueRelation[]),
       ])
       setComments(cm)
       setAttachments(at)
       setActivities(ac)
       setTimeLogs(tl)
+      setRelations(rel)
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Не вдалося завантажити баг', 'error')
       navigate('/bugs')
@@ -117,7 +185,6 @@ export function BugDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueId])
 
-  // Закриваємо lightbox по Esc
   useEffect(() => {
     if (!lightbox) return
     const onKey = (e: KeyboardEvent) => {
@@ -127,7 +194,6 @@ export function BugDetailPage() {
     return () => document.removeEventListener('keydown', onKey)
   }, [lightbox])
 
-  // Гарячі клавіші для BugDetail (мають бути перед умовним return для React rules)
   useGlobalShortcut({
     key: 'i',
     enabled: !!user && !!issue,
@@ -158,6 +224,11 @@ export function BugDetailPage() {
       if (issue) void removeIssue()
     },
   })
+
+  const assignee = useMemo<UserShort | null>(() => {
+    if (!issue || !project) return null
+    return project.members.find(m => m.id === issue.assignee) || null
+  }, [issue, project])
 
   if (loading || !issue) {
     return (
@@ -222,7 +293,6 @@ export function BugDetailPage() {
     }
   }
 
-  // Time tracking
   const addTimeLog = async () => {
     const minutes = parseTimeInput(timeMin)
     if (!minutes || minutes <= 0) {
@@ -266,77 +336,111 @@ export function BugDetailPage() {
     }
   }
 
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      toast.show('Посилання скопійовано', 'success')
+    } catch {
+      toast.show('Не вдалося скопіювати', 'error')
+    }
+  }
+
   const members = project?.members || []
   const canEdit = !!user
+  const relationsByType: Record<string, IssueRelation[]> = {}
+  relations.forEach(r => {
+    relationsByType[r.relation_type] = relationsByType[r.relation_type] || []
+    relationsByType[r.relation_type].push(r)
+  })
 
   return (
     <div className="detail">
       <div className="detail-main">
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          {editingTitle ? (
-            <input
-              autoFocus
-              className="detail-title"
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: '1px solid var(--accent)',
-                borderRadius: 6,
-                padding: '2px 8px',
-                font: 'inherit',
-                color: 'inherit',
-                outline: 'none',
-              }}
-              value={titleDraft}
-              onChange={e => setTitleDraft(e.target.value)}
-              onBlur={() => {
-                const next = titleDraft.trim()
-                if (next && next !== issue.title) void updateField({ title: next })
-                setEditingTitle(false)
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  ;(e.target as HTMLInputElement).blur()
-                } else if (e.key === 'Escape') {
-                  setEditingTitle(false)
-                }
-              }}
-            />
-          ) : (
-            <h1
-              className="detail-title"
-              style={{ flex: 1, cursor: canEdit ? 'text' : 'default' }}
-              title={canEdit ? 'Клікніть, щоб редагувати' : undefined}
-              onClick={() => {
-                if (!canEdit) return
-                setTitleDraft(issue.title)
-                setEditingTitle(true)
-              }}
-            >
-              {issue.title}
-            </h1>
-          )}
-          {canEdit && (
-            <button className="btn ghost icon" title="Видалити" onClick={removeIssue}>
-              <Ic.Trash sz={14} />
-            </button>
-          )}
+        {/* Хлібні крихти + дії праворуч */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <button className="btn ghost sm" onClick={() => navigate('/bugs')}>
+            <Ic.Chev sz={12} style={{ transform: 'rotate(180deg)' }} /> Усі баги
+          </button>
+          <span style={{ color: 'var(--fg-4)' }}>/</span>
+          <span className="id-cell" style={{ fontSize: 13 }}>BUG-{issue.id}</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <button className="btn sm" title="В обране"><Ic.Star sz={12} /></button>
+            <button className="btn sm" onClick={copyShareLink}><Ic.Link sz={12} /> Поділитись</button>
+            {canEdit && (
+              <button className="btn sm" title="Видалити" onClick={removeIssue}>
+                <Ic.Trash sz={12} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Заголовок */}
+        {editingTitle ? (
+          <input
+            autoFocus
+            className="detail-title"
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: '1px solid var(--accent)',
+              borderRadius: 6,
+              padding: '2px 8px',
+              font: 'inherit',
+              color: 'inherit',
+              outline: 'none',
+            }}
+            value={titleDraft}
+            onChange={e => setTitleDraft(e.target.value)}
+            onBlur={() => {
+              const next = titleDraft.trim()
+              if (next && next !== issue.title) void updateField({ title: next })
+              setEditingTitle(false)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                ;(e.target as HTMLInputElement).blur()
+              } else if (e.key === 'Escape') {
+                setEditingTitle(false)
+              }
+            }}
+          />
+        ) : (
+          <h1
+            className="detail-title"
+            style={{ cursor: canEdit ? 'text' : 'default' }}
+            title={canEdit ? 'Клікніть, щоб редагувати' : undefined}
+            onClick={() => {
+              if (!canEdit) return
+              setTitleDraft(issue.title)
+              setEditingTitle(true)
+            }}
+          >
+            {issue.title}
+          </h1>
+        )}
+
+        {/* Мета-рядок: ID · "відкрито Х час" · StatusPill · PriorityBadge */}
         <div className="detail-meta">
           <span className="id">BUG-{issue.id}</span>
           <span>·</span>
-          <span>створено {formatWhen(issue.created_at)}</span>
+          <span>
+            відкрито <b style={{ color: 'var(--fg-2)', fontWeight: 500 }}>{issue.reporter.username}</b> {formatWhen(issue.created_at)}
+          </span>
+          <span>·</span>
+          <StatusPill value={issue.status} label={issue.status_display} color={issue.status_color} />
+          <PriorityBadge value={issue.priority} />
           {issue.due_date && (
             <>
               <span>·</span>
-              <span style={{ color: new Date(issue.due_date) < new Date() && issue.status !== 'done' ? 'var(--st-open-fg)' : 'inherit' }}>
+              <span style={{ color: new Date(issue.due_date) < new Date() && !issue.status_is_done ? 'var(--st-open-fg)' : 'inherit' }}>
                 <Ic.Calendar sz={11} /> до {issue.due_date}
               </span>
             </>
           )}
         </div>
 
+        {/* Опис */}
         <div className="section">
           <h3>Опис</h3>
           {editingDesc ? (
@@ -379,160 +483,137 @@ export function BugDetailPage() {
               </div>
             </>
           ) : (
-          <div
-            className="prose"
-            style={{ cursor: canEdit ? 'text' : 'default' }}
-            title={canEdit ? 'Клікніть, щоб редагувати' : undefined}
-            onClick={() => {
-              if (!canEdit) return
-              setDescDraft(issue.description || '')
-              setEditingDesc(true)
-            }}
-          >
-            {issue.description ? (
-              issue.description.split('\n').map((line, i) => <p key={i}>{line || ' '}</p>)
-            ) : (
-              <p style={{ color: 'var(--fg-3)' }}>Опис не задано — клікніть, щоб додати</p>
-            )}
-          </div>
-          )}
-        </div>
-
-        <div className="section">
-          <h3>
-            Вкладення <span className="count">({attachments.length})</span>
-          </h3>
-          <div
-            style={{
-              border: '2px dashed var(--border-strong)',
-              borderRadius: 8,
-              padding: 14,
-              textAlign: 'center',
-              cursor: 'pointer',
-              fontSize: 13,
-              color: 'var(--fg-3)',
-              marginBottom: 10,
-            }}
-            onDragOver={e => {
-              e.preventDefault()
-              ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'
-            }}
-            onDragLeave={e => {
-              ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
-            }}
-            onDrop={e => {
-              e.preventDefault()
-              ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
-              const files = Array.from(e.dataTransfer.files)
-              files.forEach(f => uploadFile(f))
-            }}
-            onClick={() => {
-              const input = document.createElement('input')
-              input.type = 'file'
-              input.multiple = true
-              input.onchange = () => {
-                if (input.files) Array.from(input.files).forEach(f => uploadFile(f))
-              }
-              input.click()
-            }}
-          >
-            <Ic.Upload sz={20} />
-            <div style={{ marginTop: 4 }}>Перетягніть файл або клікніть, щоб обрати</div>
-          </div>
-
-          {attachments.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {attachments.map(a => {
-                const isImg = isImageName(a.name)
-                const openLightbox = () => setLightbox({ url: a.url, name: a.name })
-                return (
-                  <div
-                    key={a.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '8px 12px',
-                      background: 'var(--surface-2)',
-                      borderRadius: 8,
-                      fontSize: 13,
-                    }}
-                  >
-                    {isImg ? (
-                      <img
-                        src={a.url}
-                        alt={a.name}
-                        onClick={openLightbox}
-                        style={{
-                          width: 40,
-                          height: 40,
-                          objectFit: 'cover',
-                          borderRadius: 4,
-                          cursor: 'zoom-in',
-                          flexShrink: 0,
-                        }}
-                      />
-                    ) : (
-                      <Ic.Paperclip sz={14} />
-                    )}
-                    {isImg ? (
-                      <button
-                        type="button"
-                        onClick={openLightbox}
-                        style={{
-                          flex: 1,
-                          background: 'transparent',
-                          border: 'none',
-                          padding: 0,
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          color: 'var(--fg)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          font: 'inherit',
-                        }}
-                      >
-                        {a.name}
-                      </button>
-                    ) : (
-                      <a
-                        href={a.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          flex: 1,
-                          color: 'var(--fg)',
-                          textDecoration: 'none',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {a.name}
-                      </a>
-                    )}
-                    <span style={{ color: 'var(--fg-3)', fontSize: 11.5 }}>
-                      {formatWhen(a.created_at)}
-                    </span>
-                    <button
-                      className="btn ghost icon sm"
-                      onClick={() => removeAttachment(a.id)}
-                      title="Видалити"
-                    >
-                      <Ic.X sz={12} />
-                    </button>
-                  </div>
-                )
-              })}
+            <div
+              className="prose"
+              style={{ cursor: canEdit ? 'text' : 'default' }}
+              title={canEdit ? 'Клікніть, щоб редагувати' : undefined}
+              onClick={() => {
+                if (!canEdit) return
+                setDescDraft(issue.description || '')
+                setEditingDesc(true)
+              }}
+            >
+              {issue.description ? (
+                renderMarkdown(issue.description)
+              ) : (
+                <p style={{ color: 'var(--fg-3)' }}>Опис не задано — клікніть, щоб додати</p>
+              )}
             </div>
           )}
         </div>
 
+        {/* Вкладення — у вигляді сітки тайлів */}
+        <div className="section">
+          <h3>
+            Вкладення <span className="count">{attachments.length} {attachments.length === 1 ? 'файл' : 'файлів'}</span>
+          </h3>
+          <div className="attach-grid">
+            {attachments.map(a => {
+              const isImg = isImageName(a.name)
+              const bg = isImg ? undefined : attachGradient(a.name)
+              const onClick = () => {
+                if (isImg) setLightbox({ url: a.url, name: a.name })
+                else window.open(a.url, '_blank', 'noopener,noreferrer')
+              }
+              return (
+                <div
+                  key={a.id}
+                  className="attach"
+                  style={{
+                    background: bg,
+                    backgroundImage: isImg ? `url(${a.url})` : undefined,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
+                  onClick={onClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onClick()
+                    }
+                  }}
+                >
+                  <span className="label">
+                    {isImg ? <Ic.Image sz={11} /> : <Ic.Paperclip sz={11} />} {a.name}
+                  </span>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation()
+                        void removeAttachment(a.id)
+                      }}
+                      title="Видалити"
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: 'rgba(0,0,0,0.5)',
+                        color: 'white',
+                        cursor: 'pointer',
+                        display: 'grid',
+                        placeItems: 'center',
+                      }}
+                    >
+                      <Ic.X sz={10} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+            <div
+              className="attach"
+              style={{
+                background: 'transparent',
+                border: '1.5px dashed var(--border-strong)',
+                display: 'grid',
+                placeItems: 'center',
+                color: 'var(--fg-3)',
+                cursor: 'pointer',
+              }}
+              onDragOver={e => {
+                e.preventDefault()
+                ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'
+              }}
+              onDragLeave={e => {
+                ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
+              }}
+              onDrop={e => {
+                e.preventDefault()
+                ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
+                const files = Array.from(e.dataTransfer.files)
+                files.forEach(f => uploadFile(f))
+              }}
+              onClick={() => {
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.multiple = true
+                input.onchange = () => {
+                  if (input.files) Array.from(input.files).forEach(f => uploadFile(f))
+                }
+                input.click()
+              }}
+            >
+              <div style={{ textAlign: 'center', fontSize: 12 }}>
+                <Ic.Upload sz={18} style={{ marginBottom: 6 }} />
+                <div>Перетягніть файли</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Час роботи */}
         <div className="section">
           <h3>
             <Ic.Clock sz={12} /> Час роботи{' '}
             <span className="count">
-              ({formatMinutes(timeLogs.reduce((s, l) => s + l.minutes, 0))})
+              {formatMinutes(timeLogs.reduce((s, l) => s + l.minutes, 0))}
             </span>
           </h3>
           {user && (
@@ -575,13 +656,7 @@ export function BugDetailPage() {
                     fontSize: 12.5,
                   }}
                 >
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 600,
-                      minWidth: 60,
-                    }}
-                  >
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, minWidth: 60 }}>
                     {formatMinutes(t.minutes)}
                   </span>
                   <span style={{ color: 'var(--fg-2)' }}>{t.user_name}</span>
@@ -604,9 +679,10 @@ export function BugDetailPage() {
           )}
         </div>
 
+        {/* Коментарі */}
         <div className="section">
           <h3>
-            Коментарі <span className="count">({comments.length})</span>
+            Коментарі <span className="count">{comments.length}</span>
           </h3>
           {user && (
             <div className="comment-input">
@@ -627,7 +703,7 @@ export function BugDetailPage() {
                       disabled={!comment.trim()}
                       onClick={submitComment}
                     >
-                      Додати
+                      Надіслати
                     </button>
                   </div>
                 </div>
@@ -661,7 +737,7 @@ export function BugDetailPage() {
                     </div>
                     <div className="body">
                       {c.body.split('\n').map((l, i) => (
-                        <p key={i}>{l || ' '}</p>
+                        <p key={i}>{l || ' '}</p>
                       ))}
                     </div>
                   </div>
@@ -674,7 +750,7 @@ export function BugDetailPage() {
         {activities.length > 0 && (
           <div className="section">
             <h3>
-              Історія <span className="count">({activities.length})</span>
+              Історія змін <span className="count">{activities.length}</span>
             </h3>
             <div className="history">
               {activities.map(a => (
@@ -700,88 +776,196 @@ export function BugDetailPage() {
         )}
       </div>
 
-      <div className="detail-side">
+      {/* Бічна панель — 3 картки */}
+      <aside className="detail-side">
         <div className="card" style={{ padding: 14 }}>
-          <SideRow label="Статус">
-            <select
-              className="select"
-              value={issue.status}
-              onChange={e => updateField({ status: e.target.value as IssueStatus })}
-              style={{ width: '100%' }}
-            >
-              {workflowStatuses.map(s => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </SideRow>
-          <SideRow label="Пріоритет">
-            <select
-              className="select"
-              value={issue.priority}
-              onChange={e => updateField({ priority: e.target.value as IssuePriority })}
-              style={{ width: '100%' }}
-            >
-              {Object.entries(PRIORITY_MAP).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v.label}
-                </option>
-              ))}
-            </select>
-          </SideRow>
-          <SideRow label="Виконавець">
-            <select
-              className="select"
-              value={issue.assignee || ''}
-              onChange={e => updateField({ assignee: e.target.value ? Number(e.target.value) : null })}
-              style={{ width: '100%' }}
-            >
-              <option value="">Не призначено</option>
-              {members.map((m: UserShort) => (
-                <option key={m.id} value={m.id}>
-                  {m.username}
-                </option>
-              ))}
-            </select>
-          </SideRow>
-          <SideRow label="Дедлайн">
-            <input
-              type="date"
-              className="inp"
-              value={issue.due_date || ''}
-              onChange={e => updateField({ due_date: e.target.value || null })}
-              style={{ width: '100%' }}
-            />
-          </SideRow>
-          <SideRow label="Автор">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Avatar user={issue.reporter} />
-              <span style={{ fontSize: 13 }}>{issue.reporter.username}</span>
+          <div className="side-section">
+            <h4>Властивості</h4>
+            <div className="side-row">
+              <span className="lbl">Статус</span>
+              <span className="val" onClick={() => canEdit && setEditingField('status')} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+                {editingField === 'status' ? (
+                  <select
+                    autoFocus
+                    className="select"
+                    value={issue.status}
+                    onChange={e => {
+                      void updateField({ status: e.target.value as IssueStatus })
+                      setEditingField(null)
+                    }}
+                    onBlur={() => setEditingField(null)}
+                    style={{ width: '100%' }}
+                  >
+                    {workflowStatuses.map(s => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <StatusPill value={issue.status} label={issue.status_display} color={issue.status_color} />
+                )}
+              </span>
             </div>
-          </SideRow>
-          <SideRow label="Проєкт">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="pdot" style={{ width: 8, height: 8, borderRadius: 50, background: 'var(--accent)' }} />
-              <span style={{ fontSize: 13 }}>{project?.name || '—'}</span>
+            <div className="side-row">
+              <span className="lbl">Пріоритет</span>
+              <span className="val" onClick={() => canEdit && setEditingField('priority')} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+                {editingField === 'priority' ? (
+                  <select
+                    autoFocus
+                    className="select"
+                    value={issue.priority}
+                    onChange={e => {
+                      void updateField({ priority: e.target.value as IssuePriority })
+                      setEditingField(null)
+                    }}
+                    onBlur={() => setEditingField(null)}
+                    style={{ width: '100%' }}
+                  >
+                    {Object.entries(PRIORITY_MAP).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <PriorityBadge value={issue.priority} />
+                )}
+              </span>
             </div>
-          </SideRow>
+            <div className="side-row">
+              <span className="lbl">Виконавець</span>
+              <span className="val" onClick={() => canEdit && setEditingField('assignee')} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+                {editingField === 'assignee' ? (
+                  <select
+                    autoFocus
+                    className="select"
+                    value={issue.assignee || ''}
+                    onChange={e => {
+                      void updateField({ assignee: e.target.value ? Number(e.target.value) : null })
+                      setEditingField(null)
+                    }}
+                    onBlur={() => setEditingField(null)}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Не призначено</option>
+                    {members.map((m: UserShort) => (
+                      <option key={m.id} value={m.id}>{m.username}</option>
+                    ))}
+                  </select>
+                ) : assignee ? (
+                  <>
+                    <Avatar user={assignee} />
+                    <span>{assignee.username}</span>
+                  </>
+                ) : (
+                  <span style={{ color: 'var(--fg-3)' }}>Не призначено</span>
+                )}
+              </span>
+            </div>
+            <div className="side-row">
+              <span className="lbl">Репортер</span>
+              <span className="val">
+                <Avatar user={issue.reporter} />
+                <span>{issue.reporter.username}</span>
+              </span>
+            </div>
+            <div className="side-row">
+              <span className="lbl">Проєкт</span>
+              <span className="val">
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: project?.color || 'var(--accent)', display: 'inline-block' }} />
+                <span>{project?.name || '—'}</span>
+              </span>
+            </div>
+            <div className="side-row">
+              <span className="lbl">Дедлайн</span>
+              <span className="val" onClick={() => canEdit && setEditingField('due')} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+                {editingField === 'due' ? (
+                  <input
+                    autoFocus
+                    type="date"
+                    className="inp"
+                    value={issue.due_date || ''}
+                    onChange={e => {
+                      void updateField({ due_date: e.target.value || null })
+                      setEditingField(null)
+                    }}
+                    onBlur={() => setEditingField(null)}
+                    style={{ width: '100%' }}
+                  />
+                ) : issue.due_date ? (
+                  <span className="tag">{issue.due_date}</span>
+                ) : (
+                  <span style={{ color: 'var(--fg-3)' }}>—</span>
+                )}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="card" style={{ padding: 14 }}>
-          <h4 style={{ margin: 0 }}>
-            <Ic.Eye sz={11} /> Поточний стан
-          </h4>
-          <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <StatusPill
-              value={issue.status}
-              label={issue.status_display}
-              color={issue.status_color}
-            />
-            <PriorityBadge value={issue.priority} />
+          <div className="side-section">
+            <h4>Зв'язки</h4>
+            {(['blocks', 'blocked_by', 'relates_to', 'duplicate_of'] as const).map(rt => {
+              const items = relationsByType[rt] || []
+              const labels: Record<typeof rt, string> = {
+                blocks: 'Блокує',
+                blocked_by: 'Заблоковано',
+                relates_to: 'Повʼязано з',
+                duplicate_of: 'Дублікат до',
+              }
+              return (
+                <div key={rt} className="side-row" style={{ alignItems: 'flex-start' }}>
+                  <span className="lbl">{labels[rt]}</span>
+                  <span className="val" style={{ flexWrap: 'wrap' }}>
+                    {items.length === 0 ? (
+                      <span style={{ color: 'var(--fg-3)' }}>—</span>
+                    ) : (
+                      items.map(r => (
+                        <a
+                          key={r.id}
+                          href={`/bugs/${r.to_issue}`}
+                          onClick={e => {
+                            e.preventDefault()
+                            navigate(`/bugs/${r.to_issue}`)
+                          }}
+                          className="id-cell"
+                          style={{ color: 'var(--accent-soft-fg)', fontWeight: 500, textDecoration: 'none' }}
+                          title={r.to_issue_title}
+                        >
+                          BUG-{r.to_issue}
+                        </a>
+                      ))
+                    )}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         </div>
-      </div>
+
+        <div className="card" style={{ padding: 14 }}>
+          <div className="side-section">
+            <h4>Активність</h4>
+            <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
+                  {comments.length}
+                </div>
+                коментарів
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
+                  {attachments.length}
+                </div>
+                файлів
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
+                  {activities.length}
+                </div>
+                подій
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
 
       {lightbox && (
         <div
@@ -856,15 +1040,6 @@ export function BugDetailPage() {
           </a>
         </div>
       )}
-    </div>
-  )
-}
-
-function SideRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="side-row">
-      <span className="lbl">{label}</span>
-      <span className="val">{children}</span>
     </div>
   )
 }
