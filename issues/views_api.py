@@ -443,10 +443,13 @@ class IssueViewSet(viewsets.ModelViewSet):
         _enqueue_issue_notification(issue.id, "created")
 
     def perform_update(self, serializer):
-        # Зчитуємо старі значення під блокуванням, щоб уникнути race condition
+        # Зчитуємо старі значення під блокуванням, щоб уникнути race condition.
+        # of=("self",) обов'язково для PostgreSQL: assignee — nullable FK,
+        # тож select_related робить LEFT JOIN, а FOR UPDATE без of=self на
+        # nullable side падає з NotSupportedError.
         with transaction.atomic():
             old = (
-                Issue.objects.select_for_update()
+                Issue.objects.select_for_update(of=("self",))
                 .select_related("assignee")
                 .get(pk=serializer.instance.pk)
             )
