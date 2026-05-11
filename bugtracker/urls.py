@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -32,6 +32,14 @@ urlpatterns = [
     ),
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     path("", TemplateView.as_view(template_name="index.html"), name="home"),
+    # SPA catchall: будь-який маршрут, що не співпав з admin/api/static/media —
+    # віддаємо index.html, далі React Router сам розбереться. Без цього F5
+    # на сторінках типу /dashboard, /tests/5 давав би 404.
+    re_path(
+        r"^(?!admin/|api/|static/|media/).*$",
+        TemplateView.as_view(template_name="index.html"),
+        name="spa-catchall",
+    ),
 ]
 
 if settings.DEBUG:
