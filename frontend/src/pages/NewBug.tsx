@@ -448,13 +448,18 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
     toast.show(`Чернетку збережено о ${t}`, 'success')
   }
 
-  // AI-помічник: знайти схожі баги за збігом слів у заголовку (>=2 спільні токени).
+  // AI-помічник: знайти схожі баги за збігом слів у заголовку.
+  // У edit-режимі не показуємо (це фіча для пошуку дублікатів при створенні);
+  // якби показували — мусили б принаймні виключити сам редагований баг із результатів.
   const aiSuggestions = useMemo(() => {
+    if (isEdit) return []
     const q = title.trim().toLowerCase()
     if (q.length < 4) return []
     const tokens = q.split(/\s+/).filter(t => t.length >= 3)
     if (tokens.length === 0) return []
+    const currentId = editId ? Number(editId) : null
     return allIssues
+      .filter(it => it.id !== currentId)
       .map(it => {
         const t = (it.title || '').toLowerCase()
         const match = tokens.filter(tok => t.includes(tok)).length
@@ -464,7 +469,7 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
       .filter(x => x.ratio >= 0.5)
       .sort((a, b) => b.ratio - a.ratio)
       .slice(0, 3)
-  }, [title, allIssues])
+  }, [title, allIssues, isEdit, editId])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -627,15 +632,32 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
 
         <div className="form-layout">
           <div className="form-main">
-            {/* Великий заголовок */}
+            {/* Великий заголовок — textarea з автопереносом, щоб довгі назви не обрізались */}
             <div className="big-title-input">
-              <input
+              <textarea
                 className="big-input"
                 placeholder="Короткий заголовок проблеми…"
                 value={title}
-                onChange={e => setTitle(e.target.value)}
+                onChange={e => {
+                  setTitle(e.target.value)
+                  const ta = e.target as HTMLTextAreaElement
+                  ta.style.height = 'auto'
+                  ta.style.height = ta.scrollHeight + 'px'
+                }}
+                onKeyDown={e => {
+                  // Enter не має створювати новий рядок у заголовку.
+                  if (e.key === 'Enter') e.preventDefault()
+                }}
+                ref={el => {
+                  if (el) {
+                    el.style.height = 'auto'
+                    el.style.height = el.scrollHeight + 'px'
+                  }
+                }}
+                rows={1}
                 autoFocus
                 required
+                style={{ resize: 'none', overflow: 'hidden', lineHeight: 1.3 }}
               />
               <div className="hint">Стисло, як у git commit. Деталі — нижче.</div>
             </div>
