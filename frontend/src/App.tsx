@@ -10,6 +10,7 @@ import { BugDetailPage } from './pages/BugDetail'
 import { InboxPage } from './pages/Inbox'
 import { ProfilePage } from './pages/Profile'
 import { NewBugPage } from './pages/NewBug'
+import { EditBugPage } from './pages/EditBug'
 import { NewProjectPage } from './pages/NewProject'
 import { EditProjectPage } from './pages/EditProject'
 import { ProjectArchivePage } from './pages/ProjectArchive'
@@ -119,6 +120,7 @@ export function App() {
         <Route path="bugs" element={<BugListPage />} />
         <Route path="bugs/new" element={<NewBugPage />} />
         <Route path="bugs/:id" element={<BugDetailPage />} />
+        <Route path="bugs/:id/edit" element={<EditBugPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="projects/archive" element={<ProjectArchivePage />} />
         <Route path="projects/:id/edit" element={<EditProjectPage />} />
