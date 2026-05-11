@@ -752,7 +752,9 @@ textarea.inp { padding: 8px 10px; height: auto; resize: vertical; line-height: 1
 .sidebar.collapsed .sb-project { justify-content: center; padding: 8px; }
 .sidebar.collapsed .sb-project-row .sb-project-edit { display: none; }
 .sidebar.collapsed .sb-foot { justify-content: center; padding: 10px 6px; }
-.sidebar.collapsed .sb-foot > button { display: none; }
+/* Ховаємо лише шестерню (class="btn icon ghost"). Кнопку-обгортку
+   аватарки залишаємо видимою — це єдиний доступ до /profile у згорнутому стані. */
+.sidebar.collapsed .sb-foot > button.btn { display: none; }
 .sidebar.collapsed .sb-collapse-bar { padding: 10px 6px; }
 
 .sb-head-btn {
