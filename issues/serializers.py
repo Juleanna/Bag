@@ -359,13 +359,10 @@ class AttachmentSerializer(serializers.ModelSerializer):
             self.fields["issue"].queryset = Issue.objects.filter(project__in=user_projects)
 
     def get_url(self, obj: Attachment) -> str:
-        # Повертаємо захищений URL, що проходить через перевірку членства
-        # (а не прямий MEDIA_URL — інакше будь-хто з посиланням скачає файл)
-        request = self.context.get("request")
-        protected_path = f"/api/attachments/{obj.pk}/download/"
-        if request:
-            return request.build_absolute_uri(protected_path)
-        return protected_path
+        # Повертаємо захищений relative URL — браузер сам резолвить origin.
+        # build_absolute_uri() ламається за nginx-проксі (Host без порту),
+        # а relative-шлях працює завжди.
+        return f"/api/attachments/{obj.pk}/download/"
 
     def validate_issue(self, value):
         if self.instance and self.instance.issue_id != value.id:
