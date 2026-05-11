@@ -149,6 +149,7 @@ export function BugDetailPage() {
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
   // Який рядок Властивостей зараз у режимі редагування (показуємо select замість пілки).
   const [editingField, setEditingField] = useState<null | 'status' | 'priority' | 'assignee' | 'due'>(null)
+  const [starred, setStarred] = useState(false)
 
   const issueId = Number(id)
   const { statuses: workflowStatuses } = useWorkflow(project?.id ?? null)
@@ -160,18 +161,20 @@ export function BugDetailPage() {
       setIssue(iss)
       const proj = await apiGet<Project>(`/projects/${iss.project}/`)
       setProject(proj)
-      const [cm, at, ac, tl, rel] = await Promise.all([
+      const [cm, at, ac, tl, rel, st] = await Promise.all([
         listAll<Comment>(`/comments/?issue=${issueId}&page_size=100`),
         listAll<Attachment>(`/attachments/?issue=${issueId}&page_size=50`),
         listAll<IssueActivity>(`/activities/?issue=${issueId}&page_size=50`),
         extras.listTimeLogs(issueId).catch(() => [] as TimeLog[]),
         listAll<IssueRelation>(`/relations/?from_issue=${issueId}&page_size=50`).catch(() => [] as IssueRelation[]),
+        listAll<{ id: number; issue: number }>(`/starred/?issue=${issueId}&page_size=1`).catch(() => []),
       ])
       setComments(cm)
       setAttachments(at)
       setActivities(ac)
       setTimeLogs(tl)
       setRelations(rel)
+      setStarred(st.length > 0)
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Не вдалося завантажити баг', 'error')
       navigate('/bugs')
@@ -336,12 +339,45 @@ export function BugDetailPage() {
     }
   }
 
-  const copyShareLink = async () => {
+  const toggleStar = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href)
-      toast.show('Посилання скопійовано', 'success')
+      const res = await apiPost<{ starred: boolean }>('/starred/toggle/', { issue: issue.id })
+      setStarred(res.starred)
+      toast.show(res.starred ? 'Додано в обране' : 'Прибрано з обраного', 'success')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
+  const copyShareLink = async () => {
+    const url = window.location.href
+    // navigator.clipboard працює лише в secure context (https/localhost).
+    // На HTTP-сервері використовуємо застарілий execCommand-fallback.
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(url)
+        toast.show('Посилання скопійовано', 'success')
+        return
+      } catch {
+        // падаємо в legacy-шлях нижче
+      }
+    }
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      ta.style.position = 'fixed'
+      ta.style.top = '-9999px'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.focus()
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      if (ok) toast.show('Посилання скопійовано', 'success')
+      else throw new Error('execCommand failed')
     } catch {
-      toast.show('Не вдалося скопіювати', 'error')
+      // Останній рятувальник: показуємо посилання в prompt, щоб юзер скопіював вручну.
+      window.prompt('Скопіюйте посилання:', url)
     }
   }
 
@@ -364,7 +400,14 @@ export function BugDetailPage() {
           <span style={{ color: 'var(--fg-4)' }}>/</span>
           <span className="id-cell" style={{ fontSize: 13 }}>BUG-{issue.id}</span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            <button className="btn sm" title="В обране"><Ic.Star sz={12} /></button>
+            <button
+              className="btn sm"
+              title={starred ? 'Прибрати з обраного' : 'В обране'}
+              onClick={toggleStar}
+              style={starred ? { color: '#F4B400' } : undefined}
+            >
+              <Ic.Star sz={12} style={starred ? { fill: '#F4B400' } : undefined} />
+            </button>
             <button className="btn sm" onClick={copyShareLink}><Ic.Link sz={12} /> Поділитись</button>
             {canEdit && (
               <button className="btn sm" title="Видалити" onClick={removeIssue}>
