@@ -425,11 +425,32 @@ class ChecklistItem(models.Model):
 class Notification(models.Model):
     """Сповіщення для користувача."""
 
+    class Kind(models.TextChoices):
+        MENTION = "mention", "Згадка"
+        ASSIGNED = "assigned", "Призначено"
+        COMMENT = "comment", "Коментар"
+        REVIEW = "review", "Запит на ревʼю"
+        FAIL = "fail", "Невдалий тест"
+        CLOSED = "closed", "Закрито"
+        OTHER = "other", "Інше"
+
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notifications"
     )
+    # Хто ініціював подію (автор коментаря, той, хто призначив тощо). Може бути null
+    # для системних подій (наприклад, провал тесту).
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="actor_notifications",
+    )
     issue = models.ForeignKey(
         Issue, on_delete=models.CASCADE, related_name="notifications", null=True, blank=True
+    )
+    kind = models.CharField(
+        max_length=16, choices=Kind.choices, default=Kind.OTHER, db_index=True
     )
     message = models.CharField(max_length=500)
     is_read = models.BooleanField(default=False)
@@ -440,6 +461,7 @@ class Notification(models.Model):
         indexes = [
             models.Index(fields=["user", "-created_at"]),
             models.Index(fields=["user", "is_read"]),
+            models.Index(fields=["user", "kind"]),
         ]
 
     def __str__(self) -> str:

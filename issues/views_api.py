@@ -97,10 +97,16 @@ def _log_activity(issue, user, action, field="", old_value="", new_value=""):
     )
 
 
-def _notify(user, issue, message):
+def _notify(user, issue, message, kind="other", actor=None):
     """Створює сповіщення для користувача."""
     if user:
-        Notification.objects.create(user=user, issue=issue, message=message[:500])
+        Notification.objects.create(
+            user=user,
+            issue=issue,
+            actor=actor,
+            kind=kind,
+            message=message[:500],
+        )
 
 
 def _enqueue_issue_notification(issue_id, action):
@@ -438,7 +444,13 @@ class IssueViewSet(viewsets.ModelViewSet):
             _log_activity(issue, self.request.user, "created")
             # Сповіщаємо виконавця, якщо це не сам автор
             if issue.assignee and issue.assignee != self.request.user:
-                _notify(issue.assignee, issue, f"Вас призначено на: {issue.title}")
+                _notify(
+                    issue.assignee,
+                    issue,
+                    f"Вас призначено на: {issue.title}",
+                    kind="assigned",
+                    actor=self.request.user,
+                )
         # Celery поза транзакцією, щоб не задерживати commit
         _enqueue_issue_notification(issue.id, "created")
 
@@ -476,7 +488,13 @@ class IssueViewSet(viewsets.ModelViewSet):
                     issue, user, "assignee_changed", "assignee", old_assignee_name, new_name
                 )
                 if issue.assignee and issue.assignee != user:
-                    _notify(issue.assignee, issue, f"Вас призначено на: {issue.title}")
+                    _notify(
+                    issue.assignee,
+                    issue,
+                    f"Вас призначено на: {issue.title}",
+                    kind="assigned",
+                    actor=self.request.user,
+                )
             if old_title != issue.title:
                 _log_activity(issue, user, "title_changed", "title", old_title, issue.title)
             if old_due_date != issue.due_date:
@@ -610,6 +628,8 @@ class CommentViewSet(viewsets.ModelViewSet):
                         u,
                         issue,
                         f"@{self.request.user.username} згадав вас у: {issue.title}",
+                        kind="mention",
+                        actor=self.request.user,
                     )
                     notified_user_ids.add(u.id)
 
@@ -620,6 +640,8 @@ class CommentViewSet(viewsets.ModelViewSet):
                         target,
                         issue,
                         f"@{self.request.user.username} прокоментував: {issue.title}",
+                        kind="comment",
+                        actor=self.request.user,
                     )
                     notified_user_ids.add(target.id)
 

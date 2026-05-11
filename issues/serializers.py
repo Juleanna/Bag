@@ -484,10 +484,21 @@ class ChecklistItemSerializer(serializers.ModelSerializer):
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    actor = UserShortSerializer(read_only=True)
+
     class Meta:
         model = Notification
-        fields = ["id", "user", "issue", "message", "is_read", "created_at"]
-        read_only_fields = ["user", "issue", "message", "created_at"]
+        fields = [
+            "id",
+            "user",
+            "actor",
+            "issue",
+            "kind",
+            "message",
+            "is_read",
+            "created_at",
+        ]
+        read_only_fields = ["user", "actor", "issue", "kind", "message", "created_at"]
 
 
 class StarredIssueSerializer(serializers.ModelSerializer):

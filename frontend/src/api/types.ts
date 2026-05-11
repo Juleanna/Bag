@@ -154,10 +154,21 @@ export interface ChecklistItem {
   created_at: string
 }
 
+export type NotificationKind =
+  | 'mention'
+  | 'assigned'
+  | 'comment'
+  | 'review'
+  | 'fail'
+  | 'closed'
+  | 'other'
+
 export interface Notification {
   id: number
   user: number
+  actor: UserShort | null
   issue: number | null
+  kind: NotificationKind
   message: string
   is_read: boolean
   created_at: string
