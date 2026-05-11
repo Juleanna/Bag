@@ -71,6 +71,11 @@ export function BugDetailPage() {
   const [comment, setComment] = useState('')
   const [timeMin, setTimeMin] = useState('')
   const [timeNote, setTimeNote] = useState('')
+  // Inline-редагування заголовка та опису. draft зберігається до save/cancel.
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const [editingDesc, setEditingDesc] = useState(false)
+  const [descDraft, setDescDraft] = useState('')
 
   const issueId = Number(id)
   const { statuses: workflowStatuses } = useWorkflow(project?.id ?? null)
@@ -251,9 +256,50 @@ export function BugDetailPage() {
     <div className="detail">
       <div className="detail-main">
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <h1 className="detail-title" style={{ flex: 1 }}>
-            {issue.title}
-          </h1>
+          {editingTitle ? (
+            <input
+              autoFocus
+              className="detail-title"
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: '1px solid var(--accent)',
+                borderRadius: 6,
+                padding: '2px 8px',
+                font: 'inherit',
+                color: 'inherit',
+                outline: 'none',
+              }}
+              value={titleDraft}
+              onChange={e => setTitleDraft(e.target.value)}
+              onBlur={() => {
+                const next = titleDraft.trim()
+                if (next && next !== issue.title) void updateField({ title: next })
+                setEditingTitle(false)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  ;(e.target as HTMLInputElement).blur()
+                } else if (e.key === 'Escape') {
+                  setEditingTitle(false)
+                }
+              }}
+            />
+          ) : (
+            <h1
+              className="detail-title"
+              style={{ flex: 1, cursor: canEdit ? 'text' : 'default' }}
+              title={canEdit ? 'Клікніть, щоб редагувати' : undefined}
+              onClick={() => {
+                if (!canEdit) return
+                setTitleDraft(issue.title)
+                setEditingTitle(true)
+              }}
+            >
+              {issue.title}
+            </h1>
+          )}
           {canEdit && (
             <button className="btn ghost icon" title="Видалити" onClick={removeIssue}>
               <Ic.Trash sz={14} />
@@ -276,13 +322,63 @@ export function BugDetailPage() {
 
         <div className="section">
           <h3>Опис</h3>
-          <div className="prose">
+          {editingDesc ? (
+            <>
+              <textarea
+                autoFocus
+                value={descDraft}
+                onChange={e => setDescDraft(e.target.value)}
+                onKeyDown={e => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault()
+                    ;(e.target as HTMLTextAreaElement).blur()
+                  } else if (e.key === 'Escape') {
+                    setEditingDesc(false)
+                  }
+                }}
+                onBlur={() => {
+                  const next = descDraft
+                  if (next !== (issue.description || '')) {
+                    void updateField({ description: next })
+                  }
+                  setEditingDesc(false)
+                }}
+                rows={Math.max(4, (descDraft.match(/\n/g)?.length ?? 0) + 2)}
+                style={{
+                  width: '100%',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  background: 'transparent',
+                  border: '1px solid var(--accent)',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  color: 'inherit',
+                  outline: 'none',
+                  resize: 'vertical',
+                }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                Ctrl+Enter — зберегти · Esc — скасувати
+              </div>
+            </>
+          ) : (
+          <div
+            className="prose"
+            style={{ cursor: canEdit ? 'text' : 'default' }}
+            title={canEdit ? 'Клікніть, щоб редагувати' : undefined}
+            onClick={() => {
+              if (!canEdit) return
+              setDescDraft(issue.description || '')
+              setEditingDesc(true)
+            }}
+          >
             {issue.description ? (
               issue.description.split('\n').map((line, i) => <p key={i}>{line || ' '}</p>)
             ) : (
-              <p style={{ color: 'var(--fg-3)' }}>Опис не задано</p>
+              <p style={{ color: 'var(--fg-3)' }}>Опис не задано — клікніть, щоб додати</p>
             )}
           </div>
+          )}
         </div>
 
         <div className="section">
