@@ -760,16 +760,27 @@ export function BugDetailPage() {
                   <select
                     autoFocus
                     className="select"
-                    value={issue.status}
+                    // Підставляємо id поточного workflow_status; якщо його ще немає
+                    // (legacy issue без FK) — fallback на статус з тим самим key.
+                    value={String(
+                      issue.workflow_status ??
+                        workflowStatuses.find(s => s.key === issue.status)?.id ??
+                        ''
+                    )}
                     onChange={e => {
-                      void updateField({ status: e.target.value as IssueStatus })
+                      const wsId = Number(e.target.value)
+                      // Відправляємо workflow_status (id) — джерело істини на бекенді.
+                      // legacy "status" key не використовуємо, бо кастомні значення
+                      // (наприклад "blocked") не входять у Issue.Status.choices і
+                      // дають 400 Bad Request на валідації DRF.
+                      void updateField({ workflow_status: wsId } as Partial<Issue>)
                       setEditingField(null)
                     }}
                     onBlur={() => setEditingField(null)}
                     style={{ width: '100%' }}
                   >
                     {workflowStatuses.map(s => (
-                      <option key={s.key} value={s.key}>{s.label}</option>
+                      <option key={s.id} value={String(s.id)}>{s.label}</option>
                     ))}
                   </select>
                 ) : (
