@@ -960,6 +960,7 @@ class StarredIssueViewSet(viewsets.ModelViewSet):
 
 from .models import (  # noqa: E402
     ApiToken,
+    ChangelogEntry,
     IntegrationConfig,
     IssueTemplate,
     LoginEvent,
@@ -974,6 +975,7 @@ from .models import (  # noqa: E402
 )
 from .serializers import (  # noqa: E402
     ApiTokenSerializer,
+    ChangelogEntrySerializer,
     IntegrationConfigSerializer,
     IssueTemplateSerializer,
     LoginEventSerializer,
@@ -1066,6 +1068,27 @@ class SavedFilterViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class ChangelogEntryViewSet(viewsets.ModelViewSet):
+    """Changelog продукту. Читати може будь-який автентифікований користувач,
+    редагувати/створювати/видаляти — лише staff (адміністратор)."""
+
+    serializer_class = ChangelogEntrySerializer
+    parser_classes = [JSONParser, FormParser]
+    pagination_class = StandardResultsSetPagination
+
+    def get_permissions(self):
+        if self.action in {"list", "retrieve"}:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
+
+    def get_queryset(self):
+        qs = ChangelogEntry.objects.all()
+        # Звичайні користувачі бачать лише опубліковані; staff бачить усе.
+        if not (self.request.user.is_authenticated and self.request.user.is_staff):
+            qs = qs.filter(is_published=True)
+        return qs
 
 
 # ============================================================================

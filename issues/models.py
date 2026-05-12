@@ -972,3 +972,33 @@ class IntegrationConfig(models.Model):
     class Meta:
         unique_together = ("project", "kind")
 
+
+class ChangelogEntry(models.Model):
+    """Запис у Changelog продукту — версія, тег, перелік змін.
+
+    Редагується через адмін-API лише staff-користувачами; читається всіма.
+    """
+
+    class Tag(models.TextChoices):
+        MAJOR = "major", "Major"
+        MINOR = "minor", "Minor"
+        PATCH = "patch", "Patch"
+        SECURITY = "security", "Security"
+
+    version = models.CharField(max_length=50, help_text="Напр. 4.18.0")
+    release_date = models.DateField()
+    tag = models.CharField(max_length=20, choices=Tag.choices, default=Tag.MINOR)
+    title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
+    # Список об'єктів {"type": "new"|"imp"|"fix"|"sec", "text": "..."}
+    changes = models.JSONField(default=list, blank=True)
+    is_published = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-release_date", "-id"]
+
+    def __str__(self) -> str:
+        return f"v{self.version} · {self.title}"
+

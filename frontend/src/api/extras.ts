@@ -152,6 +152,27 @@ export interface ReportsSummary {
   top_assignees: Array<{ assignee: number; assignee__username: string; n: number }>
 }
 
+export type ChangelogTag = 'major' | 'minor' | 'patch' | 'security'
+export type ChangelogChangeType = 'new' | 'imp' | 'fix' | 'sec'
+
+export interface ChangelogChange {
+  type: ChangelogChangeType
+  text: string
+}
+
+export interface ChangelogEntry {
+  id: number
+  version: string
+  release_date: string
+  tag: ChangelogTag
+  title: string
+  summary: string
+  changes: ChangelogChange[]
+  is_published: boolean
+  created_at: string
+  updated_at: string
+}
+
 function unwrap<T>(res: PaginatedResponse<T> | T[]): T[] {
   if (Array.isArray(res)) return res
   return res.results || []
@@ -289,4 +310,13 @@ export const api = {
     apiPost<{ ok: boolean; enabled: boolean }>('/auth/2fa/verify/', { code }),
   totpDisable: (code: string) =>
     apiPost<{ ok: boolean; enabled: boolean }>('/auth/2fa/disable/', { code }),
+
+  // Changelog
+  listChangelog: async () =>
+    unwrap(await apiGet<PaginatedResponse<ChangelogEntry>>('/changelog/?page_size=100')),
+  createChangelogEntry: (data: Partial<ChangelogEntry>) =>
+    apiPost<ChangelogEntry>('/changelog/', data),
+  updateChangelogEntry: (id: number, data: Partial<ChangelogEntry>) =>
+    apiPatch<ChangelogEntry>(`/changelog/${id}/`, data),
+  deleteChangelogEntry: (id: number) => apiDelete(`/changelog/${id}/`),
 }

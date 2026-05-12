@@ -20,6 +20,7 @@ from .views_api import (
     ProjectMembershipViewSet,
     ProjectViewSet,
     RegionViewSet,
+    ChangelogEntryViewSet,
     SavedFilterViewSet,
     SprintViewSet,
     StarredIssueViewSet,
@@ -73,6 +74,7 @@ router.register(r"api-tokens", ApiTokenViewSet, basename="api-token")
 router.register(r"login-events", LoginEventViewSet, basename="login-event")
 router.register(r"webhooks", WebhookViewSet, basename="webhook")
 router.register(r"integrations", IntegrationConfigViewSet, basename="integration")
+router.register(r"changelog", ChangelogEntryViewSet, basename="changelog")
 
 urlpatterns = [
     path("", include(router.urls)),

@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import (
     ApiToken,
     Attachment,
+    ChangelogEntry,
     ChecklistItem,
     Comment,
     IntegrationConfig,
@@ -561,6 +562,29 @@ class SavedFilterSerializer(serializers.ModelSerializer):
         model = SavedFilter
         fields = "__all__"
         read_only_fields = ("user", "created_at")
+
+
+class ChangelogEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChangelogEntry
+        fields = "__all__"
+        read_only_fields = ("created_at", "updated_at")
+
+    def validate_changes(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("changes має бути списком")
+        for i, item in enumerate(value):
+            if not isinstance(item, dict):
+                raise serializers.ValidationError(
+                    f"changes[{i}] має бути обʼєктом {{type, text}}"
+                )
+            if item.get("type") not in {"new", "imp", "fix", "sec"}:
+                raise serializers.ValidationError(
+                    f"changes[{i}].type має бути одним з: new, imp, fix, sec"
+                )
+            if not str(item.get("text", "")).strip():
+                raise serializers.ValidationError(f"changes[{i}].text не може бути пустим")
+        return value
 
 
 # ============================================================================

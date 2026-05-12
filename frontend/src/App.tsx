@@ -22,6 +22,7 @@ import { ReportsPage } from './pages/Reports'
 import { NewTestPage } from './pages/NewTest'
 import { EditTestPage } from './pages/EditTest'
 import { TestCaseDetailPage } from './pages/TestCaseDetail'
+import { ChangelogPage } from './pages/ChangelogPage'
 import { SprintsPage } from './pages/Sprints'
 import { WebhooksPage } from './pages/Webhooks'
 import { TemplatesPage } from './pages/Templates'
@@ -137,6 +138,7 @@ export function App() {
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="changelog" element={<ChangelogPage />} />
       </Route>
 
       {/* Адмін-панель лендінгу — тільки для is_staff */}
