@@ -242,6 +242,9 @@ export function BugDetailPage() {
     try {
       const updated = await apiPatch<Issue>(`/issues/${issue.id}/`, patch)
       setIssue(updated)
+      // Подія, на яку реагує Sidebar (лічильник inbox/багів) — у бекенду
+      // _notify створив свіже сповіщення, треба перечитати.
+      window.dispatchEvent(new CustomEvent('issue:changed'))
       toast.show('Оновлено', 'success')
       void reload()
     } catch (e) {

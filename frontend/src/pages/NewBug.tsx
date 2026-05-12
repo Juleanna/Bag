@@ -13,7 +13,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { Avatar } from '../atoms/Avatar'
-import { PriorityBadge, PRIORITY_MAP, STATUS_MAP } from '../atoms/Status'
+import { PriorityBadge, PRIORITY_MAP } from '../atoms/Status'
+import { useWorkflow } from '../hooks/useWorkflow'
 import { apiGet, apiPatch, apiPost, apiUpload, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
@@ -263,9 +264,14 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
 
   const [projects, setProjects] = useState<Project[]>([])
   const [project, setProject] = useState<number | null>(null)
+  const { statuses: workflowStatuses } = useWorkflow(project)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<IssueStatus>('open')
+  // workflow_status id (FK). Заповнюється при завантаженні існуючого бага
+  // і при виборі статусу з dropdown. Передається у PATCH замість legacy
+  // `status` — щоб працювали кастомні статуси проєкту (напр. «Заблоковано»).
+  const [workflowStatusId, setWorkflowStatusId] = useState<number | null>(null)
   const [priority, setPriority] = useState<IssuePriority>('medium')
   const [assignee, setAssignee] = useState<number | null>(null)
   const [dueDate, setDueDate] = useState('')
@@ -312,6 +318,7 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
           setProject(existing.project)
           setTitle(existing.title)
           setStatus(existing.status)
+          setWorkflowStatusId(existing.workflow_status ?? null)
           setPriority(existing.priority)
           setAssignee(existing.assignee)
           setDueDate(existing.due_date || '')
@@ -507,7 +514,12 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
         project,
         title: title.trim(),
         description: buildDescription(),
-        status,
+        // Шлемо workflow_status id (а не legacy status key), щоб працювали
+        // кастомні статуси проєкту. Якщо id ще немає (новий баг без явного
+        // вибору) — fallback на status key.
+        ...(workflowStatusId !== null
+          ? { workflow_status: workflowStatusId }
+          : { status }),
         priority,
         custom_fields: {
           env,
@@ -987,12 +999,21 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                 <select
                   className="inp"
                   style={{ flex: 1 }}
-                  value={status}
-                  onChange={e => setStatus(e.target.value as IssueStatus)}
+                  value={String(
+                    workflowStatusId ??
+                      workflowStatuses.find(s => s.key === status)?.id ??
+                      ''
+                  )}
+                  onChange={e => {
+                    const id = Number(e.target.value)
+                    setWorkflowStatusId(id)
+                    const ws = workflowStatuses.find(s => s.id === id)
+                    if (ws) setStatus(ws.key as IssueStatus)
+                  }}
                 >
-                  {Object.entries(STATUS_MAP).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
+                  {workflowStatuses.map(s => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.label}
                     </option>
                   ))}
                 </select>

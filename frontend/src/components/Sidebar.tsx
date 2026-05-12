@@ -76,6 +76,17 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
     return () => document.removeEventListener('mousedown', onDoc)
   }, [switcherOpen])
 
+  // Окремий reload лише notifications — викликається при issue:changed,
+  // коли свіже сповіщення про призначення / коментар створюється на бекенді.
+  const reloadNotifs = async () => {
+    try {
+      const ns = await listAll<Notification>('/notifications/?page_size=50')
+      setCounts(c => ({ ...c, inbox: ns.filter(n => !n.is_read).length }))
+    } catch {
+      /* мовчки */
+    }
+  }
+
   // Завантажуємо простори + сповіщення (одноразово при монтажі та на події змін).
   const reloadWorkspacesAndNotifs = async () => {
     try {
@@ -137,12 +148,17 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
     // Лічильник багів — це сума issues_count по всіх проєктах; коли баг
     // створений/видалений, передавати issue:changed і перетягувати проєкти.
     window.addEventListener('issue:changed', onProjectChange)
+    // Сповіщення про assignee / коментар створюються на бекенді при
+    // PATCH /issues/. Тому на issue:changed одразу оновлюємо лічильник.
+    const onNotifsChange = () => void reloadNotifs()
+    window.addEventListener('issue:changed', onNotifsChange)
     return () => {
       window.removeEventListener('workspace:created', onWsChange)
       window.removeEventListener('workspace:deleted', onWsChange)
       window.removeEventListener('project:created', onProjectChange)
       window.removeEventListener('project:deleted', onProjectChange)
       window.removeEventListener('issue:changed', onProjectChange)
+      window.removeEventListener('issue:changed', onNotifsChange)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
