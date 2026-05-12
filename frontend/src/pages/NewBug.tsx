@@ -378,6 +378,25 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
     setSteps(s => s.map((x, idx) => (idx === i ? val : x)))
   const removeStep = (i: number) => setSteps(s => s.filter((_, idx) => idx !== i))
 
+  // Drag-and-drop reorder для кроків. Native HTML5 DnD, без зайвих залежностей.
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const onStepDrop = (toIdx: number) => {
+    if (dragIdx === null || dragIdx === toIdx) {
+      setDragIdx(null)
+      setHoverIdx(null)
+      return
+    }
+    setSteps(arr => {
+      const next = [...arr]
+      const [item] = next.splice(dragIdx, 1)
+      next.splice(toIdx, 0, item)
+      return next
+    })
+    setDragIdx(null)
+    setHoverIdx(null)
+  }
+
   const addTag = () => {
     const t = tagInput.trim()
     if (!t) return
@@ -761,8 +780,41 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
               </div>
               <div className="steps-edit">
                 {steps.map((s, i) => (
-                  <div key={i} className="step-edit">
-                    <div className="num">{i + 1}</div>
+                  <div
+                    key={i}
+                    className="step-edit"
+                    onDragOver={e => {
+                      e.preventDefault()
+                      if (dragIdx !== null && hoverIdx !== i) setHoverIdx(i)
+                    }}
+                    onDragLeave={() => {
+                      if (hoverIdx === i) setHoverIdx(null)
+                    }}
+                    onDrop={() => onStepDrop(i)}
+                    style={{
+                      opacity: dragIdx === i ? 0.4 : 1,
+                      outline:
+                        hoverIdx === i && dragIdx !== null && dragIdx !== i
+                          ? '2px dashed var(--accent)'
+                          : undefined,
+                      outlineOffset: -2,
+                      borderRadius: 6,
+                      transition: 'opacity 0.15s',
+                    }}
+                  >
+                    <div
+                      className="num"
+                      draggable
+                      onDragStart={() => setDragIdx(i)}
+                      onDragEnd={() => {
+                        setDragIdx(null)
+                        setHoverIdx(null)
+                      }}
+                      style={{ cursor: 'grab', userSelect: 'none' }}
+                      title="Перетягніть, щоб змінити порядок"
+                    >
+                      {i + 1}
+                    </div>
                     <input
                       className="step-inp"
                       placeholder={i === 0 ? 'Перший крок…' : 'Наступний крок…'}
