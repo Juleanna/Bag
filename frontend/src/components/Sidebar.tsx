@@ -134,11 +134,15 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
     window.addEventListener('workspace:deleted', onWsChange)
     window.addEventListener('project:created', onProjectChange)
     window.addEventListener('project:deleted', onProjectChange)
+    // Лічильник багів — це сума issues_count по всіх проєктах; коли баг
+    // створений/видалений, передавати issue:changed і перетягувати проєкти.
+    window.addEventListener('issue:changed', onProjectChange)
     return () => {
       window.removeEventListener('workspace:created', onWsChange)
       window.removeEventListener('workspace:deleted', onWsChange)
       window.removeEventListener('project:created', onProjectChange)
       window.removeEventListener('project:deleted', onProjectChange)
+      window.removeEventListener('issue:changed', onProjectChange)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

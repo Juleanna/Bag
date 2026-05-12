@@ -550,6 +550,9 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
       }
 
       if (!isEdit) localStorage.removeItem(DRAFT_KEY)
+      // Сповіщаємо Sidebar/Dashboard про зміну, щоб лічильник багів оновився
+      // без перезавантаження сторінки.
+      window.dispatchEvent(new CustomEvent('issue:changed'))
       toast.show(isEdit ? 'Збережено' : 'Баг створено', 'success')
       navigate(`/bugs/${saved.id}`)
     } catch (err) {

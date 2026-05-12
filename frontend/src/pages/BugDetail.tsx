@@ -329,6 +329,8 @@ export function BugDetailPage() {
     if (!ok) return
     try {
       await apiDelete(`/issues/${issue.id}/`)
+      // Сповіщаємо Sidebar, щоб лічильник багів оновився одразу
+      window.dispatchEvent(new CustomEvent('issue:changed'))
       toast.show('Видалено', 'success')
       navigate('/bugs')
     } catch (e) {
