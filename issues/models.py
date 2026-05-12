@@ -653,7 +653,8 @@ class TimeLog(models.Model):
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="time_logs")
     minutes = models.PositiveIntegerField()
-    note = models.CharField(max_length=255, blank=True)
+    # TextField без max_length — нотатки до часу можуть бути довгі
+    note = models.TextField(blank=True)
     logged_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
