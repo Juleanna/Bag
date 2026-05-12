@@ -407,13 +407,17 @@ export function BugDetailPage() {
             </button>
             <button className="btn sm" onClick={copyShareLink}><Ic.Link sz={12} /> Поділитись</button>
             {canEdit && (
-              <button className="btn sm" onClick={() => navigate(`/bugs/${issue.id}/edit`)}>
-                <Ic.Edit sz={12} /> Редагувати
+              <button
+                className="btn primary"
+                onClick={() => navigate(`/bugs/${issue.id}/edit`)}
+                title="Редагувати"
+              >
+                <Ic.Edit sz={14} /> Редагувати
               </button>
             )}
             {canEdit && (
-              <button className="btn sm" title="Видалити" onClick={removeIssue}>
-                <Ic.Trash sz={12} />
+              <button className="btn danger" onClick={removeIssue} title="Видалити">
+                <Ic.Trash sz={14} /> Видалити
               </button>
             )}
           </div>

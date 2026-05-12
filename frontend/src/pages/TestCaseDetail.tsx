@@ -285,17 +285,40 @@ export function TestCaseDetailPage() {
         <span className="id-cell">TC-{tc.id}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           <button
-            className="btn"
-            onClick={() => navigate(`/tests/${tc.id}/edit`)}
-          >
-            <Ic.Edit sz={12} /> Редагувати
-          </button>
-          <button
             className="btn primary"
             onClick={launchRun}
             disabled={launching}
           >
-            <Ic.Play sz={12} /> {launching ? 'Запуск…' : 'Запустити'}
+            <Ic.Play sz={14} /> {launching ? 'Запуск…' : 'Запустити'}
+          </button>
+          <button
+            className="btn"
+            onClick={() => navigate(`/tests/${tc.id}/edit`)}
+            title="Редагувати"
+          >
+            <Ic.Edit sz={14} /> Редагувати
+          </button>
+          <button
+            className="btn danger"
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Видалити TC-${tc.id}?`,
+                message: 'Кейс буде видалено разом з його історією запусків.',
+                confirmText: 'Видалити',
+                danger: true,
+              })
+              if (!ok) return
+              try {
+                await api.deleteTestCase(tc.id)
+                toast.show('Кейс видалено', 'success')
+                navigate('/tests')
+              } catch (e) {
+                toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+              }
+            }}
+            title="Видалити"
+          >
+            <Ic.Trash sz={14} /> Видалити
           </button>
         </div>
       </div>
