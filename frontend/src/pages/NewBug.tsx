@@ -766,18 +766,7 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
 
             {/* Кроки відтворення */}
             <div className="form-section">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <label className="form-lbl">Кроки відтворення</label>
-                <button type="button" className="btn sm ghost" onClick={addStep}>
-                  <Ic.Plus sz={11} /> Додати крок
-                </button>
-              </div>
+              <label className="form-lbl">Кроки відтворення</label>
               <div className="steps-edit">
                 {steps.map((s, i) => (
                   <div
@@ -833,6 +822,33 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                     )}
                   </div>
                 ))}
+                <div
+                  className="step-edit"
+                  onClick={addStep}
+                  style={{ cursor: 'pointer', opacity: 0.7 }}
+                  title="Додати ще один крок"
+                >
+                  <div
+                    className="num"
+                    style={{
+                      background: 'transparent',
+                      border: '1px dashed var(--border-strong)',
+                      color: 'var(--fg-3)',
+                    }}
+                  >
+                    +
+                  </div>
+                  <span
+                    style={{
+                      flex: 1,
+                      color: 'var(--fg-3)',
+                      fontSize: 13.5,
+                      padding: '6px 0',
+                    }}
+                  >
+                    Додати крок…
+                  </span>
+                </div>
                 <div className="step-edit expected">
                   <div
                     className="num"

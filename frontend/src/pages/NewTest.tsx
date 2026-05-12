@@ -274,18 +274,13 @@ export function NewTestPage() {
                 }}
               >
                 <label className="form-lbl">Кроки</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    type="button"
-                    className="btn sm ghost"
-                    onClick={generateStepsFromDescription}
-                  >
-                    <Ic.AI sz={11} /> Згенерувати з опису
-                  </button>
-                  <button type="button" className="btn sm ghost" onClick={addStep}>
-                    <Ic.Plus sz={11} /> Додати крок
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="btn sm ghost"
+                  onClick={generateStepsFromDescription}
+                >
+                  <Ic.AI sz={11} /> Згенерувати з опису
+                </button>
               </div>
               <table className="step-table">
                 <thead>
@@ -331,6 +326,35 @@ export function NewTestPage() {
                       </td>
                     </tr>
                   ))}
+                  <tr
+                    onClick={addStep}
+                    style={{ cursor: 'pointer' }}
+                    className="step-table-add-row"
+                    title="Додати ще один крок"
+                  >
+                    <td>
+                      <div
+                        className="num"
+                        style={{
+                          background: 'transparent',
+                          border: '1px dashed var(--border-strong)',
+                          color: 'var(--fg-3)',
+                        }}
+                      >
+                        +
+                      </div>
+                    </td>
+                    <td
+                      colSpan={3}
+                      style={{
+                        color: 'var(--fg-3)',
+                        fontSize: 13,
+                        padding: '10px 12px',
+                      }}
+                    >
+                      Додати крок…
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
