@@ -285,21 +285,21 @@ export function TestCaseDetailPage() {
         <span className="id-cell">TC-{tc.id}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           <button
-            className="btn primary"
+            className="btn sm primary"
             onClick={launchRun}
             disabled={launching}
           >
-            <Ic.Play sz={14} /> {launching ? 'Запуск…' : 'Запустити'}
+            <Ic.Play sz={12} /> {launching ? 'Запуск…' : 'Запустити'}
           </button>
           <button
-            className="btn"
+            className="btn sm"
             onClick={() => navigate(`/tests/${tc.id}/edit`)}
             title="Редагувати"
           >
-            <Ic.Edit sz={14} /> Редагувати
+            <Ic.Edit sz={12} /> Редагувати
           </button>
           <button
-            className="btn danger"
+            className="btn sm danger"
             onClick={async () => {
               const ok = await confirm({
                 title: `Видалити TC-${tc.id}?`,
@@ -318,7 +318,7 @@ export function TestCaseDetailPage() {
             }}
             title="Видалити"
           >
-            <Ic.Trash sz={14} /> Видалити
+            <Ic.Trash sz={12} /> Видалити
           </button>
         </div>
       </div>
