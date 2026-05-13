@@ -1055,12 +1055,12 @@ class SupportSettings(models.Model):
     @staticmethod
     def default_categories() -> list[dict]:
         return [
-            {"key": "tech", "label": "Технічна проблема", "description": "Щось зламалось або працює не так"},
-            {"key": "how", "label": "Як це зробити?", "description": "Питання по використанню"},
-            {"key": "feature", "label": "Запит фічі", "description": "Хочу новий функціонал"},
-            {"key": "billing", "label": "Білінг та підписка", "description": "Інвойси, плани, оплата"},
-            {"key": "sales", "label": "Продажі / Enterprise", "description": "Демо, on-prem, SLA"},
-            {"key": "security", "label": "Безпека", "description": "Report vulnerability"},
+            {"key": "tech", "label": "Технічна проблема", "description": "Щось зламалось або працює не так", "icon": "bug", "tone": "red"},
+            {"key": "how", "label": "Як це зробити?", "description": "Питання по використанню", "icon": "help", "tone": "blue"},
+            {"key": "feature", "label": "Запит фічі", "description": "Хочу новий функціонал", "icon": "lightning", "tone": "yellow"},
+            {"key": "billing", "label": "Білінг та підписка", "description": "Інвойси, плани, оплата", "icon": "card", "tone": "purple"},
+            {"key": "sales", "label": "Продажі / Enterprise", "description": "Демо, on-prem, SLA", "icon": "users", "tone": "green"},
+            {"key": "security", "label": "Безпека", "description": "Report vulnerability", "icon": "lock", "tone": "red"},
         ]
 
 
@@ -1100,6 +1100,49 @@ class SupportTicket(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.get_status_display()}] {self.subject}"
+
+
+class SupportComment(models.Model):
+    """Повідомлення в треді тікета: відповідь саппорту або уточнення користувача."""
+
+    ticket = models.ForeignKey(
+        SupportTicket, on_delete=models.CASCADE, related_name="comments"
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="support_comments"
+    )
+    body = models.TextField()
+    is_staff_reply = models.BooleanField(
+        default=False,
+        help_text="True — відповідь саппорту/адміна; False — уточнення користувача",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+class SupportAgentPermission(models.Model):
+    """Налаштування доступу користувача-саппорту до тікетів за категоріями.
+
+    Запис існує лише для тих, кому адмін явно надав права. Якщо запису
+    немає — користувач не є агентом і бачить лише свої власні тікети.
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="support_permission"
+    )
+    can_view_all = models.BooleanField(
+        default=False,
+        help_text="True — бачить тікети у всіх категоріях (як адмін)",
+    )
+    # Список ключів категорій (з SupportSettings.categories[].key)
+    categories = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def has_access(self, category_key: str) -> bool:
+        return self.can_view_all or (category_key in (self.categories or []))
 
 
 class RoadmapItem(models.Model):

@@ -4,7 +4,7 @@ import { Ic } from '../icons/Ic'
 import { Avatar, gradientFor } from '../atoms/Avatar'
 import { useAuth } from '../context/AuthContext'
 import { MOD_KEY } from '../utils/shortcuts'
-import { listAll } from '../api/client'
+import { apiGet, listAll } from '../api/client'
 import type { Project, Notification } from '../api/types'
 import { displayName } from '../utils/user'
 
@@ -17,6 +17,7 @@ interface SidebarProps {
 interface CountState {
   bugs: number
   inbox: number
+  support: number
 }
 
 interface WorkspaceShort {
@@ -50,7 +51,7 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
     const raw = localStorage.getItem(ACTIVE_WS_KEY)
     return raw ? Number(raw) : null
   })
-  const [counts, setCounts] = useState<CountState>({ bugs: 0, inbox: 0 })
+  const [counts, setCounts] = useState<CountState>({ bugs: 0, inbox: 0, support: 0 })
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [sectionsCollapsed, setSectionsCollapsed] = useState<Record<SectionKey, boolean>>(
     () => loadCollapsedSections()
@@ -84,6 +85,19 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
       setCounts(c => ({ ...c, inbox: ns.filter(n => !n.is_read).length }))
     } catch {
       /* мовчки */
+    }
+  }
+
+  // Кількість відкритих тікетів підтримки (для лічильника біля «Підтримка»).
+  // Backend сам віддає лише ті, що видимі поточному користувачу.
+  const reloadSupportCount = async () => {
+    try {
+      const res = await apiGet<{ count: number }>(
+        '/support/tickets/open_count/'
+      )
+      setCounts(c => ({ ...c, support: res.count }))
+    } catch {
+      /* мовчки — якщо немає доступу або 404, лічильник лишається 0 */
     }
   }
 
@@ -139,8 +153,10 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
   // Перший рендер + слухачі подій
   useEffect(() => {
     void reloadWorkspacesAndNotifs()
+    void reloadSupportCount()
     const onWsChange = () => void reloadWorkspacesAndNotifs()
     const onProjectChange = () => void reloadProjects(activeWsRef.current)
+    const onSupportChange = () => void reloadSupportCount()
     window.addEventListener('workspace:created', onWsChange)
     window.addEventListener('workspace:deleted', onWsChange)
     window.addEventListener('project:created', onProjectChange)
@@ -152,6 +168,8 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
     // PATCH /issues/. Тому на issue:changed одразу оновлюємо лічильник.
     const onNotifsChange = () => void reloadNotifs()
     window.addEventListener('issue:changed', onNotifsChange)
+    // Підтримка: новий тікет або зміна статусу — оновлюємо лічильник
+    window.addEventListener('support:changed', onSupportChange)
     return () => {
       window.removeEventListener('workspace:created', onWsChange)
       window.removeEventListener('workspace:deleted', onWsChange)
@@ -159,6 +177,7 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
       window.removeEventListener('project:deleted', onProjectChange)
       window.removeEventListener('issue:changed', onProjectChange)
       window.removeEventListener('issue:changed', onNotifsChange)
+      window.removeEventListener('support:changed', onSupportChange)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -460,7 +479,13 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
             <div className="sb-nav">
               <Item to="/admin/landing" icon={Ic.Settings} label="Лендінг" />
               <Item to="/admin/regions" icon={Ic.Globe} label="Регіони даних" />
-              <Item to="/admin/support" icon={Ic.Comment} label="Підтримка" />
+              <Item
+                to="/admin/support/tickets"
+                icon={Ic.Comment}
+                label="Підтримка"
+                count={counts.support}
+                hot={counts.support > 0}
+              />
             </div>
           )}
         </>

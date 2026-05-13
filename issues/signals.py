@@ -18,8 +18,11 @@ from .models import (
     Comment,
     Issue,
     LoginEvent,
+    Notification,
     Project,
     ProjectMembership,
+    SupportAgentPermission,
+    SupportTicket,
     TestRun,
     Webhook,
     WebhookDelivery,
@@ -235,4 +238,32 @@ def _changelog_entry_saved(sender, instance, created, **kwargs):
         # завалювати save самого ChangelogEntry. Адмін зможе пізніше
         # розіслати вручну через кнопку.
         logger.exception("Не вдалося розіслати changelog-нотифікацію (signal)")
+
+
+@receiver(post_save, sender=SupportTicket)
+def _support_ticket_saved(sender, instance, created, **kwargs):
+    """При новому тікеті — сповіщаємо адмінів і агентів, які мають
+    доступ до категорії цього тікета."""
+    if not created:
+        return
+    try:
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        receivers = set(User.objects.filter(is_staff=True).values_list("id", flat=True))
+        for perm in SupportAgentPermission.objects.all():
+            if perm.can_view_all or instance.category in (perm.categories or []):
+                receivers.add(perm.user_id)
+        # Не повідомляємо автора тікета
+        receivers.discard(instance.submitted_by_id)
+        for uid in receivers:
+            Notification.objects.create(
+                user_id=uid,
+                issue=None,
+                actor=instance.submitted_by,
+                kind="support_new",
+                message=f"Нове звернення «{instance.subject[:200]}»",
+            )
+    except Exception:
+        logger.exception("Не вдалося створити support-нотифікації")
 

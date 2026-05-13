@@ -14,8 +14,16 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Skeleton } from '../components/Skeleton'
 import { api } from '../api/extras'
+import {
+  SUPPORT_ICONS,
+  SUPPORT_ICON_OPTIONS,
+  SUPPORT_TONE_OPTIONS,
+  SUPPORT_TONE_STYLES,
+} from '../utils/supportCategoryStyle'
 import type {
   SupportCategory,
+  SupportCategoryIcon,
+  SupportCategoryTone,
   SupportSettings,
   SupportStatusKind,
   SupportTicket,
@@ -141,9 +149,21 @@ export function SupportSettingsPage() {
             Категорії, контактні канали і робочий час, що видно користувачам.
           </div>
         </div>
-        <div className="right">
+        <div className="right" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => navigate('/support')}>
-            <Ic.Eye sz={12} /> Переглянути сторінку
+            <Ic.Eye sz={12} /> Сторінка
+          </button>
+          <button
+            className="btn"
+            onClick={() => navigate('/admin/support/tickets')}
+          >
+            <Ic.Inbox sz={12} /> Усі тікети
+          </button>
+          <button
+            className="btn"
+            onClick={() => navigate('/admin/support/agents')}
+          >
+            <Ic.Users sz={12} /> Агенти
           </button>
           <button className="btn primary" onClick={save} disabled={saving}>
             <Ic.Check sz={12} /> {saving ? 'Збереження…' : 'Зберегти'}
@@ -218,47 +238,111 @@ export function SupportSettingsPage() {
                 <Ic.Plus sz={11} /> Додати
               </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {settings.categories.map((c, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '110px 1fr 1.5fr 32px',
-                    gap: 6,
-                    alignItems: 'center',
-                  }}
-                >
-                  <input
-                    className="inp"
-                    placeholder="key"
-                    value={c.key}
-                    onChange={e => updateCategory(i, { key: e.target.value })}
-                  />
-                  <input
-                    className="inp"
-                    placeholder="Назва"
-                    value={c.label}
-                    onChange={e => updateCategory(i, { label: e.target.value })}
-                  />
-                  <input
-                    className="inp"
-                    placeholder="Опис (видно під назвою)"
-                    value={c.description}
-                    onChange={e =>
-                      updateCategory(i, { description: e.target.value })
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="btn icon ghost sm"
-                    onClick={() => removeCategory(i)}
-                    title="Видалити"
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {settings.categories.map((c, i) => {
+                const tone = SUPPORT_TONE_STYLES[c.tone ?? 'blue']
+                const IconCmp = c.icon ? SUPPORT_ICONS[c.icon] : null
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      padding: 8,
+                      borderRadius: 8,
+                      background: 'var(--surface-2)',
+                    }}
                   >
-                    <Ic.X sz={11} />
-                  </button>
-                </div>
-              ))}
+                    {/* Превʼю іконки в обраному tone */}
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 8,
+                        background: tone.iconBg,
+                        color: tone.iconColor,
+                        display: 'grid',
+                        placeItems: 'center',
+                        flexShrink: 0,
+                      }}
+                      title="Превʼю"
+                    >
+                      {IconCmp ? <IconCmp sz={16} /> : <Ic.Help sz={16} />}
+                    </div>
+                    <div
+                      style={{
+                        flex: 1,
+                        display: 'grid',
+                        gridTemplateColumns: '90px 1fr 1.4fr 100px 100px',
+                        gap: 6,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <input
+                        className="inp"
+                        placeholder="key"
+                        value={c.key}
+                        onChange={e => updateCategory(i, { key: e.target.value })}
+                      />
+                      <input
+                        className="inp"
+                        placeholder="Назва"
+                        value={c.label}
+                        onChange={e => updateCategory(i, { label: e.target.value })}
+                      />
+                      <input
+                        className="inp"
+                        placeholder="Опис"
+                        value={c.description}
+                        onChange={e =>
+                          updateCategory(i, { description: e.target.value })
+                        }
+                      />
+                      <select
+                        className="inp"
+                        value={c.icon ?? 'help'}
+                        onChange={e =>
+                          updateCategory(i, {
+                            icon: e.target.value as SupportCategoryIcon,
+                          })
+                        }
+                        title="Іконка"
+                      >
+                        {SUPPORT_ICON_OPTIONS.map(o => (
+                          <option key={o.id} value={o.id}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="inp"
+                        value={c.tone ?? 'blue'}
+                        onChange={e =>
+                          updateCategory(i, {
+                            tone: e.target.value as SupportCategoryTone,
+                          })
+                        }
+                        title="Колір підсвічення"
+                      >
+                        {SUPPORT_TONE_OPTIONS.map(o => (
+                          <option key={o.id} value={o.id}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn icon ghost sm"
+                      onClick={() => removeCategory(i)}
+                      title="Видалити"
+                    >
+                      <Ic.X sz={11} />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           </div>
 

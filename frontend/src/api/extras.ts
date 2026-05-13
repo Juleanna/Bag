@@ -164,10 +164,30 @@ export type SupportPriority = 'low' | 'normal' | 'high' | 'urgent'
 export type SupportTicketStatus = 'open' | 'in_progress' | 'closed'
 export type SupportStatusKind = 'operational' | 'degraded' | 'down'
 
+export type SupportCategoryIcon =
+  | 'bug'
+  | 'help'
+  | 'lightning'
+  | 'card'
+  | 'users'
+  | 'lock'
+  | 'mail'
+  | 'globe'
+
+export type SupportCategoryTone =
+  | 'red'
+  | 'blue'
+  | 'green'
+  | 'yellow'
+  | 'purple'
+  | 'gray'
+
 export interface SupportCategory {
   key: string
   label: string
   description: string
+  icon?: SupportCategoryIcon
+  tone?: SupportCategoryTone
 }
 
 export interface SupportSettings {
@@ -198,6 +218,27 @@ export interface SupportTicket {
   submitted_by: number | null
   submitted_by_name: string | null
   submitted_email: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SupportComment {
+  id: number
+  ticket: number
+  author: number | null
+  author_name: string | null
+  body: string
+  is_staff_reply: boolean
+  created_at: string
+}
+
+export interface SupportAgentPermission {
+  id: number
+  user: number
+  username: string
+  email: string
+  can_view_all: boolean
+  categories: string[]
   created_at: string
   updated_at: string
 }
@@ -437,4 +478,28 @@ export const api = {
         '/support/tickets/?page_size=100'
       )
     ),
+  getSupportTicket: (id: number) =>
+    apiGet<SupportTicket>(`/support/tickets/${id}/`),
+  updateSupportTicket: (id: number, data: Partial<SupportTicket>) =>
+    apiPatch<SupportTicket>(`/support/tickets/${id}/`, data),
+  supportOpenCount: () =>
+    apiGet<{ count: number }>('/support/tickets/open_count/'),
+  listSupportComments: (ticketId: number) =>
+    apiGet<SupportComment[]>(`/support/tickets/${ticketId}/comments/`),
+  postSupportComment: (ticketId: number, body: string) =>
+    apiPost<SupportComment>(`/support/tickets/${ticketId}/comments/`, { body }),
+  listSupportAgents: async () =>
+    unwrap(
+      await apiGet<PaginatedResponse<SupportAgentPermission>>(
+        '/support/agents/?page_size=200'
+      )
+    ),
+  createSupportAgent: (data: {
+    user_id: number
+    can_view_all: boolean
+    categories: string[]
+  }) => apiPost<SupportAgentPermission>('/support/agents/', data),
+  updateSupportAgent: (id: number, data: Partial<SupportAgentPermission>) =>
+    apiPatch<SupportAgentPermission>(`/support/agents/${id}/`, data),
+  deleteSupportAgent: (id: number) => apiDelete(`/support/agents/${id}/`),
 }

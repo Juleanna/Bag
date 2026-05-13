@@ -8,6 +8,8 @@ from .models import (
     ChangelogSubscription,
     ChecklistItem,
     RoadmapItem,
+    SupportAgentPermission,
+    SupportComment,
     SupportSettings,
     SupportTicket,
     Comment,
@@ -601,6 +603,46 @@ class SupportTicketSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+
+class SupportCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.username", read_only=True)
+
+    class Meta:
+        model = SupportComment
+        fields = (
+            "id",
+            "ticket",
+            "author",
+            "author_name",
+            "body",
+            "is_staff_reply",
+            "created_at",
+        )
+        read_only_fields = ("author", "author_name", "is_staff_reply", "created_at")
+
+
+class SupportAgentPermissionSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(
+        source="user", queryset=User.objects.all(), write_only=True
+    )
+
+    class Meta:
+        model = SupportAgentPermission
+        fields = (
+            "id",
+            "user_id",
+            "user",
+            "username",
+            "email",
+            "can_view_all",
+            "categories",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("user", "created_at", "updated_at")
 
 
 class RoadmapItemSerializer(serializers.ModelSerializer):

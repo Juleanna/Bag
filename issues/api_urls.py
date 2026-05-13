@@ -26,6 +26,7 @@ from .views_api import (
     changelog_subscribe,
     RoadmapItemViewSet,
     SavedFilterViewSet,
+    SupportAgentPermissionViewSet,
     SupportSettingsView,
     SupportTicketViewSet,
     SprintViewSet,
@@ -84,6 +85,7 @@ router.register(r"changelog-subscriptions", ChangelogSubscriptionViewSet, basena
 router.register(r"changelog", ChangelogEntryViewSet, basename="changelog")
 router.register(r"roadmap", RoadmapItemViewSet, basename="roadmap")
 router.register(r"support/tickets", SupportTicketViewSet, basename="support-ticket")
+router.register(r"support/agents", SupportAgentPermissionViewSet, basename="support-agent")
 
 urlpatterns = [
     # Спочатку конкретні URL під /changelog/ — інакше router-в'юсет

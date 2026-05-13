@@ -27,6 +27,9 @@ import { ChangelogSubscriptionsPage } from './pages/ChangelogSubscriptionsPage'
 import { RoadmapPage } from './pages/RoadmapPage'
 import { SupportPage } from './pages/SupportPage'
 import { SupportSettingsPage } from './pages/SupportSettingsPage'
+import { SupportTicketsPage } from './pages/SupportTicketsPage'
+import { SupportTicketDetailPage } from './pages/SupportTicketDetailPage'
+import { SupportAgentsPage } from './pages/SupportAgentsPage'
 import { SprintsPage } from './pages/Sprints'
 import { WebhooksPage } from './pages/Webhooks'
 import { TemplatesPage } from './pages/Templates'
@@ -147,6 +150,9 @@ export function App() {
         <Route path="roadmap" element={<RoadmapPage />} />
         <Route path="support" element={<SupportPage />} />
         <Route path="admin/support" element={<SupportSettingsPage />} />
+        <Route path="admin/support/tickets" element={<SupportTicketsPage />} />
+        <Route path="admin/support/tickets/:id" element={<SupportTicketDetailPage />} />
+        <Route path="admin/support/agents" element={<SupportAgentsPage />} />
       </Route>
 
       {/* Адмін-панель лендінгу — тільки для is_staff */}

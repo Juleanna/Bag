@@ -17,6 +17,10 @@ import { Ic } from '../icons/Ic'
 import { useToast } from '../context/ToastContext'
 import { Skeleton } from '../components/Skeleton'
 import { api } from '../api/extras'
+import {
+  SUPPORT_ICONS,
+  SUPPORT_TONE_STYLES,
+} from '../utils/supportCategoryStyle'
 import type {
   SupportPriority,
   SupportSettings,
@@ -83,6 +87,9 @@ export function SupportPage() {
         priority,
         description: description.trim(),
       })
+      // Сигналізуємо Sidebar, щоб лічильник «Підтримка» в адмінів оновився
+      // (хоча у цій вкладці автор не побачить — це для іншої сторони).
+      window.dispatchEvent(new CustomEvent('support:changed'))
       toast.show('Звернення надіслано — відповідь надійде на ваш email', 'success')
       setSubject('')
       setDescription('')
@@ -183,6 +190,8 @@ export function SupportPage() {
             >
               {settings.categories.map(c => {
                 const active = category === c.key
+                const tone = SUPPORT_TONE_STYLES[c.tone ?? 'blue']
+                const IconCmp = c.icon ? SUPPORT_ICONS[c.icon] : null
                 return (
                   <button
                     key={c.key}
@@ -193,27 +202,48 @@ export function SupportPage() {
                       padding: 14,
                       borderRadius: 10,
                       border: active
-                        ? '2px solid var(--accent)'
+                        ? `2px solid ${tone.activeBorder}`
                         : '1px solid var(--border)',
-                      background: active ? 'var(--accent-soft)' : 'var(--surface)',
+                      background: active ? tone.activeBg : 'var(--surface)',
                       cursor: 'pointer',
                       transition: 'all 0.15s',
+                      display: 'flex',
+                      gap: 12,
+                      alignItems: 'flex-start',
                     }}
                   >
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: active ? 'var(--accent-soft-fg)' : 'var(--fg)',
-                        marginBottom: 4,
-                      }}
-                    >
-                      {c.label}
-                    </div>
-                    <div
-                      style={{ fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.4 }}
-                    >
-                      {c.description}
+                    {IconCmp && (
+                      <div
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          background: tone.iconBg,
+                          color: tone.iconColor,
+                          display: 'grid',
+                          placeItems: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <IconCmp sz={16} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: active ? tone.activeColor : 'var(--fg)',
+                          marginBottom: 4,
+                        }}
+                      >
+                        {c.label}
+                      </div>
+                      <div
+                        style={{ fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.4 }}
+                      >
+                        {c.description}
+                      </div>
                     </div>
                   </button>
                 )
