@@ -989,8 +989,13 @@ class SupportSettings(models.Model):
     # Статус-плашка
     class StatusKind(models.TextChoices):
         OPERATIONAL = "operational", "Усі системи працюють"
+        MAINTENANCE = "maintenance", "Технічне обслуговування"
         DEGRADED = "degraded", "Часткова деградація"
+        MINOR = "minor", "Незначні збої"
+        MAJOR = "major", "Серйозні проблеми"
         DOWN = "down", "Серйозна аварія"
+        INVESTIGATING = "investigating", "Розслідуємо інцидент"
+        RESOLVED = "resolved", "Інцидент усунено"
 
     status_kind = models.CharField(
         max_length=20,

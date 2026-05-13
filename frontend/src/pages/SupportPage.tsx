@@ -39,8 +39,13 @@ const STATUS_STYLE: Record<
   { color: string; dot: string }
 > = {
   operational: { color: 'var(--st-resolved-fg)', dot: 'var(--st-resolved-dot)' },
+  maintenance: { color: 'var(--accent-soft-fg)', dot: 'var(--accent)' },
   degraded: { color: 'var(--st-progress-fg)', dot: 'var(--st-progress-dot)' },
+  minor: { color: 'var(--st-progress-fg)', dot: 'var(--st-progress-dot)' },
+  major: { color: 'var(--st-open-fg)', dot: 'var(--st-open-dot)' },
   down: { color: 'var(--st-open-fg)', dot: 'var(--st-open-dot)' },
+  investigating: { color: 'var(--st-progress-fg)', dot: 'var(--st-progress-dot)' },
+  resolved: { color: 'var(--st-resolved-fg)', dot: 'var(--st-resolved-dot)' },
 }
 
 export function SupportPage() {

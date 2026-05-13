@@ -7,7 +7,7 @@
  *  - робочий час
  * Також показує список вхідних тікетів.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { useAuth } from '../context/AuthContext'
@@ -22,17 +22,21 @@ import {
 } from '../utils/supportCategoryStyle'
 import type {
   SupportCategory,
-  SupportCategoryIcon,
   SupportCategoryTone,
   SupportSettings,
   SupportStatusKind,
   SupportTicket,
 } from '../api/extras'
 
-const STATUS_OPTIONS: { id: SupportStatusKind; label: string }[] = [
-  { id: 'operational', label: 'Усі системи працюють' },
-  { id: 'degraded', label: 'Часткова деградація' },
-  { id: 'down', label: 'Серйозна аварія' },
+const STATUS_OPTIONS: { id: SupportStatusKind; label: string; text: string }[] = [
+  { id: 'operational', label: 'Усі системи працюють', text: 'усі системи працюють' },
+  { id: 'maintenance', label: 'Технічне обслуговування', text: 'технічне обслуговування' },
+  { id: 'degraded', label: 'Часткова деградація', text: 'часткова деградація' },
+  { id: 'minor', label: 'Незначні збої', text: 'незначні збої' },
+  { id: 'major', label: 'Серйозні проблеми', text: 'серйозні проблеми' },
+  { id: 'down', label: 'Серйозна аварія', text: 'серйозна аварія' },
+  { id: 'investigating', label: 'Розслідуємо інцидент', text: 'розслідуємо інцидент' },
+  { id: 'resolved', label: 'Інцидент усунено', text: 'інцидент усунено' },
 ]
 
 export function SupportSettingsPage() {
@@ -200,9 +204,16 @@ export function SupportSettingsPage() {
                   <select
                     className="inp"
                     value={settings.status_kind}
-                    onChange={e =>
-                      update({ status_kind: e.target.value as SupportStatusKind })
-                    }
+                    onChange={e => {
+                      const next = e.target.value as SupportStatusKind
+                      const preset = STATUS_OPTIONS.find(o => o.id === next)
+                      // Авто-заповнення тексту статусу при зміні типу,
+                      // щоб адмін не редагував обидва поля вручну.
+                      update({
+                        status_kind: next,
+                        status_text: preset?.text ?? settings.status_text,
+                      })
+                    }}
                   >
                     {STATUS_OPTIONS.map(o => (
                       <option key={o.id} value={o.id}>
@@ -239,110 +250,14 @@ export function SupportSettingsPage() {
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {settings.categories.map((c, i) => {
-                const tone = SUPPORT_TONE_STYLES[c.tone ?? 'blue']
-                const IconCmp = c.icon ? SUPPORT_ICONS[c.icon] : null
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      gap: 8,
-                      alignItems: 'center',
-                      padding: 8,
-                      borderRadius: 8,
-                      background: 'var(--surface-2)',
-                    }}
-                  >
-                    {/* Превʼю іконки в обраному tone */}
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 8,
-                        background: tone.iconBg,
-                        color: tone.iconColor,
-                        display: 'grid',
-                        placeItems: 'center',
-                        flexShrink: 0,
-                      }}
-                      title="Превʼю"
-                    >
-                      {IconCmp ? <IconCmp sz={16} /> : <Ic.Help sz={16} />}
-                    </div>
-                    <div
-                      style={{
-                        flex: 1,
-                        display: 'grid',
-                        gridTemplateColumns: '90px 1fr 1.4fr 100px 100px',
-                        gap: 6,
-                        alignItems: 'center',
-                      }}
-                    >
-                      <input
-                        className="inp"
-                        placeholder="key"
-                        value={c.key}
-                        onChange={e => updateCategory(i, { key: e.target.value })}
-                      />
-                      <input
-                        className="inp"
-                        placeholder="Назва"
-                        value={c.label}
-                        onChange={e => updateCategory(i, { label: e.target.value })}
-                      />
-                      <input
-                        className="inp"
-                        placeholder="Опис"
-                        value={c.description}
-                        onChange={e =>
-                          updateCategory(i, { description: e.target.value })
-                        }
-                      />
-                      <select
-                        className="inp"
-                        value={c.icon ?? 'help'}
-                        onChange={e =>
-                          updateCategory(i, {
-                            icon: e.target.value as SupportCategoryIcon,
-                          })
-                        }
-                        title="Іконка"
-                      >
-                        {SUPPORT_ICON_OPTIONS.map(o => (
-                          <option key={o.id} value={o.id}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="inp"
-                        value={c.tone ?? 'blue'}
-                        onChange={e =>
-                          updateCategory(i, {
-                            tone: e.target.value as SupportCategoryTone,
-                          })
-                        }
-                        title="Колір підсвічення"
-                      >
-                        {SUPPORT_TONE_OPTIONS.map(o => (
-                          <option key={o.id} value={o.id}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn icon ghost sm"
-                      onClick={() => removeCategory(i)}
-                      title="Видалити"
-                    >
-                      <Ic.X sz={11} />
-                    </button>
-                  </div>
-                )
-              })}
+              {settings.categories.map((c, i) => (
+                <CategoryRow
+                  key={i}
+                  category={c}
+                  onChange={patch => updateCategory(i, patch)}
+                  onRemove={() => removeCategory(i)}
+                />
+              ))}
             </div>
           </div>
 
@@ -500,6 +415,196 @@ export function SupportSettingsPage() {
           </div>
         </aside>
       </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// CategoryRow — рядок редагування однієї категорії з popover-вибором іконки
+// ============================================================================
+
+function CategoryRow({
+  category,
+  onChange,
+  onRemove,
+}: {
+  category: SupportCategory
+  onChange: (patch: Partial<SupportCategory>) => void
+  onRemove: () => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Закриваємо popover на клік поза ним
+  useEffect(() => {
+    if (!pickerOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current) return
+      if (!wrapRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [pickerOpen])
+
+  const tone = SUPPORT_TONE_STYLES[category.tone ?? 'blue']
+  const IconCmp = category.icon ? SUPPORT_ICONS[category.icon] : Ic.Help
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        padding: 8,
+        borderRadius: 8,
+        background: 'var(--surface-2)',
+      }}
+    >
+      {/* Превʼю-кнопка: клік відкриває picker з сіткою іконок */}
+      <div ref={wrapRef} style={{ position: 'relative', flexShrink: 0 }}>
+        <button
+          type="button"
+          onClick={() => setPickerOpen(o => !o)}
+          title="Натисніть, щоб обрати іконку"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: tone.iconBg,
+            color: tone.iconColor,
+            display: 'grid',
+            placeItems: 'center',
+            border: pickerOpen
+              ? `2px solid ${tone.activeBorder}`
+              : '1px solid var(--border)',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          <IconCmp sz={16} />
+        </button>
+        {pickerOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 6px)',
+              left: 0,
+              zIndex: 200,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              boxShadow: 'var(--shadow-lg)',
+              padding: 8,
+              width: 260,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10.5,
+                color: 'var(--fg-3)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                fontWeight: 600,
+                marginBottom: 6,
+                padding: '0 2px',
+              }}
+            >
+              Іконка
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(8, 1fr)',
+                gap: 4,
+              }}
+            >
+              {SUPPORT_ICON_OPTIONS.map(o => {
+                const I = SUPPORT_ICONS[o.id]
+                const active = (category.icon ?? 'help') === o.id
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => {
+                      onChange({ icon: o.id })
+                      setPickerOpen(false)
+                    }}
+                    title={o.label}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 6,
+                      border: active
+                        ? `1.5px solid ${tone.activeBorder}`
+                        : '1px solid transparent',
+                      background: active ? tone.iconBg : 'transparent',
+                      color: active ? tone.iconColor : 'var(--fg-2)',
+                      cursor: 'pointer',
+                      display: 'grid',
+                      placeItems: 'center',
+                      padding: 0,
+                    }}
+                  >
+                    <I sz={14} />
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Поля key / label / description / tone */}
+      <div
+        style={{
+          flex: 1,
+          display: 'grid',
+          gridTemplateColumns: '90px 1fr 1.4fr 120px',
+          gap: 6,
+          alignItems: 'center',
+        }}
+      >
+        <input
+          className="inp"
+          placeholder="key"
+          value={category.key}
+          onChange={e => onChange({ key: e.target.value })}
+        />
+        <input
+          className="inp"
+          placeholder="Назва"
+          value={category.label}
+          onChange={e => onChange({ label: e.target.value })}
+        />
+        <input
+          className="inp"
+          placeholder="Опис"
+          value={category.description}
+          onChange={e => onChange({ description: e.target.value })}
+        />
+        <select
+          className="inp"
+          value={category.tone ?? 'blue'}
+          onChange={e =>
+            onChange({ tone: e.target.value as SupportCategoryTone })
+          }
+          title="Колір підсвічення"
+        >
+          {SUPPORT_TONE_OPTIONS.map(o => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <button
+        type="button"
+        className="btn icon ghost sm"
+        onClick={onRemove}
+        title="Видалити"
+      >
+        <Ic.X sz={11} />
+      </button>
     </div>
   )
 }
