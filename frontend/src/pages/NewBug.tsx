@@ -13,7 +13,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { Avatar } from '../atoms/Avatar'
-import { PriorityBadge, PRIORITY_MAP, STATUS_MAP } from '../atoms/Status'
+import { PriorityBadge, PRIORITY_MAP } from '../atoms/Status'
+import { useWorkflow } from '../hooks/useWorkflow'
 import { apiGet, apiPatch, apiPost, apiUpload, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
@@ -263,9 +264,14 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
 
   const [projects, setProjects] = useState<Project[]>([])
   const [project, setProject] = useState<number | null>(null)
+  const { statuses: workflowStatuses } = useWorkflow(project)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<IssueStatus>('open')
+  // workflow_status id (FK). Заповнюється при завантаженні існуючого бага
+  // і при виборі статусу з dropdown. Передається у PATCH замість legacy
+  // `status` — щоб працювали кастомні статуси проєкту (напр. «Заблоковано»).
+  const [workflowStatusId, setWorkflowStatusId] = useState<number | null>(null)
   const [priority, setPriority] = useState<IssuePriority>('medium')
   const [assignee, setAssignee] = useState<number | null>(null)
   const [dueDate, setDueDate] = useState('')
@@ -312,6 +318,7 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
           setProject(existing.project)
           setTitle(existing.title)
           setStatus(existing.status)
+          setWorkflowStatusId(existing.workflow_status ?? null)
           setPriority(existing.priority)
           setAssignee(existing.assignee)
           setDueDate(existing.due_date || '')
@@ -377,6 +384,25 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
   const updateStep = (i: number, val: string) =>
     setSteps(s => s.map((x, idx) => (idx === i ? val : x)))
   const removeStep = (i: number) => setSteps(s => s.filter((_, idx) => idx !== i))
+
+  // Drag-and-drop reorder для кроків. Native HTML5 DnD, без зайвих залежностей.
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const onStepDrop = (toIdx: number) => {
+    if (dragIdx === null || dragIdx === toIdx) {
+      setDragIdx(null)
+      setHoverIdx(null)
+      return
+    }
+    setSteps(arr => {
+      const next = [...arr]
+      const [item] = next.splice(dragIdx, 1)
+      next.splice(toIdx, 0, item)
+      return next
+    })
+    setDragIdx(null)
+    setHoverIdx(null)
+  }
 
   const addTag = () => {
     const t = tagInput.trim()
@@ -488,7 +514,12 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
         project,
         title: title.trim(),
         description: buildDescription(),
-        status,
+        // Шлемо workflow_status id (а не legacy status key), щоб працювали
+        // кастомні статуси проєкту. Якщо id ще немає (новий баг без явного
+        // вибору) — fallback на status key.
+        ...(workflowStatusId !== null
+          ? { workflow_status: workflowStatusId }
+          : { status }),
         priority,
         custom_fields: {
           env,
@@ -531,6 +562,9 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
       }
 
       if (!isEdit) localStorage.removeItem(DRAFT_KEY)
+      // Сповіщаємо Sidebar/Dashboard про зміну, щоб лічильник багів оновився
+      // без перезавантаження сторінки.
+      window.dispatchEvent(new CustomEvent('issue:changed'))
       toast.show(isEdit ? 'Збережено' : 'Баг створено', 'success')
       navigate(`/bugs/${saved.id}`)
     } catch (err) {
@@ -747,22 +781,44 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
 
             {/* Кроки відтворення */}
             <div className="form-section">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <label className="form-lbl">Кроки відтворення</label>
-                <button type="button" className="btn sm ghost" onClick={addStep}>
-                  <Ic.Plus sz={11} /> Додати крок
-                </button>
-              </div>
+              <label className="form-lbl">Кроки відтворення</label>
               <div className="steps-edit">
                 {steps.map((s, i) => (
-                  <div key={i} className="step-edit">
-                    <div className="num">{i + 1}</div>
+                  <div
+                    key={i}
+                    className="step-edit"
+                    onDragOver={e => {
+                      e.preventDefault()
+                      if (dragIdx !== null && hoverIdx !== i) setHoverIdx(i)
+                    }}
+                    onDragLeave={() => {
+                      if (hoverIdx === i) setHoverIdx(null)
+                    }}
+                    onDrop={() => onStepDrop(i)}
+                    style={{
+                      opacity: dragIdx === i ? 0.4 : 1,
+                      outline:
+                        hoverIdx === i && dragIdx !== null && dragIdx !== i
+                          ? '2px dashed var(--accent)'
+                          : undefined,
+                      outlineOffset: -2,
+                      borderRadius: 6,
+                      transition: 'opacity 0.15s',
+                    }}
+                  >
+                    <div
+                      className="num"
+                      draggable
+                      onDragStart={() => setDragIdx(i)}
+                      onDragEnd={() => {
+                        setDragIdx(null)
+                        setHoverIdx(null)
+                      }}
+                      style={{ cursor: 'grab', userSelect: 'none' }}
+                      title="Перетягніть, щоб змінити порядок"
+                    >
+                      {i + 1}
+                    </div>
                     <input
                       className="step-inp"
                       placeholder={i === 0 ? 'Перший крок…' : 'Наступний крок…'}
@@ -781,6 +837,33 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                     )}
                   </div>
                 ))}
+                <div
+                  className="step-edit"
+                  onClick={addStep}
+                  style={{ cursor: 'pointer', opacity: 0.7 }}
+                  title="Додати ще один крок"
+                >
+                  <div
+                    className="num"
+                    style={{
+                      background: 'transparent',
+                      border: '1px dashed var(--border-strong)',
+                      color: 'var(--fg-3)',
+                    }}
+                  >
+                    +
+                  </div>
+                  <span
+                    style={{
+                      flex: 1,
+                      color: 'var(--fg-3)',
+                      fontSize: 13.5,
+                      padding: '6px 0',
+                    }}
+                  >
+                    Додати крок…
+                  </span>
+                </div>
                 <div className="step-edit expected">
                   <div
                     className="num"
@@ -916,12 +999,21 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                 <select
                   className="inp"
                   style={{ flex: 1 }}
-                  value={status}
-                  onChange={e => setStatus(e.target.value as IssueStatus)}
+                  value={String(
+                    workflowStatusId ??
+                      workflowStatuses.find(s => s.key === status)?.id ??
+                      ''
+                  )}
+                  onChange={e => {
+                    const id = Number(e.target.value)
+                    setWorkflowStatusId(id)
+                    const ws = workflowStatuses.find(s => s.id === id)
+                    if (ws) setStatus(ws.key as IssueStatus)
+                  }}
                 >
-                  {Object.entries(STATUS_MAP).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
+                  {workflowStatuses.map(s => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.label}
                     </option>
                   ))}
                 </select>

@@ -4,7 +4,14 @@ from rest_framework import serializers
 from .models import (
     ApiToken,
     Attachment,
+    ChangelogEntry,
+    ChangelogSubscription,
     ChecklistItem,
+    RoadmapItem,
+    SupportAgentPermission,
+    SupportComment,
+    SupportSettings,
+    SupportTicket,
     Comment,
     IntegrationConfig,
     Invitation,
@@ -171,6 +178,10 @@ class IssueSerializer(serializers.ModelSerializer):
     workflow_status = serializers.PrimaryKeyRelatedField(
         queryset=WorkflowStatus.objects.all(), allow_null=True, required=False
     )
+    # Для канбану і списку — імена/кольори лейблів та лічильники коментарів/вкладень
+    labels_data = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
+    attachments_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Issue
@@ -189,6 +200,9 @@ class IssueSerializer(serializers.ModelSerializer):
             "assignee",
             "reporter",
             "labels",
+            "labels_data",
+            "comments_count",
+            "attachments_count",
             "due_date",
             "time_spent_minutes",
             "custom_fields",
@@ -217,6 +231,26 @@ class IssueSerializer(serializers.ModelSerializer):
         if ws:
             return ws.is_done
         return obj.status in ("done", "cancelled")
+
+    def get_labels_data(self, obj: Issue) -> list[dict]:
+        # Беремо name; color у моделі Label — якщо колись додамо, фронт сам стилізує
+        return [
+            {"id": lb.id, "name": getattr(lb, "name", "")}
+            for lb in obj.labels.all()
+        ]
+
+    def get_comments_count(self, obj: Issue) -> int:
+        # Якщо annotate додав значення — використовуємо його (без N+1).
+        val = getattr(obj, "_comments_count", None)
+        if val is not None:
+            return val
+        return obj.comments.count() if hasattr(obj, "comments") else 0
+
+    def get_attachments_count(self, obj: Issue) -> int:
+        val = getattr(obj, "_attachments_count", None)
+        if val is not None:
+            return val
+        return obj.attachments.count() if hasattr(obj, "attachments") else 0
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -561,6 +595,130 @@ class SavedFilterSerializer(serializers.ModelSerializer):
         model = SavedFilter
         fields = "__all__"
         read_only_fields = ("user", "created_at")
+
+
+class SupportSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportSettings
+        fields = "__all__"
+        read_only_fields = ("updated_at",)
+
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    submitted_by_name = serializers.CharField(
+        source="submitted_by.username", read_only=True
+    )
+
+    class Meta:
+        model = SupportTicket
+        fields = (
+            "id",
+            "category",
+            "subject",
+            "priority",
+            "description",
+            "status",
+            "submitted_by",
+            "submitted_by_name",
+            "submitted_email",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "submitted_by",
+            "submitted_by_name",
+            "created_at",
+            "updated_at",
+        )
+
+
+class SupportCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.username", read_only=True)
+
+    class Meta:
+        model = SupportComment
+        fields = (
+            "id",
+            "ticket",
+            "author",
+            "author_name",
+            "body",
+            "is_staff_reply",
+            "created_at",
+        )
+        read_only_fields = ("author", "author_name", "is_staff_reply", "created_at")
+
+
+class SupportAgentPermissionSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(
+        source="user", queryset=User.objects.all(), write_only=True
+    )
+
+    class Meta:
+        model = SupportAgentPermission
+        fields = (
+            "id",
+            "user_id",
+            "user",
+            "username",
+            "email",
+            "can_view_all",
+            "categories",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("user", "created_at", "updated_at")
+
+
+class RoadmapItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoadmapItem
+        fields = "__all__"
+        read_only_fields = ("created_at", "updated_at")
+
+
+class ChangelogSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChangelogSubscription
+        fields = ("id", "email", "is_active", "created_at")
+        read_only_fields = ("id", "created_at", "is_active")
+
+
+class ChangelogEntrySerializer(serializers.ModelSerializer):
+    helpful_count = serializers.SerializerMethodField()
+    is_helpful_by_me = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChangelogEntry
+        fields = "__all__"
+        read_only_fields = ("created_at", "updated_at")
+
+    def get_helpful_count(self, obj: ChangelogEntry) -> int:
+        return obj.reactions.filter(kind="helpful").count()
+
+    def get_is_helpful_by_me(self, obj: ChangelogEntry) -> bool:
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return obj.reactions.filter(user=request.user, kind="helpful").exists()
+
+    def validate_changes(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("changes має бути списком")
+        for i, item in enumerate(value):
+            if not isinstance(item, dict):
+                raise serializers.ValidationError(
+                    f"changes[{i}] має бути обʼєктом {{type, text}}"
+                )
+            if item.get("type") not in {"new", "imp", "fix", "sec"}:
+                raise serializers.ValidationError(
+                    f"changes[{i}].type має бути одним з: new, imp, fix, sec"
+                )
+            if not str(item.get("text", "")).strip():
+                raise serializers.ValidationError(f"changes[{i}].text не може бути пустим")
+        return value
 
 
 # ============================================================================

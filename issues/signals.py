@@ -13,11 +13,16 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from .models import (
+    ChangelogEntry,
+    ChangelogSubscription,
     Comment,
     Issue,
     LoginEvent,
+    Notification,
     Project,
     ProjectMembership,
+    SupportAgentPermission,
+    SupportTicket,
     TestRun,
     Webhook,
     WebhookDelivery,
@@ -211,3 +216,61 @@ def _test_run_saved(sender, instance, created, **kwargs):
         },
         project_id=instance.project_id,
     )
+
+
+@receiver(post_save, sender=ChangelogEntry)
+def _changelog_entry_saved(sender, instance, created, **kwargs):
+    """При публікації нового запису розсилаємо email активним підписникам.
+
+    Тригер: created=True І is_published=True. Чернетки (is_published=False)
+    не повідомляють підписників — навіть якщо їх пізніше опублікують.
+    Edit існуючого запису не дзвонить листи повторно — для цього є ручна
+    кнопка «Розіслати» у адмін-UI (action notify_subscribers).
+    """
+    if not created or not instance.is_published:
+        return
+    from .changelog_notify import send_release_email
+
+    try:
+        send_release_email(instance)
+    except Exception:
+        # Email — побічний ефект створення; помилка SMTP не повинна
+        # завалювати save самого ChangelogEntry. Адмін зможе пізніше
+        # розіслати вручну через кнопку.
+        logger.exception("Не вдалося розіслати changelog-нотифікацію (signal)")
+
+
+@receiver(post_save, sender=SupportTicket)
+def _support_ticket_saved(sender, instance, created, **kwargs):
+    """При новому тікеті — сповіщаємо адмінів і агентів, які мають
+    доступ до категорії цього тікета."""
+    if not created:
+        return
+    try:
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        receivers = set(User.objects.filter(is_staff=True).values_list("id", flat=True))
+        for perm in SupportAgentPermission.objects.all():
+            if perm.can_view_all or instance.category in (perm.categories or []):
+                receivers.add(perm.user_id)
+        # Не повідомляємо автора тікета
+        receivers.discard(instance.submitted_by_id)
+        for uid in receivers:
+            Notification.objects.create(
+                user_id=uid,
+                issue=None,
+                actor=instance.submitted_by,
+                kind="support_new",
+                message=f"Нове звернення «{instance.subject[:200]}»",
+            )
+    except Exception:
+        logger.exception("Не вдалося створити support-нотифікації")
+    # Email — окремо, щоб збій SMTP не блокував створення Notification
+    try:
+        from .support_notify import notify_new_ticket
+
+        notify_new_ticket(instance)
+    except Exception:
+        logger.exception("Не вдалося надіслати email про новий support-тікет")
+

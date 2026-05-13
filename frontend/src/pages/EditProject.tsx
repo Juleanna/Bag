@@ -15,6 +15,7 @@ import { useConfirm } from '../context/ConfirmContext'
 import type { Project, ProjectVisibility, UserShort } from '../api/types'
 import { Skeleton } from '../components/Skeleton'
 import { WorkflowEditor } from '../components/WorkflowEditor'
+import { useWorkflow } from '../hooks/useWorkflow'
 import { displayName } from '../utils/user'
 
 const COLORS = ['#5E6AD2', '#0EA5E9', '#10B981', '#D97757', '#9665C9', '#E04B43', '#D4951F', '#1F1E1A']
@@ -52,13 +53,6 @@ const INTEGRATIONS: Array<{ icon: keyof typeof Ic; name: string; desc: string }>
   { icon: 'AI', name: 'OpenAI', desc: 'AI-підсумки та авто-теги' },
 ]
 
-const WORKFLOW: Array<{ key: string; label: string; color: string }> = [
-  { key: 'open', label: 'Open', color: 'var(--st-open-dot)' },
-  { key: 'progress', label: 'In Progress', color: 'var(--st-progress-dot)' },
-  { key: 'blocked', label: 'Blocked', color: 'var(--st-blocked-dot)' },
-  { key: 'resolved', label: 'Resolved', color: 'var(--st-resolved-dot)' },
-  { key: 'closed', label: 'Closed', color: 'var(--st-closed-dot)' },
-]
 
 interface WorkspaceShort {
   id: number
@@ -69,6 +63,8 @@ interface WorkspaceShort {
 export function EditProjectPage() {
   const { id } = useParams<{ id: string }>()
   const projectId = Number(id)
+  // Реальні статуси проекту з API (не hard-coded WORKFLOW).
+  const { statuses: workflowStatuses } = useWorkflow(projectId)
   const navigate = useNavigate()
   const toast = useToast()
   const confirm = useConfirm()
@@ -723,16 +719,16 @@ export function EditProjectPage() {
           <div className="form-card" style={{ gridColumn: 'span 2' }}>
             <div className="fc-section-title">Робочий процес</div>
             <div className="np-workflow">
-              {WORKFLOW.map((s, i) => (
+              {workflowStatuses.map((s, i) => (
                 <span
-                  key={s.key}
+                  key={s.id}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
                 >
                   <div className="wf-node">
                     <span className="dot" style={{ background: s.color }} />
                     <span>{s.label}</span>
                   </div>
-                  {i < WORKFLOW.length - 1 && (
+                  {i < workflowStatuses.length - 1 && (
                     <Ic.Chev sz={11} style={{ color: 'var(--fg-4)' }} />
                   )}
                 </span>

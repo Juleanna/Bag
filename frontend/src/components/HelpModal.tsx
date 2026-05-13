@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { BACKSPACE_KEY, MOD_KEY, SHIFT_KEY } from '../utils/shortcuts'
 
@@ -76,6 +77,7 @@ const SECTIONS = {
 }
 
 export function HelpModal({ open, onClose }: Props) {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('start')
   const [query, setQuery] = useState('')
 
@@ -179,10 +181,20 @@ export function HelpModal({ open, onClose }: Props) {
             <button>
               <Ic.Globe sz={13} /> Документація
             </button>
-            <button>
+            <button
+              onClick={() => {
+                onClose()
+                navigate('/support')
+              }}
+            >
               <Ic.Comment sz={13} /> Звʼязатися з підтримкою
             </button>
-            <button>
+            <button
+              onClick={() => {
+                onClose()
+                navigate('/changelog')
+              }}
+            >
               <Ic.Github sz={13} /> Changelog
             </button>
           </aside>

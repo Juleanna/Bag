@@ -5,10 +5,11 @@
  *  - додавання нового статусу
  *  - збереження одним батчем (синхронізація diff з сервером)
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Ic } from '../icons/Ic'
 import { apiDelete, apiPatch, apiPost, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
+import { invalidateWorkflowCache } from '../hooks/useWorkflow'
 
 export interface WorkflowStatus {
   id: number
@@ -21,14 +22,22 @@ export interface WorkflowStatus {
   is_done: boolean
 }
 
+// Кольори токенів і додатково — щоб охопити основні відтінки.
+// label був раніше невідповідним (var(--st-progress-dot)=#D4951F називався
+// «Синій»), виправлено.
 const PALETTE = [
-  { value: 'var(--st-open-dot)', label: 'Червоний' },
-  { value: 'var(--st-progress-dot)', label: 'Синій' },
-  { value: 'var(--st-blocked-dot)', label: 'Фіолетовий' },
-  { value: 'var(--st-resolved-dot)', label: 'Зелений' },
-  { value: 'var(--st-closed-dot)', label: 'Сірий' },
-  { value: '#D4951F', label: 'Жовтий' },
+  { value: '#E04B43', label: 'Червоний' },
   { value: '#D97757', label: 'Помаранчевий' },
+  { value: '#D4951F', label: 'Жовтий' },
+  { value: '#4CA85C', label: 'Зелений' },
+  { value: '#10B981', label: 'Смарагдовий' },
+  { value: '#0EA5E9', label: 'Бірюзовий' },
+  { value: '#3B82F6', label: 'Синій' },
+  { value: '#5E6AD2', label: 'Indigo' },
+  { value: '#9665C9', label: 'Фіолетовий' },
+  { value: '#EC4899', label: 'Рожевий' },
+  { value: '#6B7280', label: 'Сірий' },
+  { value: '#1F2937', label: 'Чорний' },
 ]
 
 const DEFAULT_STATUSES: Array<Omit<WorkflowStatus, 'id' | 'project'>> = [
@@ -168,6 +177,12 @@ export function WorkflowEditor({
         }
       }
       await Promise.all(ops)
+      // Інвалідуємо кеш useWorkflow для цього проєкту, щоб усі підписники
+      // (EditProject, BugDetail, Kanban тощо) перечитали свіжі статуси.
+      invalidateWorkflowCache(projectId)
+      window.dispatchEvent(
+        new CustomEvent('workflow:changed', { detail: { projectId } })
+      )
       toast.show('Робочий процес збережено', 'success')
       onClose()
     } catch (e) {
@@ -204,7 +219,7 @@ export function WorkflowEditor({
                 onDrop={() => onDrop(idx)}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '20px 16px 1fr 100px auto auto',
+                  gridTemplateColumns: '20px 22px 1fr auto auto auto',
                   gap: 8,
                   alignItems: 'center',
                   padding: '8px 10px',
@@ -214,14 +229,9 @@ export function WorkflowEditor({
                 }}
               >
                 <Ic.Sort sz={12} style={{ color: 'var(--fg-4)' }} />
-                <span
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: '50%',
-                    background: it.color,
-                    flexShrink: 0,
-                  }}
+                <ColorPicker
+                  value={it.color}
+                  onChange={color => update(idx, { color })}
                 />
                 <input
                   className="inp"
@@ -229,18 +239,6 @@ export function WorkflowEditor({
                   onChange={e => update(idx, { label: e.target.value })}
                   style={{ height: 30, fontSize: 13 }}
                 />
-                <select
-                  className="inp"
-                  value={it.color}
-                  onChange={e => update(idx, { color: e.target.value })}
-                  style={{ height: 30, fontSize: 12, padding: '0 6px' }}
-                >
-                  {PALETTE.map(p => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
                 <label
                   style={{
                     display: 'inline-flex',
@@ -316,6 +314,124 @@ export function WorkflowEditor({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// ColorPicker — кнопка-кружечок з popover-сіткою кольорів.
+// Замінив select, бо: 1) довгі лейбли не вміщалися; 2) старі статуси
+// зберігалися як CSS-токени (var(--st-progress-dot)) і select не міг
+// знайти match серед hex-кольорів. Picker просто показує реальний колір
+// кружечком — без проблеми відповідності лейблів.
+// ============================================================================
+
+function ColorPicker({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (color: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current) return
+      if (!wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={e => {
+          e.stopPropagation()
+          setOpen(o => !o)
+        }}
+        title="Обрати колір"
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          background: value,
+          border: open
+            ? '2px solid var(--accent)'
+            : '1px solid var(--border)',
+          cursor: 'pointer',
+          padding: 0,
+          flexShrink: 0,
+        }}
+      />
+      {open && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: 0,
+            zIndex: 200,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            boxShadow: 'var(--shadow-lg)',
+            padding: 8,
+            width: 200,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10.5,
+              color: 'var(--fg-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              fontWeight: 600,
+              marginBottom: 6,
+              padding: '0 2px',
+            }}
+          >
+            Колір
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(6, 1fr)',
+              gap: 6,
+            }}
+          >
+            {PALETTE.map(p => {
+              const active = value === p.value
+              return (
+                <button
+                  key={p.value}
+                  type="button"
+                  title={p.label}
+                  onClick={() => {
+                    onChange(p.value)
+                    setOpen(false)
+                  }}
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    background: p.value,
+                    border: active
+                      ? '2px solid var(--fg)'
+                      : '1px solid var(--border)',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                />
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -653,7 +653,8 @@ class TimeLog(models.Model):
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="time_logs")
     minutes = models.PositiveIntegerField()
-    note = models.CharField(max_length=255, blank=True)
+    # TextField без max_length — нотатки до часу можуть бути довгі
+    note = models.TextField(blank=True)
     logged_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -970,4 +971,280 @@ class IntegrationConfig(models.Model):
 
     class Meta:
         unique_together = ("project", "kind")
+
+
+class SupportSettings(models.Model):
+    """Singleton-конфіг сторінки «Звʼязатись з нами».
+
+    Адмін редагує: категорії звернень, контактні канали, робочий час,
+    статус-плашку. Все інше (тікети) — окрема модель SupportTicket.
+    """
+
+    # Заголовок і підзаголовок
+    intro_text = models.CharField(
+        max_length=255,
+        default="Зазвичай відповідаємо за 4 години у робочий час",
+    )
+
+    # Статус-плашка
+    class StatusKind(models.TextChoices):
+        OPERATIONAL = "operational", "Усі системи працюють"
+        MAINTENANCE = "maintenance", "Технічне обслуговування"
+        DEGRADED = "degraded", "Часткова деградація"
+        MINOR = "minor", "Незначні збої"
+        MAJOR = "major", "Серйозні проблеми"
+        DOWN = "down", "Серйозна аварія"
+        INVESTIGATING = "investigating", "Розслідуємо інцидент"
+        RESOLVED = "resolved", "Інцидент усунено"
+
+    status_kind = models.CharField(
+        max_length=20,
+        choices=StatusKind.choices,
+        default=StatusKind.OPERATIONAL,
+    )
+    status_text = models.CharField(
+        max_length=120, default="усі системи працюють"
+    )
+
+    # Канали зв'язку
+    email = models.EmailField(blank=True, default="support@bugtracker.local")
+    email_response_time = models.CharField(
+        max_length=80, blank=True, default="Відповідь до 4 год"
+    )
+    chat_hours = models.CharField(
+        max_length=120, blank=True, default="Пн–Пт, 9:00–18:00"
+    )
+    community_link = models.URLField(blank=True, default="")
+    community_label = models.CharField(
+        max_length=120, blank=True, default="Спільнота у Slack"
+    )
+    github_link = models.URLField(blank=True, default="")
+    github_label = models.CharField(
+        max_length=120, blank=True, default="github.com"
+    )
+
+    # Робочий час
+    business_hours_weekday = models.CharField(
+        max_length=120, blank=True, default="Пн–Пт · 9:00–18:00 EET"
+    )
+    business_hours_weekend = models.CharField(
+        max_length=120, blank=True, default="Сб–Нд · тільки критичні (Enterprise)"
+    )
+
+    # Категорії як JSON: [{key, label, description}]
+    categories = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Список об'єктів {key, label, description}",
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Support settings"
+        verbose_name_plural = "Support settings"
+
+    def __str__(self) -> str:
+        return f"SupportSettings#{self.pk}"
+
+    @classmethod
+    def get_solo(cls) -> "SupportSettings":
+        """Повертає (або створює) єдиний запис налаштувань."""
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create(
+                categories=cls.default_categories(),
+            )
+        return obj
+
+    @staticmethod
+    def default_categories() -> list[dict]:
+        return [
+            {"key": "tech", "label": "Технічна проблема", "description": "Щось зламалось або працює не так", "icon": "bug", "tone": "red"},
+            {"key": "how", "label": "Як це зробити?", "description": "Питання по використанню", "icon": "help", "tone": "blue"},
+            {"key": "feature", "label": "Запит фічі", "description": "Хочу новий функціонал", "icon": "lightning", "tone": "yellow"},
+            {"key": "billing", "label": "Білінг та підписка", "description": "Інвойси, плани, оплата", "icon": "card", "tone": "purple"},
+            {"key": "sales", "label": "Продажі / Enterprise", "description": "Демо, on-prem, SLA", "icon": "users", "tone": "green"},
+            {"key": "security", "label": "Безпека", "description": "Report vulnerability", "icon": "lock", "tone": "red"},
+        ]
+
+
+class SupportTicket(models.Model):
+    """Звернення користувача через сторінку «Звʼязатись з нами»."""
+
+    class Priority(models.TextChoices):
+        LOW = "low", "Низький"
+        NORMAL = "normal", "Звичайний"
+        HIGH = "high", "Високий"
+        URGENT = "urgent", "Терміновий"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Відкрито"
+        IN_PROGRESS = "in_progress", "В роботі"
+        CLOSED = "closed", "Закрито"
+
+    category = models.CharField(max_length=40)
+    subject = models.CharField(max_length=255)
+    priority = models.CharField(
+        max_length=10, choices=Priority.choices, default=Priority.NORMAL
+    )
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True
+    )
+    submitted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="support_tickets",
+    )
+    submitted_email = models.EmailField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"[{self.get_status_display()}] {self.subject}"
+
+
+class SupportComment(models.Model):
+    """Повідомлення в треді тікета: відповідь саппорту або уточнення користувача."""
+
+    ticket = models.ForeignKey(
+        SupportTicket, on_delete=models.CASCADE, related_name="comments"
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="support_comments"
+    )
+    body = models.TextField()
+    is_staff_reply = models.BooleanField(
+        default=False,
+        help_text="True — відповідь саппорту/адміна; False — уточнення користувача",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+class SupportAgentPermission(models.Model):
+    """Налаштування доступу користувача-саппорту до тікетів за категоріями.
+
+    Запис існує лише для тих, кому адмін явно надав права. Якщо запису
+    немає — користувач не є агентом і бачить лише свої власні тікети.
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="support_permission"
+    )
+    can_view_all = models.BooleanField(
+        default=False,
+        help_text="True — бачить тікети у всіх категоріях (як адмін)",
+    )
+    # Список ключів категорій (з SupportSettings.categories[].key)
+    categories = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def has_access(self, category_key: str) -> bool:
+        return self.can_view_all or (category_key in (self.categories or []))
+
+
+class RoadmapItem(models.Model):
+    """Запис на дорожній карті продукту. Адмін додає/редагує; інші читають.
+
+    Колонки за статусом (planned / in_progress / done / cancelled). Сортування
+    у межах колонки — за sort_order, потім за створенням.
+    """
+
+    class Status(models.TextChoices):
+        PLANNED = "planned", "Заплановано"
+        IN_PROGRESS = "in_progress", "У роботі"
+        DONE = "done", "Готово"
+        CANCELLED = "cancelled", "Скасовано"
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PLANNED, db_index=True
+    )
+    quarter = models.CharField(
+        max_length=20, blank=True, help_text="Напр. Q3 2026"
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "-created_at"]
+
+    def __str__(self) -> str:
+        return f"[{self.get_status_display()}] {self.title}"
+
+
+class ChangelogReaction(models.Model):
+    """Реакція користувача на запис Changelog (поки лише «корисно»).
+
+    unique_together (entry, user, kind) робить кнопку ідемпотентною —
+    повторний POST не множить лічильник, але endpoint штовхає toggle.
+    """
+
+    class Kind(models.TextChoices):
+        HELPFUL = "helpful", "Корисно"
+
+    entry = models.ForeignKey(
+        "ChangelogEntry", on_delete=models.CASCADE, related_name="reactions"
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.HELPFUL)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("entry", "user", "kind")
+        indexes = [models.Index(fields=["entry", "kind"])]
+
+
+class ChangelogSubscription(models.Model):
+    """Email-підписки на Changelog. При новому опублікованому записі
+    через signal надсилається оновлення всім is_active=True підпискам."""
+
+    email = models.EmailField(unique=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.email
+
+
+class ChangelogEntry(models.Model):
+    """Запис у Changelog продукту — версія, тег, перелік змін.
+
+    Редагується через адмін-API лише staff-користувачами; читається всіма.
+    """
+
+    class Tag(models.TextChoices):
+        MAJOR = "major", "Major"
+        MINOR = "minor", "Minor"
+        PATCH = "patch", "Patch"
+        SECURITY = "security", "Security"
+
+    version = models.CharField(max_length=50, help_text="Напр. 4.18.0")
+    release_date = models.DateField()
+    tag = models.CharField(max_length=20, choices=Tag.choices, default=Tag.MINOR)
+    title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
+    # Список об'єктів {"type": "new"|"imp"|"fix"|"sec", "text": "..."}
+    changes = models.JSONField(default=list, blank=True)
+    is_published = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-release_date", "-id"]
+
+    def __str__(self) -> str:
+        return f"v{self.version} · {self.title}"
 

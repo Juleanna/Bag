@@ -79,6 +79,22 @@ export function useWorkflow(projectId: number | null | undefined) {
     }
   }, [projectId])
 
+  // Слухач події workflow:changed — перезавантажує статуси для свого
+  // проекту (WorkflowEditor диспатчить її після збереження).
+  useEffect(() => {
+    if (!projectId) return
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { projectId?: number } | undefined
+      if (detail?.projectId !== projectId) return
+      void fetchWorkflow(projectId).then(list => {
+        cache.set(projectId, list)
+        setStatuses(list)
+      })
+    }
+    window.addEventListener('workflow:changed', onChange)
+    return () => window.removeEventListener('workflow:changed', onChange)
+  }, [projectId])
+
   return { statuses, loading }
 }
 

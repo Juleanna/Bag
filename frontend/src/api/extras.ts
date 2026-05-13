@@ -152,6 +152,166 @@ export interface ReportsSummary {
   top_assignees: Array<{ assignee: number; assignee__username: string; n: number }>
 }
 
+export type ChangelogTag = 'major' | 'minor' | 'patch' | 'security'
+export type ChangelogChangeType = 'new' | 'imp' | 'fix' | 'sec'
+
+export interface ChangelogChange {
+  type: ChangelogChangeType
+  text: string
+}
+
+export type SupportPriority = 'low' | 'normal' | 'high' | 'urgent'
+export type SupportTicketStatus = 'open' | 'in_progress' | 'closed'
+export type SupportStatusKind =
+  | 'operational'
+  | 'maintenance'
+  | 'degraded'
+  | 'minor'
+  | 'major'
+  | 'down'
+  | 'investigating'
+  | 'resolved'
+
+export type SupportCategoryIcon =
+  | 'bug'
+  | 'help'
+  | 'lightning'
+  | 'card'
+  | 'users'
+  | 'lock'
+  | 'mail'
+  | 'globe'
+  | 'calendar'
+  | 'star'
+  | 'clock'
+  | 'ai'
+  | 'tag'
+  | 'activity'
+  | 'shield'
+  | 'flag'
+  | 'image'
+  | 'inbox'
+  | 'bell'
+  | 'chart'
+  | 'beaker'
+  | 'play'
+  | 'edit'
+  | 'folder'
+  | 'link'
+  | 'spark'
+  | 'github'
+  | 'slack'
+  | 'key'
+  | 'eye'
+  | 'comment'
+  | 'refresh'
+  | 'upload'
+  | 'download'
+
+export type SupportCategoryTone =
+  | 'red'
+  | 'blue'
+  | 'green'
+  | 'yellow'
+  | 'purple'
+  | 'gray'
+
+export interface SupportCategory {
+  key: string
+  label: string
+  description: string
+  icon?: SupportCategoryIcon
+  tone?: SupportCategoryTone
+}
+
+export interface SupportSettings {
+  id: number
+  intro_text: string
+  status_kind: SupportStatusKind
+  status_text: string
+  email: string
+  email_response_time: string
+  chat_hours: string
+  community_link: string
+  community_label: string
+  github_link: string
+  github_label: string
+  business_hours_weekday: string
+  business_hours_weekend: string
+  categories: SupportCategory[]
+  updated_at: string
+}
+
+export interface SupportTicket {
+  id: number
+  category: string
+  subject: string
+  priority: SupportPriority
+  description: string
+  status: SupportTicketStatus
+  submitted_by: number | null
+  submitted_by_name: string | null
+  submitted_email: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SupportComment {
+  id: number
+  ticket: number
+  author: number | null
+  author_name: string | null
+  body: string
+  is_staff_reply: boolean
+  created_at: string
+}
+
+export interface SupportAgentPermission {
+  id: number
+  user: number
+  username: string
+  email: string
+  can_view_all: boolean
+  categories: string[]
+  created_at: string
+  updated_at: string
+}
+
+export type RoadmapStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
+
+export interface RoadmapItem {
+  id: number
+  title: string
+  description: string
+  status: RoadmapStatus
+  quarter: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ChangelogSubscriptionRow {
+  id: number
+  email: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface ChangelogEntry {
+  id: number
+  version: string
+  release_date: string
+  tag: ChangelogTag
+  title: string
+  summary: string
+  changes: ChangelogChange[]
+  is_published: boolean
+  helpful_count?: number
+  is_helpful_by_me?: boolean
+  created_at: string
+  updated_at: string
+}
+
 function unwrap<T>(res: PaginatedResponse<T> | T[]): T[] {
   if (Array.isArray(res)) return res
   return res.results || []
@@ -289,4 +449,91 @@ export const api = {
     apiPost<{ ok: boolean; enabled: boolean }>('/auth/2fa/verify/', { code }),
   totpDisable: (code: string) =>
     apiPost<{ ok: boolean; enabled: boolean }>('/auth/2fa/disable/', { code }),
+
+  // Changelog
+  listChangelog: async () =>
+    unwrap(await apiGet<PaginatedResponse<ChangelogEntry>>('/changelog/?page_size=100')),
+  createChangelogEntry: (data: Partial<ChangelogEntry>) =>
+    apiPost<ChangelogEntry>('/changelog/', data),
+  updateChangelogEntry: (id: number, data: Partial<ChangelogEntry>) =>
+    apiPatch<ChangelogEntry>(`/changelog/${id}/`, data),
+  deleteChangelogEntry: (id: number) => apiDelete(`/changelog/${id}/`),
+  toggleChangelogHelpful: (id: number) =>
+    apiPost<{ helpful_count: number; is_helpful_by_me: boolean }>(
+      `/changelog/${id}/helpful/`,
+      {}
+    ),
+  notifyChangelogSubscribers: (id: number) =>
+    apiPost<{ sent: number }>(`/changelog/${id}/notify_subscribers/`, {}),
+
+  // Адмін-керування підписками
+  listChangelogSubscriptions: async () =>
+    unwrap(
+      await apiGet<PaginatedResponse<ChangelogSubscriptionRow>>(
+        '/changelog-subscriptions/?page_size=500'
+      )
+    ),
+  updateChangelogSubscription: (
+    id: number,
+    data: { is_active: boolean }
+  ) =>
+    apiPatch<ChangelogSubscriptionRow>(`/changelog-subscriptions/${id}/`, data),
+  deleteChangelogSubscription: (id: number) =>
+    apiDelete(`/changelog-subscriptions/${id}/`),
+
+  subscribeChangelog: (email: string) =>
+    apiPost<{ ok: boolean; created: boolean; email: string }>(
+      '/changelog/subscribe/',
+      { email }
+    ),
+
+  // Roadmap
+  listRoadmap: async () =>
+    unwrap(await apiGet<PaginatedResponse<RoadmapItem>>('/roadmap/?page_size=200')),
+  createRoadmapItem: (data: Partial<RoadmapItem>) =>
+    apiPost<RoadmapItem>('/roadmap/', data),
+  updateRoadmapItem: (id: number, data: Partial<RoadmapItem>) =>
+    apiPatch<RoadmapItem>(`/roadmap/${id}/`, data),
+  deleteRoadmapItem: (id: number) => apiDelete(`/roadmap/${id}/`),
+
+  // Support
+  getSupportSettings: () => apiGet<SupportSettings>('/support/settings/'),
+  updateSupportSettings: (data: Partial<SupportSettings>) =>
+    apiPatch<SupportSettings>('/support/settings/', data),
+  createSupportTicket: (data: {
+    category: string
+    subject: string
+    priority: SupportPriority
+    description: string
+  }) => apiPost<SupportTicket>('/support/tickets/', data),
+  listSupportTickets: async () =>
+    unwrap(
+      await apiGet<PaginatedResponse<SupportTicket>>(
+        '/support/tickets/?page_size=100'
+      )
+    ),
+  getSupportTicket: (id: number) =>
+    apiGet<SupportTicket>(`/support/tickets/${id}/`),
+  updateSupportTicket: (id: number, data: Partial<SupportTicket>) =>
+    apiPatch<SupportTicket>(`/support/tickets/${id}/`, data),
+  supportOpenCount: () =>
+    apiGet<{ count: number }>('/support/tickets/open_count/'),
+  listSupportComments: (ticketId: number) =>
+    apiGet<SupportComment[]>(`/support/tickets/${ticketId}/comments/`),
+  postSupportComment: (ticketId: number, body: string) =>
+    apiPost<SupportComment>(`/support/tickets/${ticketId}/comments/`, { body }),
+  listSupportAgents: async () =>
+    unwrap(
+      await apiGet<PaginatedResponse<SupportAgentPermission>>(
+        '/support/agents/?page_size=200'
+      )
+    ),
+  createSupportAgent: (data: {
+    user_id: number
+    can_view_all: boolean
+    categories: string[]
+  }) => apiPost<SupportAgentPermission>('/support/agents/', data),
+  updateSupportAgent: (id: number, data: Partial<SupportAgentPermission>) =>
+    apiPatch<SupportAgentPermission>(`/support/agents/${id}/`, data),
+  deleteSupportAgent: (id: number) => apiDelete(`/support/agents/${id}/`),
 }

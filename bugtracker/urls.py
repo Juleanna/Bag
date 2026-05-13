@@ -12,6 +12,14 @@ from drf_spectacular.views import (
 from issues import views_health
 
 urlpatterns = [
+    # SPA-маршрути всередині /admin/ (React) — мають стояти ПЕРЕД django-admin,
+    # інакше admin.site.urls перехопить «admin/support» тощо і поверне 404.
+    # Кожен новий React-маршрут у /admin/ потрібно додавати у цей regex.
+    re_path(
+        r"^admin/(support|landing|regions)(/.*)?$",
+        TemplateView.as_view(template_name="index.html"),
+        name="spa-admin",
+    ),
     path("admin/", admin.site.urls),
     # API: основний шлях /api/ + версіонований alias /api/v1/
     # /api/ лишається для зворотної сумісності, /api/v1/ — рекомендований

@@ -22,6 +22,15 @@ import { ReportsPage } from './pages/Reports'
 import { NewTestPage } from './pages/NewTest'
 import { EditTestPage } from './pages/EditTest'
 import { TestCaseDetailPage } from './pages/TestCaseDetail'
+import { ChangelogPage } from './pages/ChangelogPage'
+import { ChangelogSubscriptionsPage } from './pages/ChangelogSubscriptionsPage'
+import { RoadmapPage } from './pages/RoadmapPage'
+import { SupportPage } from './pages/SupportPage'
+import { SupportSettingsPage } from './pages/SupportSettingsPage'
+import { SupportTicketsPage } from './pages/SupportTicketsPage'
+import { SupportTicketDetailPage } from './pages/SupportTicketDetailPage'
+import { SupportAgentsPage } from './pages/SupportAgentsPage'
+import { MyTicketsPage } from './pages/MyTicketsPage'
 import { SprintsPage } from './pages/Sprints'
 import { WebhooksPage } from './pages/Webhooks'
 import { TemplatesPage } from './pages/Templates'
@@ -137,6 +146,19 @@ export function App() {
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="changelog" element={<ChangelogPage />} />
+        <Route path="changelog/subscriptions" element={<ChangelogSubscriptionsPage />} />
+        <Route path="roadmap" element={<RoadmapPage />} />
+        <Route path="support" element={<SupportPage />} />
+        <Route path="support/tickets" element={<MyTicketsPage />} />
+        <Route
+          path="support/tickets/:id"
+          element={<SupportTicketDetailPage ownerView />}
+        />
+        <Route path="admin/support" element={<SupportSettingsPage />} />
+        <Route path="admin/support/tickets" element={<SupportTicketsPage />} />
+        <Route path="admin/support/tickets/:id" element={<SupportTicketDetailPage />} />
+        <Route path="admin/support/agents" element={<SupportAgentsPage />} />
       </Route>
 
       {/* Адмін-панель лендінгу — тільки для is_staff */}

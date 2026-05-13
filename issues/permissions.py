@@ -82,7 +82,11 @@ class IsProjectOwner(permissions.BasePermission):
         project = _get_project_for_obj(obj)
         if request.method in permissions.SAFE_METHODS:
             return _is_project_member(request.user, project)
-        # Зміна / видалення проєкту — тільки власник
+        # Зміна / видалення проєкту — власник АБО адмін платформи (is_staff).
+        # Це дозволяє адміну сайту врятувати ситуацію, коли власник
+        # недоступний (звільнення, тимчасова неактивність).
+        if request.user.is_staff:
+            return True
         return project is not None and project.owner_id == request.user.id
 
 

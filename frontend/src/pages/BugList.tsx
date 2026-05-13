@@ -11,7 +11,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { Avatar } from '../atoms/Avatar'
 import { StatusPill, PriorityBadge, STATUS_MAP, PRIORITY_MAP } from '../atoms/Status'
-import { listAll, apiPost } from '../api/client'
+import { listAll, apiPost, apiPatch } from '../api/client'
 import type { Issue, IssuePriority, IssueStatus, Project, UserShort } from '../api/types'
 import { api as extras } from '../api/extras'
 import type { SavedFilter } from '../api/extras'
@@ -720,7 +720,7 @@ export function BugListPage() {
           columns={columns}
         />
       ) : (
-        <KanbanView issues={filtered} navigate={navigate} />
+        <KanbanView issues={filtered} navigate={navigate} onReload={reload} />
       )}
 
       {/* Bulk action bar */}
@@ -965,27 +965,41 @@ function ListView({
 function KanbanView({
   issues,
   navigate,
+  onReload,
 }: {
   issues: Issue[]
   navigate: ReturnType<typeof useNavigate>
+  onReload: () => Promise<void> | void
 }) {
-  // Канбан-колонки будуються з унікальних статусів, що зустрічаються в issues
-  // (label/color беруться з самих issue, бо вони вже містять денормалізовані поля).
-  const columnsMap = new Map<string, { label: string; color: string }>()
+  const toast = useToast()
+  const [dragId, setDragId] = useState<number | null>(null)
+  const [hoverCol, setHoverCol] = useState<string | null>(null)
+
+  // Канбан-колонки: групуємо по status (legacy key), але запам'ятовуємо
+  // workflow_status id для PATCH — щоб працювало і для кастомних статусів,
+  // ключі яких відсутні у Issue.Status.choices (інакше PATCH видасть 400).
+  const columnsMap = new Map<
+    string,
+    { label: string; color: string; wsId: number | null }
+  >()
   for (const i of issues) {
-    if (!columnsMap.has(i.status)) {
+    const existing = columnsMap.get(i.status)
+    if (!existing) {
       columnsMap.set(i.status, {
         label: i.status_display || (STATUS_MAP[i.status]?.label ?? i.status),
         color: i.status_color || STATUS_MAP[i.status]?.dot || 'var(--st-open-dot)',
+        wsId: i.workflow_status ?? null,
       })
+    } else if (existing.wsId === null && i.workflow_status) {
+      existing.wsId = i.workflow_status
     }
   }
-  // Якщо issues порожні — показуємо хоча б дефолтні 4 колонки
   if (columnsMap.size === 0) {
     for (const k of ['open', 'in_progress', 'done', 'cancelled']) {
       columnsMap.set(k, {
         label: STATUS_MAP[k].label,
         color: STATUS_MAP[k].dot,
+        wsId: null,
       })
     }
   }
@@ -993,27 +1007,107 @@ function KanbanView({
     id,
     label: meta.label,
     color: meta.color,
+    wsId: meta.wsId,
   }))
+
+  const handleDrop = async (
+    col: { id: string; wsId: number | null }
+  ) => {
+    const issueId = dragId
+    setDragId(null)
+    setHoverCol(null)
+    if (!issueId) return
+    const issue = issues.find(i => i.id === issueId)
+    if (!issue) return
+    // Якщо вже у цій колонці — нічого не робимо
+    if (issue.status === col.id) return
+    // Для кастомних статусів (key не з default choices) шлемо workflow_status id;
+    // для дефолтних — старий status key (бекенд сам резолвить).
+    const DEFAULT_KEYS = new Set(['open', 'in_progress', 'done', 'cancelled'])
+    const payload: Partial<Issue> = DEFAULT_KEYS.has(col.id)
+      ? ({ status: col.id } as Partial<Issue>)
+      : col.wsId
+        ? ({ workflow_status: col.wsId } as Partial<Issue>)
+        : ({ status: col.id } as Partial<Issue>)
+    try {
+      await apiPatch<Issue>(`/issues/${issueId}/`, payload)
+      toast.show(`BUG-${issueId} → ${col.id}`, 'success')
+      void onReload()
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Не вдалося перенести', 'error')
+    }
+  }
 
   return (
     <div className="kanban">
       {columns.map(col => {
         const list = issues.filter(i => i.status === col.id)
+        const isHover = hoverCol === col.id && dragId !== null
         return (
           <div key={col.id} className="kcol">
-            <div className="kcol-head">
-              <StatusPill value={col.id} label={col.label} color={col.color} />
-              <span className="count">{list.length}</span>
+            <div
+              className="kcol-head"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 4px 10px',
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: col.color,
+                  flexShrink: 0,
+                }}
+              />
+              <b style={{ fontSize: 13, color: 'var(--fg-2)' }}>{col.label}</b>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--fg-4)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {list.length}
+              </span>
             </div>
-            <div className="kcol-list">
+            <div
+              className="kcol-list"
+              onDragOver={e => {
+                if (dragId === null) return
+                e.preventDefault()
+                if (hoverCol !== col.id) setHoverCol(col.id)
+              }}
+              onDragLeave={() => {
+                if (hoverCol === col.id) setHoverCol(null)
+              }}
+              onDrop={() => handleDrop(col)}
+              style={
+                isHover
+                  ? {
+                      background: 'var(--accent-soft)',
+                      outline: '2px dashed var(--accent)',
+                      outlineOffset: -2,
+                      borderRadius: 8,
+                    }
+                  : undefined
+              }
+            >
               {list.map(b => (
-                <div key={b.id} className="kcard" onClick={() => navigate(`/bugs/${b.id}`)}>
-                  <div className="id">BUG-{b.id}</div>
-                  <div className="title">{b.title}</div>
-                  <div className="meta">
-                    <PriorityBadge value={b.priority} />
-                  </div>
-                </div>
+                <KanbanCard
+                  key={b.id}
+                  bug={b}
+                  draggingId={dragId}
+                  onDragStart={() => setDragId(b.id)}
+                  onDragEnd={() => {
+                    setDragId(null)
+                    setHoverCol(null)
+                  }}
+                  onOpen={() => navigate(`/bugs/${b.id}`)}
+                />
               ))}
               {list.length === 0 && (
                 <div style={{ padding: 12, textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 }}>
@@ -1024,6 +1118,157 @@ function KanbanView({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ============================================================================
+// KanbanCard — повна карточка бага у канбані за макетом прототипу:
+//  - top: BUG-id · pri-іконка · priority_display
+//  - title (велика жирна назва)
+//  - labels-чіпи
+//  - footer: avatar reporter + relative-час + counts (💬 N · 📎 N)
+// ============================================================================
+
+function kanbanRelative(iso: string): string {
+  const d = new Date(iso)
+  const diff = (Date.now() - d.getTime()) / 1000
+  if (diff < 60) return 'щойно'
+  if (diff < 3600) return `${Math.floor(diff / 60)} хв тому`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} год тому`
+  if (diff < 7 * 86400) return `${Math.floor(diff / 86400)} дн тому`
+  return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })
+}
+
+const PRIORITY_COLOR: Record<IssuePriority, string> = {
+  low: 'var(--fg-4)',
+  medium: 'var(--accent-soft-fg)',
+  high: 'var(--st-progress-fg)',
+  critical: 'var(--st-open-fg)',
+}
+
+function KanbanCard({
+  bug,
+  draggingId,
+  onDragStart,
+  onDragEnd,
+  onOpen,
+}: {
+  bug: Issue
+  draggingId: number | null
+  onDragStart: () => void
+  onDragEnd: () => void
+  onOpen: () => void
+}) {
+  const priMeta = PRIORITY_MAP[bug.priority]
+  const priColor = PRIORITY_COLOR[bug.priority]
+  const labels = bug.labels_data || []
+  const commentsCount = bug.comments_count ?? 0
+  const attachmentsCount = bug.attachments_count ?? 0
+  return (
+    <div
+      className="kcard"
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onOpen}
+      style={{
+        cursor: 'grab',
+        opacity: draggingId === bug.id ? 0.4 : 1,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      {/* top: id + priority */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+        <span className="id-cell" style={{ fontSize: 11 }}>
+          BUG-{bug.id}
+        </span>
+        {priMeta && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              color: priColor,
+              fontWeight: 500,
+            }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 3,
+                background: priColor,
+              }}
+            />
+            {priMeta.label}
+          </span>
+        )}
+      </div>
+      {/* title */}
+      <div
+        className="title"
+        style={{ fontSize: 13.5, fontWeight: 500, lineHeight: 1.4 }}
+      >
+        {bug.title}
+      </div>
+      {/* labels */}
+      {labels.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {labels.slice(0, 4).map(lb => (
+            <span
+              key={lb.id}
+              className="tag"
+              style={{
+                fontSize: 10.5,
+                padding: '2px 6px',
+                background: 'var(--bg-2)',
+                color: 'var(--fg-2)',
+                borderColor: 'transparent',
+              }}
+            >
+              {lb.name}
+            </span>
+          ))}
+          {labels.length > 4 && (
+            <span style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>
+              +{labels.length - 4}
+            </span>
+          )}
+        </div>
+      )}
+      {/* footer */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 4,
+          fontSize: 11.5,
+          color: 'var(--fg-3)',
+        }}
+      >
+        {bug.reporter && <Avatar user={bug.reporter} />}
+        <span style={{ flex: 1 }}>{kanbanRelative(bug.created_at)}</span>
+        {commentsCount > 0 && (
+          <span
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}
+            title="Коментарі"
+          >
+            <Ic.Comment sz={10} /> {commentsCount}
+          </span>
+        )}
+        {attachmentsCount > 0 && (
+          <span
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}
+            title="Вкладення"
+          >
+            <Ic.Paperclip sz={10} /> {attachmentsCount}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

@@ -52,6 +52,11 @@ export function NewTestPage() {
 
   const [projects, setProjects] = useState<Project[]>([])
   const [suites, setSuites] = useState<TestSuite[]>([])
+  // Inline-створення нового suite прямо з форми тест-кейса, без переходу
+  // на сторінку Тест-кейси.
+  const [creatingSuite, setCreatingSuite] = useState(false)
+  const [newSuiteName, setNewSuiteName] = useState('')
+  const [savingSuite, setSavingSuite] = useState(false)
   const [users, setUsers] = useState<UserShort[]>([])
   const [projectId, setProjectId] = useState<number | null>(null)
   const [suiteId, setSuiteId] = useState<number | null>(null)
@@ -101,6 +106,24 @@ export function NewTestPage() {
     setSteps(s => s.map((x, idx) => (idx === i ? { ...x, ...patch } : x)))
   const removeStep = (i: number) =>
     setSteps(s => (s.length > 1 ? s.filter((_, idx) => idx !== i) : s))
+
+  const submitNewSuite = async () => {
+    const name = newSuiteName.trim()
+    if (!name || !projectId) return
+    setSavingSuite(true)
+    try {
+      const created = await api.createTestSuite({ project: projectId, name })
+      setSuites(prev => [...prev, created])
+      setSuiteId(created.id)
+      setNewSuiteName('')
+      setCreatingSuite(false)
+      toast.show(`Suite «${created.name}» створено`, 'success')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Не вдалося створити suite', 'error')
+    } finally {
+      setSavingSuite(false)
+    }
+  }
 
   const generateStepsFromDescription = () => {
     if (!preconditions.trim()) {
@@ -153,7 +176,7 @@ export function NewTestPage() {
       return
     }
     if (!suiteId) {
-      setError('Спершу створіть suite на сторінці Тест-кейси')
+      setError('Оберіть suite або створіть новий (кнопка «+ Новий» біля поля Suite)')
       return
     }
     setSubmitting(true)
@@ -274,18 +297,13 @@ export function NewTestPage() {
                 }}
               >
                 <label className="form-lbl">Кроки</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    type="button"
-                    className="btn sm ghost"
-                    onClick={generateStepsFromDescription}
-                  >
-                    <Ic.AI sz={11} /> Згенерувати з опису
-                  </button>
-                  <button type="button" className="btn sm ghost" onClick={addStep}>
-                    <Ic.Plus sz={11} /> Додати крок
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="btn sm ghost"
+                  onClick={generateStepsFromDescription}
+                >
+                  <Ic.AI sz={11} /> Згенерувати з опису
+                </button>
               </div>
               <table className="step-table">
                 <thead>
@@ -331,6 +349,35 @@ export function NewTestPage() {
                       </td>
                     </tr>
                   ))}
+                  <tr
+                    onClick={addStep}
+                    style={{ cursor: 'pointer' }}
+                    className="step-table-add-row"
+                    title="Додати ще один крок"
+                  >
+                    <td>
+                      <div
+                        className="num"
+                        style={{
+                          background: 'transparent',
+                          border: '1px dashed var(--border-strong)',
+                          color: 'var(--fg-3)',
+                        }}
+                      >
+                        +
+                      </div>
+                    </td>
+                    <td
+                      colSpan={3}
+                      style={{
+                        color: 'var(--fg-3)',
+                        fontSize: 13,
+                        padding: '10px 12px',
+                      }}
+                    >
+                      Додати крок…
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -409,25 +456,76 @@ export function NewTestPage() {
                   ))}
                 </select>
               </div>
-              <div className="fc-row">
+              <div className="fc-row" style={{ alignItems: creatingSuite ? 'flex-start' : 'center' }}>
                 <span className="fc-lbl">Suite</span>
-                <select
-                  className="inp"
-                  style={{ flex: 1 }}
-                  value={suiteId ?? ''}
-                  onChange={e => setSuiteId(e.target.value ? Number(e.target.value) : null)}
-                  disabled={suites.length === 0}
-                >
-                  {suites.length === 0 ? (
-                    <option value="">Немає suites — створіть</option>
-                  ) : (
-                    suites.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))
-                  )}
-                </select>
+                {creatingSuite ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <input
+                        autoFocus
+                        className="inp"
+                        style={{ flex: 1 }}
+                        placeholder="Назва нового suite…"
+                        value={newSuiteName}
+                        onChange={e => setNewSuiteName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void submitNewSuite()
+                          } else if (e.key === 'Escape') {
+                            setCreatingSuite(false)
+                            setNewSuiteName('')
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn sm primary"
+                        onClick={submitNewSuite}
+                        disabled={!newSuiteName.trim() || savingSuite}
+                      >
+                        {savingSuite ? '…' : 'Створити'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn sm"
+                        onClick={() => {
+                          setCreatingSuite(false)
+                          setNewSuiteName('')
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', gap: 4 }}>
+                    <select
+                      className="inp"
+                      style={{ flex: 1 }}
+                      value={suiteId ?? ''}
+                      onChange={e => setSuiteId(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      {suites.length === 0 && (
+                        <option value="">Немає suites — натисніть +</option>
+                      )}
+                      {suites.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn sm"
+                      onClick={() => setCreatingSuite(true)}
+                      disabled={!projectId}
+                      title={projectId ? 'Створити новий suite' : 'Спершу оберіть проєкт'}
+                    >
+                      <Ic.Plus sz={11} /> Новий
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="fc-row" style={{ alignItems: 'flex-start' }}>
                 <span className="fc-lbl">Тип</span>

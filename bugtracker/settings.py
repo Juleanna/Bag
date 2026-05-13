@@ -167,6 +167,15 @@ EMAIL_BACKEND = env(
     "EMAIL_BACKEND",
     default="django.core.mail.backends.console.EmailBackend",
 )
+# Параметри SMTP — зчитуємо з .env. Без них Django падав би на default
+# localhost:25 і Connection refused у контейнері.
+EMAIL_HOST = env("EMAIL_HOST", default="localhost")
+EMAIL_PORT = env.int("EMAIL_PORT", default=25)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=False)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
 
 # Базовий URL для посилань у email (підтвердження, скидання пароля)
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173")

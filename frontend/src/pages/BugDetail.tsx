@@ -242,6 +242,9 @@ export function BugDetailPage() {
     try {
       const updated = await apiPatch<Issue>(`/issues/${issue.id}/`, patch)
       setIssue(updated)
+      // Подія, на яку реагує Sidebar (лічильник inbox/багів) — у бекенду
+      // _notify створив свіже сповіщення, треба перечитати.
+      window.dispatchEvent(new CustomEvent('issue:changed'))
       toast.show('Оновлено', 'success')
       void reload()
     } catch (e) {
@@ -329,6 +332,8 @@ export function BugDetailPage() {
     if (!ok) return
     try {
       await apiDelete(`/issues/${issue.id}/`)
+      // Сповіщаємо Sidebar, щоб лічильник багів оновився одразу
+      window.dispatchEvent(new CustomEvent('issue:changed'))
       toast.show('Видалено', 'success')
       navigate('/bugs')
     } catch (e) {
@@ -407,13 +412,17 @@ export function BugDetailPage() {
             </button>
             <button className="btn sm" onClick={copyShareLink}><Ic.Link sz={12} /> Поділитись</button>
             {canEdit && (
-              <button className="btn sm" onClick={() => navigate(`/bugs/${issue.id}/edit`)}>
+              <button
+                className="btn sm primary"
+                onClick={() => navigate(`/bugs/${issue.id}/edit`)}
+                title="Редагувати"
+              >
                 <Ic.Edit sz={12} /> Редагувати
               </button>
             )}
             {canEdit && (
-              <button className="btn sm" title="Видалити" onClick={removeIssue}>
-                <Ic.Trash sz={12} />
+              <button className="btn sm danger" onClick={removeIssue} title="Видалити">
+                <Ic.Trash sz={12} /> Видалити
               </button>
             )}
           </div>
@@ -754,16 +763,27 @@ export function BugDetailPage() {
                   <select
                     autoFocus
                     className="select"
-                    value={issue.status}
+                    // Підставляємо id поточного workflow_status; якщо його ще немає
+                    // (legacy issue без FK) — fallback на статус з тим самим key.
+                    value={String(
+                      issue.workflow_status ??
+                        workflowStatuses.find(s => s.key === issue.status)?.id ??
+                        ''
+                    )}
                     onChange={e => {
-                      void updateField({ status: e.target.value as IssueStatus })
+                      const wsId = Number(e.target.value)
+                      // Відправляємо workflow_status (id) — джерело істини на бекенді.
+                      // legacy "status" key не використовуємо, бо кастомні значення
+                      // (наприклад "blocked") не входять у Issue.Status.choices і
+                      // дають 400 Bad Request на валідації DRF.
+                      void updateField({ workflow_status: wsId } as Partial<Issue>)
                       setEditingField(null)
                     }}
                     onBlur={() => setEditingField(null)}
                     style={{ width: '100%' }}
                   >
                     {workflowStatuses.map(s => (
-                      <option key={s.key} value={s.key}>{s.label}</option>
+                      <option key={s.id} value={String(s.id)}>{s.label}</option>
                     ))}
                   </select>
                 ) : (

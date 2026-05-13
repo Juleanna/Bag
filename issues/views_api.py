@@ -6,7 +6,7 @@ from django.db import models, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils.crypto import get_random_string
-from rest_framework import filters, pagination, permissions, status, viewsets
+from rest_framework import filters, pagination, permissions, status, views, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.decorators import permission_classes as drf_permission_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -960,10 +960,18 @@ class StarredIssueViewSet(viewsets.ModelViewSet):
 
 from .models import (  # noqa: E402
     ApiToken,
+    ChangelogEntry,
+    ChangelogReaction,
+    ChangelogSubscription,
     IntegrationConfig,
     IssueTemplate,
     LoginEvent,
+    RoadmapItem,
     SavedFilter,
+    SupportAgentPermission,
+    SupportComment,
+    SupportSettings,
+    SupportTicket,
     Sprint,
     TestCase,
     TestResult,
@@ -974,10 +982,17 @@ from .models import (  # noqa: E402
 )
 from .serializers import (  # noqa: E402
     ApiTokenSerializer,
+    ChangelogEntrySerializer,
+    ChangelogSubscriptionSerializer,
     IntegrationConfigSerializer,
     IssueTemplateSerializer,
     LoginEventSerializer,
+    RoadmapItemSerializer,
     SavedFilterSerializer,
+    SupportAgentPermissionSerializer,
+    SupportCommentSerializer,
+    SupportSettingsSerializer,
+    SupportTicketSerializer,
     SprintSerializer,
     TestCaseSerializer,
     TestResultSerializer,
@@ -1066,6 +1081,320 @@ class SavedFilterViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class ChangelogEntryViewSet(viewsets.ModelViewSet):
+    """Changelog продукту. Читати може будь-який автентифікований користувач,
+    редагувати/створювати/видаляти — лише staff (адміністратор)."""
+
+    serializer_class = ChangelogEntrySerializer
+    parser_classes = [JSONParser, FormParser]
+    pagination_class = StandardResultsSetPagination
+
+    def get_permissions(self):
+        if self.action in {"list", "retrieve"}:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
+
+    def get_queryset(self):
+        qs = ChangelogEntry.objects.all()
+        # Звичайні користувачі бачать лише опубліковані; staff бачить усе.
+        if not (self.request.user.is_authenticated and self.request.user.is_staff):
+            qs = qs.filter(is_published=True)
+        return qs
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[permissions.IsAdminUser],
+    )
+    def notify_subscribers(self, request, pk=None):
+        """Ручна розсилка цього запису всім активним підпискам. Корисно
+        для повторної розсилки відредагованого запису або якщо автоматична
+        не пройшла (наприклад, SMTP не був налаштований при створенні)."""
+        entry = self.get_object()
+        from .changelog_notify import send_release_email
+
+        try:
+            sent = send_release_email(entry)
+        except Exception as exc:
+            # Повертаємо 502 (Bad Gateway) — наш сервер ок, але email-провайдер впав.
+            # У фронта буде конкретний текст у toast'і замість загального "Помилка".
+            return Response(
+                {"detail": f"Не вдалося надіслати email: {exc}"},
+                status=502,
+            )
+        return Response({"sent": sent})
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def helpful(self, request, pk=None):
+        """Toggle реакції «корисно» для запису. Ідемпотентний: повторний
+        виклик знімає реакцію. Повертає актуальне число лайків і прапор
+        is_helpful_by_me."""
+        entry = self.get_object()
+        existing = ChangelogReaction.objects.filter(
+            entry=entry, user=request.user, kind=ChangelogReaction.Kind.HELPFUL
+        ).first()
+        if existing:
+            existing.delete()
+            is_now = False
+        else:
+            ChangelogReaction.objects.create(
+                entry=entry, user=request.user, kind=ChangelogReaction.Kind.HELPFUL
+            )
+            is_now = True
+        count = entry.reactions.filter(kind="helpful").count()
+        return Response({"helpful_count": count, "is_helpful_by_me": is_now})
+
+
+class ChangelogSubscriptionViewSet(viewsets.ModelViewSet):
+    """Адмін-керування підписками на Changelog. Звичайні юзери підписуються
+    через окремий публічний endpoint /api/changelog/subscribe/."""
+
+    serializer_class = ChangelogSubscriptionSerializer
+    queryset = ChangelogSubscription.objects.all()
+    permission_classes = [permissions.IsAdminUser]
+    pagination_class = StandardResultsSetPagination
+
+
+class SupportSettingsView(views.APIView):
+    """Налаштування сторінки «Звʼязатись з нами» — singleton.
+    GET — доступний всім автентифікованим.
+    PATCH — лише staff.
+    """
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
+
+    def get(self, request):
+        obj = SupportSettings.get_solo()
+        return Response(SupportSettingsSerializer(obj).data)
+
+    def patch(self, request):
+        obj = SupportSettings.get_solo()
+        serializer = SupportSettingsSerializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+def _user_support_categories(user):
+    """Повертає (can_view_all: bool, categories: list[str]) для користувача.
+    Адмін (is_staff) автоматично має доступ до всіх категорій.
+    """
+    if not user or not user.is_authenticated:
+        return False, []
+    if user.is_staff:
+        return True, []
+    perm = getattr(user, "support_permission", None)
+    if perm is None:
+        return False, []
+    return bool(perm.can_view_all), list(perm.categories or [])
+
+
+class SupportTicketViewSet(viewsets.ModelViewSet):
+    """Звернення з форми «Звʼязатись з нами».
+
+    Видимість:
+      • адмін / агент з can_view_all=True — усі тікети;
+      • агент з категоріями — тікети у цих категоріях + власні;
+      • звичайний користувач — лише власні тікети.
+
+    Створювати може будь-який автентифікований; змінювати/видаляти —
+    лише той, хто має доступ до тікета (адмін/агент з відповідною
+    категорією).
+    """
+
+    serializer_class = SupportTicketSerializer
+    pagination_class = StandardResultsSetPagination
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = SupportTicket.objects.all()
+        can_all, cats = _user_support_categories(user)
+        if can_all:
+            return qs
+        from django.db.models import Q
+
+        # Власні тікети + ті, на категорії яких є доступ
+        filt = Q(submitted_by=user)
+        if cats:
+            filt |= Q(category__in=cats)
+        return qs.filter(filt).distinct()
+
+    def _can_manage(self, ticket: SupportTicket) -> bool:
+        """Чи може поточний користувач змінити цей тікет."""
+        user = self.request.user
+        can_all, cats = _user_support_categories(user)
+        if can_all:
+            return True
+        return ticket.category in cats
+
+    def update(self, request, *args, **kwargs):
+        if not self._can_manage(self.get_object()):
+            return Response(
+                {"detail": "Немає доступу"}, status=status.HTTP_403_FORBIDDEN
+            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        if not self._can_manage(self.get_object()):
+            return Response(
+                {"detail": "Немає доступу"}, status=status.HTTP_403_FORBIDDEN
+            )
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not self._can_manage(self.get_object()):
+            return Response(
+                {"detail": "Немає доступу"}, status=status.HTTP_403_FORBIDDEN
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(
+            submitted_by=user if user.is_authenticated else None,
+            submitted_email=getattr(user, "email", "") or "",
+        )
+
+    @action(detail=False, methods=["get"], url_path="open_count")
+    def open_count(self, request):
+        """Кількість відкритих тікетів — для лічильника у sidebar.
+        Підраховує тільки ті, які поточний користувач має право бачити."""
+        qs = self.get_queryset().filter(status="open")
+        return Response({"count": qs.count()})
+
+    @action(detail=True, methods=["get", "post"], url_path="comments")
+    def comments(self, request, pk=None):
+        ticket = self.get_object()
+        if request.method == "GET":
+            qs = ticket.comments.select_related("author").all()
+            return Response(SupportCommentSerializer(qs, many=True).data)
+        # POST: новий коментар. Якщо у користувача є manage-доступ — це
+        # відповідь саппорту (is_staff_reply=True); інакше — уточнення.
+        body = str(request.data.get("body", "")).strip()
+        if not body:
+            return Response(
+                {"detail": "Порожнє повідомлення"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        is_staff_reply = self._can_manage(ticket)
+        # Звичайний користувач може писати лише у свій тікет
+        if not is_staff_reply and ticket.submitted_by_id != request.user.id:
+            return Response(
+                {"detail": "Немає доступу"}, status=status.HTTP_403_FORBIDDEN
+            )
+        comment = SupportComment.objects.create(
+            ticket=ticket,
+            author=request.user,
+            body=body,
+            is_staff_reply=is_staff_reply,
+        )
+        # Сповіщення: автору тікета — про staff-reply, агентам — про uplift
+        _notify_support_event(ticket, comment, is_staff_reply)
+        # Email — окремою спробою, помилки SMTP не валять відповідь API
+        try:
+            from .support_notify import notify_reply
+
+            notify_reply(ticket, comment, is_staff_reply)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Не вдалося надіслати email про support-reply"
+            )
+        return Response(SupportCommentSerializer(comment).data, status=201)
+
+
+class SupportAgentPermissionViewSet(viewsets.ModelViewSet):
+    """Адмін-керування правами тех-саппорту: хто за які категорії відповідає."""
+
+    serializer_class = SupportAgentPermissionSerializer
+    queryset = SupportAgentPermission.objects.select_related("user").all()
+    permission_classes = [permissions.IsAdminUser]
+    pagination_class = StandardResultsSetPagination
+
+
+def _notify_support_event(ticket, comment, is_staff_reply: bool) -> None:
+    """Створює Notification у відповідь на створення коментаря.
+    - staff_reply → нотіф автору тікета;
+    - не staff_reply → нотіф усім, хто має доступ до тікета.
+    """
+    from .models import Notification
+
+    if is_staff_reply:
+        if ticket.submitted_by_id and ticket.submitted_by_id != (
+            comment.author_id if comment else None
+        ):
+            Notification.objects.create(
+                user=ticket.submitted_by,
+                issue=None,
+                actor=comment.author if comment else None,
+                kind="support_reply",
+                message=f"Відповідь на ваше звернення: {ticket.subject[:200]}",
+            )
+        return
+    # Не staff: повідомляємо тих, хто має доступ
+    candidates = User.objects.filter(is_staff=True)
+    agent_qs = SupportAgentPermission.objects.all()
+    for perm in agent_qs:
+        if perm.can_view_all or ticket.category in (perm.categories or []):
+            candidates = candidates | User.objects.filter(pk=perm.user_id)
+    for u in candidates.distinct():
+        if u.id == (comment.author_id if comment else None):
+            continue
+        Notification.objects.create(
+            user=u,
+            issue=None,
+            actor=comment.author if comment else None,
+            kind="support_new",
+            message=f"Нове звернення «{ticket.subject[:200]}»",
+        )
+
+
+class RoadmapItemViewSet(viewsets.ModelViewSet):
+    """Дорожня карта. Будь-який залогований може читати, лише staff — писати."""
+
+    serializer_class = RoadmapItemSerializer
+    queryset = RoadmapItem.objects.all()
+    parser_classes = [JSONParser, FormParser]
+    pagination_class = StandardResultsSetPagination
+
+    def get_permissions(self):
+        if self.action in {"list", "retrieve"}:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
+
+
+@api_view(["POST"])
+@drf_permission_classes([permissions.AllowAny])
+def changelog_subscribe(request):
+    """Публічна підписка на оновлення Changelog. Якщо email вже існує —
+    реактивуємо (is_active=True), не створюємо дубль."""
+    email = str(request.data.get("email", "")).strip().lower()
+    if not email:
+        return Response({"detail": "email обовʼязковий"}, status=400)
+    serializer = ChangelogSubscriptionSerializer(data={"email": email})
+    serializer.is_valid()  # викликаємо лише для валідації формату email
+    if "email" in serializer.errors:
+        return Response({"email": serializer.errors["email"]}, status=400)
+    sub, created = ChangelogSubscription.objects.get_or_create(
+        email=email, defaults={"is_active": True}
+    )
+    if not created and not sub.is_active:
+        sub.is_active = True
+        sub.save(update_fields=["is_active"])
+    return Response(
+        {"ok": True, "created": created, "email": email}, status=201 if created else 200
+    )
 
 
 # ============================================================================

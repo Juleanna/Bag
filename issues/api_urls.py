@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from . import views_auth as auth
 from . import views_email, views_media, views_sse
+from .feeds import ChangelogFeed
 from .views_api import (
     ApiTokenViewSet,
     AttachmentViewSet,
@@ -20,7 +21,14 @@ from .views_api import (
     ProjectMembershipViewSet,
     ProjectViewSet,
     RegionViewSet,
+    ChangelogEntryViewSet,
+    ChangelogSubscriptionViewSet,
+    changelog_subscribe,
+    RoadmapItemViewSet,
     SavedFilterViewSet,
+    SupportAgentPermissionViewSet,
+    SupportSettingsView,
+    SupportTicketViewSet,
     SprintViewSet,
     StarredIssueViewSet,
     UserListView,
@@ -73,8 +81,18 @@ router.register(r"api-tokens", ApiTokenViewSet, basename="api-token")
 router.register(r"login-events", LoginEventViewSet, basename="login-event")
 router.register(r"webhooks", WebhookViewSet, basename="webhook")
 router.register(r"integrations", IntegrationConfigViewSet, basename="integration")
+router.register(r"changelog-subscriptions", ChangelogSubscriptionViewSet, basename="changelog-subscription")
+router.register(r"changelog", ChangelogEntryViewSet, basename="changelog")
+router.register(r"roadmap", RoadmapItemViewSet, basename="roadmap")
+router.register(r"support/tickets", SupportTicketViewSet, basename="support-ticket")
+router.register(r"support/agents", SupportAgentPermissionViewSet, basename="support-agent")
 
 urlpatterns = [
+    # Спочатку конкретні URL під /changelog/ — інакше router-в'юсет
+    # перехоплює `feed.rss` як pk і повертає 404.
+    path("changelog/subscribe/", changelog_subscribe, name="changelog-subscribe"),
+    path("changelog/feed.rss", ChangelogFeed(), name="changelog-feed"),
+    path("support/settings/", SupportSettingsView.as_view(), name="support-settings"),
     path("", include(router.urls)),
     # Сесійна автентифікація
     path("auth/csrf/", auth.csrf, name="auth-csrf"),
@@ -114,3 +132,4 @@ urlpatterns = [
     path("issues/bulk-archive/", bulk_archive_issues, name="issues-bulk-archive"),
     path("issues/bulk-restore/", bulk_restore_issues, name="issues-bulk-restore"),
 ]
+
