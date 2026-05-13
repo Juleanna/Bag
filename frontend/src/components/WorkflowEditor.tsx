@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { Ic } from '../icons/Ic'
 import { apiDelete, apiPatch, apiPost, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
+import { invalidateWorkflowCache } from '../hooks/useWorkflow'
 
 export interface WorkflowStatus {
   id: number
@@ -168,6 +169,12 @@ export function WorkflowEditor({
         }
       }
       await Promise.all(ops)
+      // Інвалідуємо кеш useWorkflow для цього проєкту, щоб усі підписники
+      // (EditProject, BugDetail, Kanban тощо) перечитали свіжі статуси.
+      invalidateWorkflowCache(projectId)
+      window.dispatchEvent(
+        new CustomEvent('workflow:changed', { detail: { projectId } })
+      )
       toast.show('Робочий процес збережено', 'success')
       onClose()
     } catch (e) {
