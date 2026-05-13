@@ -81,6 +81,10 @@ router.register(r"changelog", ChangelogEntryViewSet, basename="changelog")
 router.register(r"roadmap", RoadmapItemViewSet, basename="roadmap")
 
 urlpatterns = [
+    # Спочатку конкретні URL під /changelog/ — інакше router-в'юсет
+    # перехоплює `feed.rss` як pk і повертає 404.
+    path("changelog/subscribe/", changelog_subscribe, name="changelog-subscribe"),
+    path("changelog/feed.rss", ChangelogFeed(), name="changelog-feed"),
     path("", include(router.urls)),
     # Сесійна автентифікація
     path("auth/csrf/", auth.csrf, name="auth-csrf"),
@@ -119,8 +123,5 @@ urlpatterns = [
     path("issues/import/", import_issues, name="issues-import"),
     path("issues/bulk-archive/", bulk_archive_issues, name="issues-bulk-archive"),
     path("issues/bulk-restore/", bulk_restore_issues, name="issues-bulk-restore"),
-    # Changelog: публічна підписка + RSS-feed
-    path("changelog/subscribe/", changelog_subscribe, name="changelog-subscribe"),
-    path("changelog/feed.rss", ChangelogFeed(), name="changelog-feed"),
 ]
 
