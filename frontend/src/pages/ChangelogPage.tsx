@@ -248,24 +248,28 @@ export function ChangelogPage() {
       </div>
 
       {/* Filters */}
-      <div className="seg" style={{ marginBottom: 24, width: 'fit-content' }}>
-        {FILTERS.map(f => {
-          const count =
-            f.id === 'all' ? entries.length : entries.filter(e => e.tag === f.id).length
-          return (
-            <button
-              key={f.id}
-              type="button"
-              className={filter === f.id ? 'active' : ''}
-              onClick={() => setFilter(f.id)}
-            >
-              {f.label}{' '}
-              <span style={{ marginLeft: 4, fontSize: 10.5, color: 'var(--fg-4)' }}>
-                {count}
-              </span>
-            </button>
-          )
-        })}
+      <div className="filters" style={{ marginBottom: 24 }}>
+        <div className="seg">
+          {FILTERS.map(f => {
+            const count =
+              f.id === 'all'
+                ? entries.length
+                : entries.filter(e => e.tag === f.id).length
+            return (
+              <button
+                key={f.id}
+                type="button"
+                className={filter === f.id ? 'active' : ''}
+                onClick={() => setFilter(f.id)}
+              >
+                {f.label}
+                <span style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {loading ? (

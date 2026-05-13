@@ -5,6 +5,7 @@
  * Звичайні користувачі бачать лише читалку.
  */
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -43,6 +44,7 @@ const COLUMNS: Column[] = [
 
 export function RoadmapPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const toast = useToast()
   const confirm = useConfirm()
   const isAdmin = !!user?.is_staff
@@ -88,6 +90,29 @@ export function RoadmapPage() {
 
   return (
     <div className="page" style={{ maxWidth: 1200, margin: '0 auto', width: '100%' }}>
+      {/* Хлібні крихти: повернення на Changelog */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 14,
+          fontSize: 13,
+        }}
+      >
+        <button
+          type="button"
+          className="btn ghost sm"
+          onClick={() => navigate('/changelog')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+          <Ic.Chev sz={12} style={{ transform: 'rotate(180deg)' }} />
+          Changelog
+        </button>
+        <span style={{ color: 'var(--fg-4)' }}>/</span>
+        <span style={{ color: 'var(--fg-3)' }}>Дорожня карта</span>
+      </div>
+
       <div className="page-head">
         <div>
           <h1>Дорожня карта</h1>
