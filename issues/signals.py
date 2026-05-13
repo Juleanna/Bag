@@ -266,4 +266,11 @@ def _support_ticket_saved(sender, instance, created, **kwargs):
             )
     except Exception:
         logger.exception("Не вдалося створити support-нотифікації")
+    # Email — окремо, щоб збій SMTP не блокував створення Notification
+    try:
+        from .support_notify import notify_new_ticket
+
+        notify_new_ticket(instance)
+    except Exception:
+        logger.exception("Не вдалося надіслати email про новий support-тікет")
 

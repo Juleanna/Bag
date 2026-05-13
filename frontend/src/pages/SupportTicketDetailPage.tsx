@@ -26,7 +26,12 @@ const STATUS_OPTIONS: { id: SupportTicketStatus; label: string }[] = [
   { id: 'closed', label: 'Закрито' },
 ]
 
-export function SupportTicketDetailPage() {
+export function SupportTicketDetailPage({
+  ownerView = false,
+}: {
+  /** true — рендер під моїми тікетами /support/tickets/:id, false — адмінська /admin/support/tickets/:id */
+  ownerView?: boolean
+}) {
   const { id } = useParams<{ id: string }>()
   const ticketId = Number(id)
   const { user } = useAuth()
@@ -120,10 +125,13 @@ export function SupportTicketDetailPage() {
       >
         <button
           className="btn ghost sm"
-          onClick={() => navigate('/admin/support/tickets')}
+          onClick={() =>
+            navigate(ownerView ? '/support/tickets' : '/admin/support/tickets')
+          }
           style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
         >
-          <Ic.Chev sz={12} style={{ transform: 'rotate(180deg)' }} /> Звернення
+          <Ic.Chev sz={12} style={{ transform: 'rotate(180deg)' }} />{' '}
+          {ownerView ? 'Мої звернення' : 'Звернення'}
         </button>
         <span style={{ color: 'var(--fg-4)' }}>/</span>
         <span className="id-cell" style={{ fontSize: 11.5 }}>
@@ -285,17 +293,33 @@ export function SupportTicketDetailPage() {
                 <label className="form-lbl" style={{ fontSize: 11 }}>
                   Статус
                 </label>
-                <select
-                  className="inp"
-                  value={ticket.status}
-                  onChange={e => updateStatus(e.target.value as SupportTicketStatus)}
-                >
-                  {STATUS_OPTIONS.map(o => (
-                    <option key={o.id} value={o.id}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                {ownerView ? (
+                  <div
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: 13,
+                      borderRadius: 6,
+                      background: 'var(--surface-2)',
+                    }}
+                  >
+                    {STATUS_OPTIONS.find(o => o.id === ticket.status)?.label ||
+                      ticket.status}
+                  </div>
+                ) : (
+                  <select
+                    className="inp"
+                    value={ticket.status}
+                    onChange={e =>
+                      updateStatus(e.target.value as SupportTicketStatus)
+                    }
+                  >
+                    {STATUS_OPTIONS.map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div style={{ fontSize: 12.5 }}>
                 <span style={{ color: 'var(--fg-3)' }}>Пріоритет: </span>

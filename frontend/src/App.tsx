@@ -30,6 +30,7 @@ import { SupportSettingsPage } from './pages/SupportSettingsPage'
 import { SupportTicketsPage } from './pages/SupportTicketsPage'
 import { SupportTicketDetailPage } from './pages/SupportTicketDetailPage'
 import { SupportAgentsPage } from './pages/SupportAgentsPage'
+import { MyTicketsPage } from './pages/MyTicketsPage'
 import { SprintsPage } from './pages/Sprints'
 import { WebhooksPage } from './pages/Webhooks'
 import { TemplatesPage } from './pages/Templates'
@@ -149,6 +150,11 @@ export function App() {
         <Route path="changelog/subscriptions" element={<ChangelogSubscriptionsPage />} />
         <Route path="roadmap" element={<RoadmapPage />} />
         <Route path="support" element={<SupportPage />} />
+        <Route path="support/tickets" element={<MyTicketsPage />} />
+        <Route
+          path="support/tickets/:id"
+          element={<SupportTicketDetailPage ownerView />}
+        />
         <Route path="admin/support" element={<SupportSettingsPage />} />
         <Route path="admin/support/tickets" element={<SupportTicketsPage />} />
         <Route path="admin/support/tickets/:id" element={<SupportTicketDetailPage />} />

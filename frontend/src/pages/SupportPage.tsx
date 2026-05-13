@@ -121,7 +121,14 @@ export function SupportPage() {
           <h1>Звʼязатися з нами</h1>
           <div className="sub">{settings.intro_text}</div>
         </div>
-        <div className="right">
+        <div className="right" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            className="btn"
+            onClick={() => navigate('/support/tickets')}
+            title="Переглянути ваші звернення"
+          >
+            <Ic.Inbox sz={12} /> Мої звернення
+          </button>
           <div
             className="tag"
             style={{

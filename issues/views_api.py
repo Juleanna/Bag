@@ -1300,6 +1300,17 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         )
         # Сповіщення: автору тікета — про staff-reply, агентам — про uplift
         _notify_support_event(ticket, comment, is_staff_reply)
+        # Email — окремою спробою, помилки SMTP не валять відповідь API
+        try:
+            from .support_notify import notify_reply
+
+            notify_reply(ticket, comment, is_staff_reply)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Не вдалося надіслати email про support-reply"
+            )
         return Response(SupportCommentSerializer(comment).data, status=201)
 
 
