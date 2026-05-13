@@ -462,35 +462,6 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
         </div>
       )}
 
-      {user?.is_staff && (
-        <>
-          <button
-            type="button"
-            className="sb-section sb-section-toggle"
-            onClick={() => toggleSection('admin')}
-          >
-            <Ic.Chev
-              sz={10}
-              className={`sb-section-chev ${sectionsCollapsed.admin ? '' : 'open'}`}
-            />
-            <span className="sb-section-label">Адміністрування</span>
-          </button>
-          {!sectionsCollapsed.admin && (
-            <div className="sb-nav">
-              <Item to="/admin/landing" icon={Ic.Settings} label="Лендінг" />
-              <Item to="/admin/regions" icon={Ic.Globe} label="Регіони даних" />
-              <Item
-                to="/admin/support"
-                icon={Ic.Comment}
-                label="Підтримка"
-                count={counts.support}
-                hot={counts.support > 0}
-              />
-            </div>
-          )}
-        </>
-      )}
-
       <div className="sb-section sb-section-toggle">
         <button
           type="button"
@@ -559,6 +530,36 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
           </div>
         ))}
       </div>
+      )}
+
+      {user?.is_staff && (
+        <>
+          <button
+            type="button"
+            className="sb-section sb-section-toggle"
+            onClick={() => toggleSection('admin')}
+          >
+            <Ic.Chev
+              sz={10}
+              className={`sb-section-chev ${sectionsCollapsed.admin ? '' : 'open'}`}
+            />
+            <span className="sb-section-label">Адміністрування</span>
+          </button>
+          {!sectionsCollapsed.admin && (
+            <div className="sb-nav">
+              <Item to="/admin/landing" icon={Ic.Settings} label="Лендінг" />
+              <Item to="/admin/regions" icon={Ic.Globe} label="Регіони даних" />
+              <Item
+                to="/admin/support"
+                icon={Ic.Comment}
+                label="Підтримка"
+                count={counts.support}
+                hot={counts.support > 0}
+              />
+              <Item to="/changelog" icon={Ic.Github} label="Changelog" />
+            </div>
+          )}
+        </>
       )}
 
       <div className="sb-foot">
