@@ -961,6 +961,7 @@ class StarredIssueViewSet(viewsets.ModelViewSet):
 from .models import (  # noqa: E402
     ApiToken,
     ChangelogEntry,
+    ChangelogReaction,
     ChangelogSubscription,
     IntegrationConfig,
     IssueTemplate,
@@ -1093,6 +1094,30 @@ class ChangelogEntryViewSet(viewsets.ModelViewSet):
         if not (self.request.user.is_authenticated and self.request.user.is_staff):
             qs = qs.filter(is_published=True)
         return qs
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def helpful(self, request, pk=None):
+        """Toggle реакції «корисно» для запису. Ідемпотентний: повторний
+        виклик знімає реакцію. Повертає актуальне число лайків і прапор
+        is_helpful_by_me."""
+        entry = self.get_object()
+        existing = ChangelogReaction.objects.filter(
+            entry=entry, user=request.user, kind=ChangelogReaction.Kind.HELPFUL
+        ).first()
+        if existing:
+            existing.delete()
+            is_now = False
+        else:
+            ChangelogReaction.objects.create(
+                entry=entry, user=request.user, kind=ChangelogReaction.Kind.HELPFUL
+            )
+            is_now = True
+        count = entry.reactions.filter(kind="helpful").count()
+        return Response({"helpful_count": count, "is_helpful_by_me": is_now})
 
 
 class RoadmapItemViewSet(viewsets.ModelViewSet):

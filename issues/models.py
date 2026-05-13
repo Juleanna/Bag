@@ -1005,6 +1005,28 @@ class RoadmapItem(models.Model):
         return f"[{self.get_status_display()}] {self.title}"
 
 
+class ChangelogReaction(models.Model):
+    """Реакція користувача на запис Changelog (поки лише «корисно»).
+
+    unique_together (entry, user, kind) робить кнопку ідемпотентною —
+    повторний POST не множить лічильник, але endpoint штовхає toggle.
+    """
+
+    class Kind(models.TextChoices):
+        HELPFUL = "helpful", "Корисно"
+
+    entry = models.ForeignKey(
+        "ChangelogEntry", on_delete=models.CASCADE, related_name="reactions"
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.HELPFUL)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("entry", "user", "kind")
+        indexes = [models.Index(fields=["entry", "kind"])]
+
+
 class ChangelogSubscription(models.Model):
     """Email-підписки на Changelog. При новому опублікованому записі
     через signal надсилається оновлення всім is_active=True підпискам."""

@@ -182,6 +182,8 @@ export interface ChangelogEntry {
   summary: string
   changes: ChangelogChange[]
   is_published: boolean
+  helpful_count?: number
+  is_helpful_by_me?: boolean
   created_at: string
   updated_at: string
 }
@@ -332,6 +334,11 @@ export const api = {
   updateChangelogEntry: (id: number, data: Partial<ChangelogEntry>) =>
     apiPatch<ChangelogEntry>(`/changelog/${id}/`, data),
   deleteChangelogEntry: (id: number) => apiDelete(`/changelog/${id}/`),
+  toggleChangelogHelpful: (id: number) =>
+    apiPost<{ helpful_count: number; is_helpful_by_me: boolean }>(
+      `/changelog/${id}/helpful/`,
+      {}
+    ),
   subscribeChangelog: (email: string) =>
     apiPost<{ ok: boolean; created: boolean; email: string }>(
       '/changelog/subscribe/',

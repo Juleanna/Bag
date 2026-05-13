@@ -100,6 +100,51 @@ export function ChangelogPage() {
     }
   }
 
+  const toggleHelpful = async (entry: ChangelogEntry) => {
+    // Optimistic update
+    const wasHelpful = !!entry.is_helpful_by_me
+    setEntries(arr =>
+      arr.map(e =>
+        e.id === entry.id
+          ? {
+              ...e,
+              is_helpful_by_me: !wasHelpful,
+              helpful_count: (e.helpful_count ?? 0) + (wasHelpful ? -1 : 1),
+            }
+          : e
+      )
+    )
+    try {
+      const res = await api.toggleChangelogHelpful(entry.id)
+      // Синхронізуємо з реальним сервером (на випадок race condition)
+      setEntries(arr =>
+        arr.map(e =>
+          e.id === entry.id
+            ? {
+                ...e,
+                helpful_count: res.helpful_count,
+                is_helpful_by_me: res.is_helpful_by_me,
+              }
+            : e
+        )
+      )
+    } catch (e) {
+      // Відкат
+      setEntries(arr =>
+        arr.map(en =>
+          en.id === entry.id
+            ? {
+                ...en,
+                is_helpful_by_me: wasHelpful,
+                helpful_count: (en.helpful_count ?? 0) + (wasHelpful ? 1 : -1),
+              }
+            : en
+        )
+      )
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
   const shareEntry = async (entry: ChangelogEntry) => {
     const url = `${window.location.origin}/changelog#v${entry.version}`
     try {
@@ -448,6 +493,27 @@ export function ChangelogPage() {
                         title="Скопіювати посилання на цей запис"
                       >
                         <Ic.Link sz={11} /> Поділитись
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn ghost sm ${r.is_helpful_by_me ? 'active' : ''}`}
+                        onClick={() => toggleHelpful(r)}
+                        title={r.is_helpful_by_me ? 'Прибрати «корисно»' : 'Корисно'}
+                        style={{
+                          marginLeft: 'auto',
+                          color: r.is_helpful_by_me
+                            ? 'var(--accent-soft-fg)'
+                            : 'var(--fg-3)',
+                          background: r.is_helpful_by_me
+                            ? 'var(--accent-soft)'
+                            : undefined,
+                          borderColor: r.is_helpful_by_me ? 'transparent' : undefined,
+                        }}
+                      >
+                        <Ic.ChevUp sz={11} />{' '}
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {r.helpful_count ?? 0}
+                        </span>
                       </button>
                     </div>
                   </div>

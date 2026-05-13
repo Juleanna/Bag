@@ -581,10 +581,22 @@ class ChangelogSubscriptionSerializer(serializers.ModelSerializer):
 
 
 class ChangelogEntrySerializer(serializers.ModelSerializer):
+    helpful_count = serializers.SerializerMethodField()
+    is_helpful_by_me = serializers.SerializerMethodField()
+
     class Meta:
         model = ChangelogEntry
         fields = "__all__"
         read_only_fields = ("created_at", "updated_at")
+
+    def get_helpful_count(self, obj: ChangelogEntry) -> int:
+        return obj.reactions.filter(kind="helpful").count()
+
+    def get_is_helpful_by_me(self, obj: ChangelogEntry) -> bool:
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return obj.reactions.filter(user=request.user, kind="helpful").exists()
 
     def validate_changes(self, value):
         if not isinstance(value, list):
