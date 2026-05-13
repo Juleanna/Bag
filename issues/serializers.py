@@ -178,6 +178,10 @@ class IssueSerializer(serializers.ModelSerializer):
     workflow_status = serializers.PrimaryKeyRelatedField(
         queryset=WorkflowStatus.objects.all(), allow_null=True, required=False
     )
+    # Для канбану і списку — імена/кольори лейблів та лічильники коментарів/вкладень
+    labels_data = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
+    attachments_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Issue
@@ -196,6 +200,9 @@ class IssueSerializer(serializers.ModelSerializer):
             "assignee",
             "reporter",
             "labels",
+            "labels_data",
+            "comments_count",
+            "attachments_count",
             "due_date",
             "time_spent_minutes",
             "custom_fields",
@@ -224,6 +231,26 @@ class IssueSerializer(serializers.ModelSerializer):
         if ws:
             return ws.is_done
         return obj.status in ("done", "cancelled")
+
+    def get_labels_data(self, obj: Issue) -> list[dict]:
+        # Беремо name; color у моделі Label — якщо колись додамо, фронт сам стилізує
+        return [
+            {"id": lb.id, "name": getattr(lb, "name", "")}
+            for lb in obj.labels.all()
+        ]
+
+    def get_comments_count(self, obj: Issue) -> int:
+        # Якщо annotate додав значення — використовуємо його (без N+1).
+        val = getattr(obj, "_comments_count", None)
+        if val is not None:
+            return val
+        return obj.comments.count() if hasattr(obj, "comments") else 0
+
+    def get_attachments_count(self, obj: Issue) -> int:
+        val = getattr(obj, "_attachments_count", None)
+        if val is not None:
+            return val
+        return obj.attachments.count() if hasattr(obj, "attachments") else 0
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

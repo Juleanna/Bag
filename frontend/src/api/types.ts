@@ -71,6 +71,9 @@ export interface Issue {
   assignee: number | null
   reporter: UserShort
   labels: number[]
+  labels_data?: { id: number; name: string }[]
+  comments_count?: number
+  attachments_count?: number
   due_date: string | null
   created_at: string
   updated_at: string
