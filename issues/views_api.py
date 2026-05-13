@@ -1107,7 +1107,15 @@ class ChangelogEntryViewSet(viewsets.ModelViewSet):
         entry = self.get_object()
         from .changelog_notify import send_release_email
 
-        sent = send_release_email(entry)
+        try:
+            sent = send_release_email(entry)
+        except Exception as exc:
+            # Повертаємо 502 (Bad Gateway) — наш сервер ок, але email-провайдер впав.
+            # У фронта буде конкретний текст у toast'і замість загального "Помилка".
+            return Response(
+                {"detail": f"Не вдалося надіслати email: {exc}"},
+                status=502,
+            )
         return Response({"sent": sent})
 
     @action(

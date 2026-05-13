@@ -228,5 +228,11 @@ def _changelog_entry_saved(sender, instance, created, **kwargs):
         return
     from .changelog_notify import send_release_email
 
-    send_release_email(instance)
+    try:
+        send_release_email(instance)
+    except Exception:
+        # Email — побічний ефект створення; помилка SMTP не повинна
+        # завалювати save самого ChangelogEntry. Адмін зможе пізніше
+        # розіслати вручну через кнопку.
+        logger.exception("Не вдалося розіслати changelog-нотифікацію (signal)")
 

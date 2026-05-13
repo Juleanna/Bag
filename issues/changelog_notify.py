@@ -27,7 +27,10 @@ TYPE_LABELS = {
 def send_release_email(entry: ChangelogEntry) -> int:
     """Розсилає лист про реліз усім активним підпискам у bcc.
 
-    Повертає кількість адрес, що отримали лист. На помилках логує, не падає.
+    Повертає кількість адрес, що отримали лист.
+    Кидає виняток на SMTP-помилці — щоб ручна кнопка показала причину, а
+    не німо "0 листів" (це плутало адміна: підписники є, а кажуть "немає").
+    Для автоматичного signal'у виняток ловиться зовні (signals.py).
     """
     subs = list(
         ChangelogSubscription.objects.filter(is_active=True).values_list(
@@ -46,11 +49,5 @@ def send_release_email(entry: ChangelogEntry) -> int:
             lines.append(f"• {TYPE_LABELS.get(c.get('type'), '')}: {c['text']}")
     body = "\n".join(lines).strip() or "Деталі — на сторінці Changelog."
     from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@bugtracker.local")
-    try:
-        EmailMessage(subject, body, from_email, to=[], bcc=subs).send(
-            fail_silently=False
-        )
-        return len(subs)
-    except Exception:
-        logger.exception("Не вдалося надіслати changelog v%s", entry.version)
-        return 0
+    EmailMessage(subject, body, from_email, to=[], bcc=subs).send(fail_silently=False)
+    return len(subs)
