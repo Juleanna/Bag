@@ -973,6 +973,21 @@ class IntegrationConfig(models.Model):
         unique_together = ("project", "kind")
 
 
+class ChangelogSubscription(models.Model):
+    """Email-підписки на Changelog. При новому опублікованому записі
+    через signal надсилається оновлення всім is_active=True підпискам."""
+
+    email = models.EmailField(unique=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.email
+
+
 class ChangelogEntry(models.Model):
     """Запис у Changelog продукту — версія, тег, перелік змін.
 

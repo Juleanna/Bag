@@ -319,4 +319,9 @@ export const api = {
   updateChangelogEntry: (id: number, data: Partial<ChangelogEntry>) =>
     apiPatch<ChangelogEntry>(`/changelog/${id}/`, data),
   deleteChangelogEntry: (id: number) => apiDelete(`/changelog/${id}/`),
+  subscribeChangelog: (email: string) =>
+    apiPost<{ ok: boolean; created: boolean; email: string }>(
+      '/changelog/subscribe/',
+      { email }
+    ),
 }

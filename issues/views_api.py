@@ -961,6 +961,7 @@ class StarredIssueViewSet(viewsets.ModelViewSet):
 from .models import (  # noqa: E402
     ApiToken,
     ChangelogEntry,
+    ChangelogSubscription,
     IntegrationConfig,
     IssueTemplate,
     LoginEvent,
@@ -976,6 +977,7 @@ from .models import (  # noqa: E402
 from .serializers import (  # noqa: E402
     ApiTokenSerializer,
     ChangelogEntrySerializer,
+    ChangelogSubscriptionSerializer,
     IntegrationConfigSerializer,
     IssueTemplateSerializer,
     LoginEventSerializer,
@@ -1089,6 +1091,29 @@ class ChangelogEntryViewSet(viewsets.ModelViewSet):
         if not (self.request.user.is_authenticated and self.request.user.is_staff):
             qs = qs.filter(is_published=True)
         return qs
+
+
+@api_view(["POST"])
+@drf_permission_classes([permissions.AllowAny])
+def changelog_subscribe(request):
+    """Публічна підписка на оновлення Changelog. Якщо email вже існує —
+    реактивуємо (is_active=True), не створюємо дубль."""
+    email = str(request.data.get("email", "")).strip().lower()
+    if not email:
+        return Response({"detail": "email обовʼязковий"}, status=400)
+    serializer = ChangelogSubscriptionSerializer(data={"email": email})
+    serializer.is_valid()  # викликаємо лише для валідації формату email
+    if "email" in serializer.errors:
+        return Response({"email": serializer.errors["email"]}, status=400)
+    sub, created = ChangelogSubscription.objects.get_or_create(
+        email=email, defaults={"is_active": True}
+    )
+    if not created and not sub.is_active:
+        sub.is_active = True
+        sub.save(update_fields=["is_active"])
+    return Response(
+        {"ok": True, "created": created, "email": email}, status=201 if created else 200
+    )
 
 
 # ============================================================================

@@ -5,6 +5,7 @@ from .models import (
     ApiToken,
     Attachment,
     ChangelogEntry,
+    ChangelogSubscription,
     ChecklistItem,
     Comment,
     IntegrationConfig,
@@ -562,6 +563,13 @@ class SavedFilterSerializer(serializers.ModelSerializer):
         model = SavedFilter
         fields = "__all__"
         read_only_fields = ("user", "created_at")
+
+
+class ChangelogSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChangelogSubscription
+        fields = ("id", "email", "is_active", "created_at")
+        read_only_fields = ("id", "created_at", "is_active")
 
 
 class ChangelogEntrySerializer(serializers.ModelSerializer):

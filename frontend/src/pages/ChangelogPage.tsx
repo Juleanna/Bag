@@ -74,6 +74,46 @@ export function ChangelogPage() {
   const [filter, setFilter] = useState<FilterId>('all')
   const [editing, setEditing] = useState<ChangelogEntry | null>(null)
   const [creating, setCreating] = useState(false)
+  const [subscribeEmail, setSubscribeEmail] = useState('')
+  const [subscribing, setSubscribing] = useState(false)
+
+  const submitSubscribe = async (email: string) => {
+    const trimmed = email.trim()
+    if (!trimmed) {
+      toast.show('Введіть email', 'error')
+      return
+    }
+    setSubscribing(true)
+    try {
+      const res = await api.subscribeChangelog(trimmed)
+      toast.show(
+        res.created ? 'Підписку оформлено' : 'Ви вже підписані — все ОК',
+        'success'
+      )
+      setSubscribeEmail('')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Не вдалося підписатися', 'error')
+    } finally {
+      setSubscribing(false)
+    }
+  }
+
+  const shareEntry = async (entry: ChangelogEntry) => {
+    const url = `${window.location.origin}/changelog#v${entry.version}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.show('Посилання скопійовано', 'success')
+    } catch {
+      // Fallback для старих браузерів
+      const ta = document.createElement('textarea')
+      ta.value = url
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      toast.show('Посилання скопійовано', 'success')
+    }
+  }
 
   const reload = async () => {
     setLoading(true)
@@ -119,15 +159,42 @@ export function ChangelogPage() {
       <div className="page-head">
         <div>
           <h1>Changelog</h1>
-          <div className="sub">Історія релізів BugTracker</div>
+          <div className="sub">
+            Історія релізів BugTracker · підпишіться, щоб не пропустити
+          </div>
         </div>
-        {isAdmin && (
-          <div className="right">
+        <div className="right" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <a
+            className="btn"
+            href="/api/changelog/feed.rss"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="RSS-стрічка релізів"
+          >
+            <Ic.Rss sz={12} /> RSS
+          </a>
+          <button
+            className="btn"
+            onClick={() => {
+              const el = document.getElementById('changelog-subscribe')
+              el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              setTimeout(
+                () =>
+                  (document.getElementById(
+                    'changelog-subscribe-email'
+                  ) as HTMLInputElement | null)?.focus(),
+                350
+              )
+            }}
+          >
+            <Ic.Mail sz={12} /> Підписатись
+          </button>
+          {isAdmin && (
             <button className="btn primary" onClick={() => setCreating(true)}>
               <Ic.Plus sz={12} /> Новий запис
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -218,7 +285,11 @@ export function ChangelogPage() {
                   </div>
 
                   {/* Content */}
-                  <div className="card" style={{ padding: '20px 24px' }}>
+                  <div
+                    id={`v${r.version}`}
+                    className="card"
+                    style={{ padding: '20px 24px', scrollMarginTop: 80 }}
+                  >
                     <div
                       style={{
                         display: 'flex',
@@ -352,6 +423,28 @@ export function ChangelogPage() {
                         )
                       })}
                     </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 14,
+                        marginTop: 16,
+                        paddingTop: 14,
+                        borderTop: '1px solid var(--divider)',
+                        fontSize: 12,
+                        color: 'var(--fg-3)',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        onClick={() => shareEntry(r)}
+                        title="Скопіювати посилання на цей запис"
+                      >
+                        <Ic.Link sz={11} /> Поділитись
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
@@ -359,6 +452,51 @@ export function ChangelogPage() {
           </div>
         </div>
       )}
+
+      {/* Subscribe-блок внизу сторінки (як у прототипі) */}
+      <div
+        id="changelog-subscribe"
+        style={{
+          marginTop: 32,
+          padding: 28,
+          background: 'var(--bg-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 14,
+          textAlign: 'center',
+        }}
+      >
+        <Ic.Mail sz={24} style={{ color: 'var(--accent-soft-fg)', marginBottom: 8 }} />
+        <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600 }}>
+          Не пропускайте релізи
+        </h3>
+        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--fg-3)' }}>
+          Раз на тиждень — лише важливе. Без спаму.
+        </p>
+        <form
+          onSubmit={e => {
+            e.preventDefault()
+            void submitSubscribe(subscribeEmail)
+          }}
+          style={{ display: 'flex', gap: 8, maxWidth: 400, margin: '0 auto' }}
+        >
+          <input
+            id="changelog-subscribe-email"
+            type="email"
+            className="inp"
+            placeholder="email@company.com"
+            value={subscribeEmail}
+            onChange={e => setSubscribeEmail(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <button
+            type="submit"
+            className="btn primary"
+            disabled={subscribing}
+          >
+            {subscribing ? '…' : 'Підписатись'}
+          </button>
+        </form>
+      </div>
 
       {(editing || creating) && (
         <ChangelogEditor

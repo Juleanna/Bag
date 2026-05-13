@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from . import views_auth as auth
 from . import views_email, views_media, views_sse
+from .feeds import ChangelogFeed
 from .views_api import (
     ApiTokenViewSet,
     AttachmentViewSet,
@@ -21,6 +22,7 @@ from .views_api import (
     ProjectViewSet,
     RegionViewSet,
     ChangelogEntryViewSet,
+    changelog_subscribe,
     SavedFilterViewSet,
     SprintViewSet,
     StarredIssueViewSet,
@@ -115,4 +117,8 @@ urlpatterns = [
     path("issues/import/", import_issues, name="issues-import"),
     path("issues/bulk-archive/", bulk_archive_issues, name="issues-bulk-archive"),
     path("issues/bulk-restore/", bulk_restore_issues, name="issues-bulk-restore"),
+    # Changelog: публічна підписка + RSS-feed
+    path("changelog/subscribe/", changelog_subscribe, name="changelog-subscribe"),
+    path("changelog/feed.rss", ChangelogFeed(), name="changelog-feed"),
 ]
+
