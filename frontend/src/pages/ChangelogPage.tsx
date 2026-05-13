@@ -10,6 +10,7 @@
  * прямо на сторінці. Інші користувачі бачать read-only.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -65,6 +66,7 @@ function formatDate(iso: string): string {
 
 export function ChangelogPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const toast = useToast()
   const confirm = useConfirm()
   const isAdmin = !!user?.is_staff
@@ -188,6 +190,9 @@ export function ChangelogPage() {
             }}
           >
             <Ic.Mail sz={12} /> Підписатись
+          </button>
+          <button className="btn" onClick={() => navigate('/roadmap')}>
+            <Ic.Github sz={12} /> Дорожня карта
           </button>
           {isAdmin && (
             <button className="btn primary" onClick={() => setCreating(true)}>

@@ -23,6 +23,7 @@ from .views_api import (
     RegionViewSet,
     ChangelogEntryViewSet,
     changelog_subscribe,
+    RoadmapItemViewSet,
     SavedFilterViewSet,
     SprintViewSet,
     StarredIssueViewSet,
@@ -77,6 +78,7 @@ router.register(r"login-events", LoginEventViewSet, basename="login-event")
 router.register(r"webhooks", WebhookViewSet, basename="webhook")
 router.register(r"integrations", IntegrationConfigViewSet, basename="integration")
 router.register(r"changelog", ChangelogEntryViewSet, basename="changelog")
+router.register(r"roadmap", RoadmapItemViewSet, basename="roadmap")
 
 urlpatterns = [
     path("", include(router.urls)),

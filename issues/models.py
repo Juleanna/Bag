@@ -973,6 +973,38 @@ class IntegrationConfig(models.Model):
         unique_together = ("project", "kind")
 
 
+class RoadmapItem(models.Model):
+    """Запис на дорожній карті продукту. Адмін додає/редагує; інші читають.
+
+    Колонки за статусом (planned / in_progress / done / cancelled). Сортування
+    у межах колонки — за sort_order, потім за створенням.
+    """
+
+    class Status(models.TextChoices):
+        PLANNED = "planned", "Заплановано"
+        IN_PROGRESS = "in_progress", "У роботі"
+        DONE = "done", "Готово"
+        CANCELLED = "cancelled", "Скасовано"
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PLANNED, db_index=True
+    )
+    quarter = models.CharField(
+        max_length=20, blank=True, help_text="Напр. Q3 2026"
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "-created_at"]
+
+    def __str__(self) -> str:
+        return f"[{self.get_status_display()}] {self.title}"
+
+
 class ChangelogSubscription(models.Model):
     """Email-підписки на Changelog. При новому опублікованому записі
     через signal надсилається оновлення всім is_active=True підпискам."""

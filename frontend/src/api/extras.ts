@@ -160,6 +160,19 @@ export interface ChangelogChange {
   text: string
 }
 
+export type RoadmapStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
+
+export interface RoadmapItem {
+  id: number
+  title: string
+  description: string
+  status: RoadmapStatus
+  quarter: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
 export interface ChangelogEntry {
   id: number
   version: string
@@ -324,4 +337,13 @@ export const api = {
       '/changelog/subscribe/',
       { email }
     ),
+
+  // Roadmap
+  listRoadmap: async () =>
+    unwrap(await apiGet<PaginatedResponse<RoadmapItem>>('/roadmap/?page_size=200')),
+  createRoadmapItem: (data: Partial<RoadmapItem>) =>
+    apiPost<RoadmapItem>('/roadmap/', data),
+  updateRoadmapItem: (id: number, data: Partial<RoadmapItem>) =>
+    apiPatch<RoadmapItem>(`/roadmap/${id}/`, data),
+  deleteRoadmapItem: (id: number) => apiDelete(`/roadmap/${id}/`),
 }

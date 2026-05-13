@@ -965,6 +965,7 @@ from .models import (  # noqa: E402
     IntegrationConfig,
     IssueTemplate,
     LoginEvent,
+    RoadmapItem,
     SavedFilter,
     Sprint,
     TestCase,
@@ -981,6 +982,7 @@ from .serializers import (  # noqa: E402
     IntegrationConfigSerializer,
     IssueTemplateSerializer,
     LoginEventSerializer,
+    RoadmapItemSerializer,
     SavedFilterSerializer,
     SprintSerializer,
     TestCaseSerializer,
@@ -1091,6 +1093,20 @@ class ChangelogEntryViewSet(viewsets.ModelViewSet):
         if not (self.request.user.is_authenticated and self.request.user.is_staff):
             qs = qs.filter(is_published=True)
         return qs
+
+
+class RoadmapItemViewSet(viewsets.ModelViewSet):
+    """Дорожня карта. Будь-який залогований може читати, лише staff — писати."""
+
+    serializer_class = RoadmapItemSerializer
+    queryset = RoadmapItem.objects.all()
+    parser_classes = [JSONParser, FormParser]
+    pagination_class = StandardResultsSetPagination
+
+    def get_permissions(self):
+        if self.action in {"list", "retrieve"}:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
 
 
 @api_view(["POST"])

@@ -7,6 +7,7 @@ from .models import (
     ChangelogEntry,
     ChangelogSubscription,
     ChecklistItem,
+    RoadmapItem,
     Comment,
     IntegrationConfig,
     Invitation,
@@ -563,6 +564,13 @@ class SavedFilterSerializer(serializers.ModelSerializer):
         model = SavedFilter
         fields = "__all__"
         read_only_fields = ("user", "created_at")
+
+
+class RoadmapItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoadmapItem
+        fields = "__all__"
+        read_only_fields = ("created_at", "updated_at")
 
 
 class ChangelogSubscriptionSerializer(serializers.ModelSerializer):
