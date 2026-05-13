@@ -181,7 +181,12 @@ export function HelpModal({ open, onClose }: Props) {
             <button>
               <Ic.Globe sz={13} /> Документація
             </button>
-            <button>
+            <button
+              onClick={() => {
+                onClose()
+                navigate('/support')
+              }}
+            >
               <Ic.Comment sz={13} /> Звʼязатися з підтримкою
             </button>
             <button

@@ -460,6 +460,7 @@ export function Sidebar({ onOpenPalette, collapsed = false, onToggleCollapsed }:
             <div className="sb-nav">
               <Item to="/admin/landing" icon={Ic.Settings} label="Лендінг" />
               <Item to="/admin/regions" icon={Ic.Globe} label="Регіони даних" />
+              <Item to="/admin/support" icon={Ic.Comment} label="Підтримка" />
             </div>
           )}
         </>

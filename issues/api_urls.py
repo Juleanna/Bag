@@ -26,6 +26,8 @@ from .views_api import (
     changelog_subscribe,
     RoadmapItemViewSet,
     SavedFilterViewSet,
+    SupportSettingsView,
+    SupportTicketViewSet,
     SprintViewSet,
     StarredIssueViewSet,
     UserListView,
@@ -81,12 +83,14 @@ router.register(r"integrations", IntegrationConfigViewSet, basename="integration
 router.register(r"changelog-subscriptions", ChangelogSubscriptionViewSet, basename="changelog-subscription")
 router.register(r"changelog", ChangelogEntryViewSet, basename="changelog")
 router.register(r"roadmap", RoadmapItemViewSet, basename="roadmap")
+router.register(r"support/tickets", SupportTicketViewSet, basename="support-ticket")
 
 urlpatterns = [
     # Спочатку конкретні URL під /changelog/ — інакше router-в'юсет
     # перехоплює `feed.rss` як pk і повертає 404.
     path("changelog/subscribe/", changelog_subscribe, name="changelog-subscribe"),
     path("changelog/feed.rss", ChangelogFeed(), name="changelog-feed"),
+    path("support/settings/", SupportSettingsView.as_view(), name="support-settings"),
     path("", include(router.urls)),
     # Сесійна автентифікація
     path("auth/csrf/", auth.csrf, name="auth-csrf"),

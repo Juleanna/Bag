@@ -25,6 +25,8 @@ import { TestCaseDetailPage } from './pages/TestCaseDetail'
 import { ChangelogPage } from './pages/ChangelogPage'
 import { ChangelogSubscriptionsPage } from './pages/ChangelogSubscriptionsPage'
 import { RoadmapPage } from './pages/RoadmapPage'
+import { SupportPage } from './pages/SupportPage'
+import { SupportSettingsPage } from './pages/SupportSettingsPage'
 import { SprintsPage } from './pages/Sprints'
 import { WebhooksPage } from './pages/Webhooks'
 import { TemplatesPage } from './pages/Templates'
@@ -143,6 +145,8 @@ export function App() {
         <Route path="changelog" element={<ChangelogPage />} />
         <Route path="changelog/subscriptions" element={<ChangelogSubscriptionsPage />} />
         <Route path="roadmap" element={<RoadmapPage />} />
+        <Route path="support" element={<SupportPage />} />
+        <Route path="admin/support" element={<SupportSettingsPage />} />
       </Route>
 
       {/* Адмін-панель лендінгу — тільки для is_staff */}

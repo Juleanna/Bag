@@ -6,7 +6,7 @@ from django.db import models, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils.crypto import get_random_string
-from rest_framework import filters, pagination, permissions, status, viewsets
+from rest_framework import filters, pagination, permissions, status, views, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.decorators import permission_classes as drf_permission_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -968,6 +968,8 @@ from .models import (  # noqa: E402
     LoginEvent,
     RoadmapItem,
     SavedFilter,
+    SupportSettings,
+    SupportTicket,
     Sprint,
     TestCase,
     TestResult,
@@ -985,6 +987,8 @@ from .serializers import (  # noqa: E402
     LoginEventSerializer,
     RoadmapItemSerializer,
     SavedFilterSerializer,
+    SupportSettingsSerializer,
+    SupportTicketSerializer,
     SprintSerializer,
     TestCaseSerializer,
     TestResultSerializer,
@@ -1151,6 +1155,51 @@ class ChangelogSubscriptionViewSet(viewsets.ModelViewSet):
     queryset = ChangelogSubscription.objects.all()
     permission_classes = [permissions.IsAdminUser]
     pagination_class = StandardResultsSetPagination
+
+
+class SupportSettingsView(views.APIView):
+    """Налаштування сторінки «Звʼязатись з нами» — singleton.
+    GET — доступний всім автентифікованим.
+    PATCH — лише staff.
+    """
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
+
+    def get(self, request):
+        obj = SupportSettings.get_solo()
+        return Response(SupportSettingsSerializer(obj).data)
+
+    def patch(self, request):
+        obj = SupportSettings.get_solo()
+        serializer = SupportSettingsSerializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class SupportTicketViewSet(viewsets.ModelViewSet):
+    """Звернення з форми «Звʼязатись з нами».
+    Створювати може будь-який автентифікований; читати/змінювати — staff.
+    """
+
+    serializer_class = SupportTicketSerializer
+    queryset = SupportTicket.objects.all()
+    pagination_class = StandardResultsSetPagination
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(
+            submitted_by=user if user.is_authenticated else None,
+            submitted_email=getattr(user, "email", "") or "",
+        )
 
 
 class RoadmapItemViewSet(viewsets.ModelViewSet):

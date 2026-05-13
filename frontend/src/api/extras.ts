@@ -160,6 +160,48 @@ export interface ChangelogChange {
   text: string
 }
 
+export type SupportPriority = 'low' | 'normal' | 'high' | 'urgent'
+export type SupportTicketStatus = 'open' | 'in_progress' | 'closed'
+export type SupportStatusKind = 'operational' | 'degraded' | 'down'
+
+export interface SupportCategory {
+  key: string
+  label: string
+  description: string
+}
+
+export interface SupportSettings {
+  id: number
+  intro_text: string
+  status_kind: SupportStatusKind
+  status_text: string
+  email: string
+  email_response_time: string
+  chat_hours: string
+  community_link: string
+  community_label: string
+  github_link: string
+  github_label: string
+  business_hours_weekday: string
+  business_hours_weekend: string
+  categories: SupportCategory[]
+  updated_at: string
+}
+
+export interface SupportTicket {
+  id: number
+  category: string
+  subject: string
+  priority: SupportPriority
+  description: string
+  status: SupportTicketStatus
+  submitted_by: number | null
+  submitted_by_name: string | null
+  submitted_email: string
+  created_at: string
+  updated_at: string
+}
+
 export type RoadmapStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
 
 export interface RoadmapItem {
@@ -378,4 +420,21 @@ export const api = {
   updateRoadmapItem: (id: number, data: Partial<RoadmapItem>) =>
     apiPatch<RoadmapItem>(`/roadmap/${id}/`, data),
   deleteRoadmapItem: (id: number) => apiDelete(`/roadmap/${id}/`),
+
+  // Support
+  getSupportSettings: () => apiGet<SupportSettings>('/support/settings/'),
+  updateSupportSettings: (data: Partial<SupportSettings>) =>
+    apiPatch<SupportSettings>('/support/settings/', data),
+  createSupportTicket: (data: {
+    category: string
+    subject: string
+    priority: SupportPriority
+    description: string
+  }) => apiPost<SupportTicket>('/support/tickets/', data),
+  listSupportTickets: async () =>
+    unwrap(
+      await apiGet<PaginatedResponse<SupportTicket>>(
+        '/support/tickets/?page_size=100'
+      )
+    ),
 }

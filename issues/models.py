@@ -973,6 +973,135 @@ class IntegrationConfig(models.Model):
         unique_together = ("project", "kind")
 
 
+class SupportSettings(models.Model):
+    """Singleton-конфіг сторінки «Звʼязатись з нами».
+
+    Адмін редагує: категорії звернень, контактні канали, робочий час,
+    статус-плашку. Все інше (тікети) — окрема модель SupportTicket.
+    """
+
+    # Заголовок і підзаголовок
+    intro_text = models.CharField(
+        max_length=255,
+        default="Зазвичай відповідаємо за 4 години у робочий час",
+    )
+
+    # Статус-плашка
+    class StatusKind(models.TextChoices):
+        OPERATIONAL = "operational", "Усі системи працюють"
+        DEGRADED = "degraded", "Часткова деградація"
+        DOWN = "down", "Серйозна аварія"
+
+    status_kind = models.CharField(
+        max_length=20,
+        choices=StatusKind.choices,
+        default=StatusKind.OPERATIONAL,
+    )
+    status_text = models.CharField(
+        max_length=120, default="усі системи працюють"
+    )
+
+    # Канали зв'язку
+    email = models.EmailField(blank=True, default="support@bugtracker.local")
+    email_response_time = models.CharField(
+        max_length=80, blank=True, default="Відповідь до 4 год"
+    )
+    chat_hours = models.CharField(
+        max_length=120, blank=True, default="Пн–Пт, 9:00–18:00"
+    )
+    community_link = models.URLField(blank=True, default="")
+    community_label = models.CharField(
+        max_length=120, blank=True, default="Спільнота у Slack"
+    )
+    github_link = models.URLField(blank=True, default="")
+    github_label = models.CharField(
+        max_length=120, blank=True, default="github.com"
+    )
+
+    # Робочий час
+    business_hours_weekday = models.CharField(
+        max_length=120, blank=True, default="Пн–Пт · 9:00–18:00 EET"
+    )
+    business_hours_weekend = models.CharField(
+        max_length=120, blank=True, default="Сб–Нд · тільки критичні (Enterprise)"
+    )
+
+    # Категорії як JSON: [{key, label, description}]
+    categories = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Список об'єктів {key, label, description}",
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Support settings"
+        verbose_name_plural = "Support settings"
+
+    def __str__(self) -> str:
+        return f"SupportSettings#{self.pk}"
+
+    @classmethod
+    def get_solo(cls) -> "SupportSettings":
+        """Повертає (або створює) єдиний запис налаштувань."""
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create(
+                categories=cls.default_categories(),
+            )
+        return obj
+
+    @staticmethod
+    def default_categories() -> list[dict]:
+        return [
+            {"key": "tech", "label": "Технічна проблема", "description": "Щось зламалось або працює не так"},
+            {"key": "how", "label": "Як це зробити?", "description": "Питання по використанню"},
+            {"key": "feature", "label": "Запит фічі", "description": "Хочу новий функціонал"},
+            {"key": "billing", "label": "Білінг та підписка", "description": "Інвойси, плани, оплата"},
+            {"key": "sales", "label": "Продажі / Enterprise", "description": "Демо, on-prem, SLA"},
+            {"key": "security", "label": "Безпека", "description": "Report vulnerability"},
+        ]
+
+
+class SupportTicket(models.Model):
+    """Звернення користувача через сторінку «Звʼязатись з нами»."""
+
+    class Priority(models.TextChoices):
+        LOW = "low", "Низький"
+        NORMAL = "normal", "Звичайний"
+        HIGH = "high", "Високий"
+        URGENT = "urgent", "Терміновий"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Відкрито"
+        IN_PROGRESS = "in_progress", "В роботі"
+        CLOSED = "closed", "Закрито"
+
+    category = models.CharField(max_length=40)
+    subject = models.CharField(max_length=255)
+    priority = models.CharField(
+        max_length=10, choices=Priority.choices, default=Priority.NORMAL
+    )
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True
+    )
+    submitted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="support_tickets",
+    )
+    submitted_email = models.EmailField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"[{self.get_status_display()}] {self.subject}"
+
+
 class RoadmapItem(models.Model):
     """Запис на дорожній карті продукту. Адмін додає/редагує; інші читають.
 

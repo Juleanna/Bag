@@ -8,6 +8,8 @@ from .models import (
     ChangelogSubscription,
     ChecklistItem,
     RoadmapItem,
+    SupportSettings,
+    SupportTicket,
     Comment,
     IntegrationConfig,
     Invitation,
@@ -564,6 +566,41 @@ class SavedFilterSerializer(serializers.ModelSerializer):
         model = SavedFilter
         fields = "__all__"
         read_only_fields = ("user", "created_at")
+
+
+class SupportSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportSettings
+        fields = "__all__"
+        read_only_fields = ("updated_at",)
+
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    submitted_by_name = serializers.CharField(
+        source="submitted_by.username", read_only=True
+    )
+
+    class Meta:
+        model = SupportTicket
+        fields = (
+            "id",
+            "category",
+            "subject",
+            "priority",
+            "description",
+            "status",
+            "submitted_by",
+            "submitted_by_name",
+            "submitted_email",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "submitted_by",
+            "submitted_by_name",
+            "created_at",
+            "updated_at",
+        )
 
 
 class RoadmapItemSerializer(serializers.ModelSerializer):
