@@ -234,7 +234,7 @@ export function ChangelogPage() {
             Історія релізів BugTracker · підпишіться, щоб не пропустити
           </div>
         </div>
-        <div className="right" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="right" style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
           <a
             className="btn"
             href="/api/changelog/feed.rss"
