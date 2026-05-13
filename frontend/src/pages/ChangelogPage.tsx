@@ -226,7 +226,7 @@ export function ChangelogPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 920, margin: '0 auto', width: '100%' }}>
+    <div className="page" style={{ maxWidth: 'unset' }}>
       <div className="page-head">
         <div>
           <h1>Changelog</h1>

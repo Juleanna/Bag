@@ -95,7 +95,7 @@ export function ChangelogSubscriptionsPage() {
   const activeCount = subs.filter(s => s.is_active).length
 
   return (
-    <div className="page" style={{ maxWidth: 920, margin: '0 auto', width: '100%' }}>
+    <div className="page" style={{ maxWidth: 'unset' }}>
       {/* Хлібні крихти */}
       <div
         style={{
