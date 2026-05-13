@@ -22,6 +22,7 @@ from .views_api import (
     ProjectViewSet,
     RegionViewSet,
     ChangelogEntryViewSet,
+    ChangelogSubscriptionViewSet,
     changelog_subscribe,
     RoadmapItemViewSet,
     SavedFilterViewSet,
@@ -77,6 +78,7 @@ router.register(r"api-tokens", ApiTokenViewSet, basename="api-token")
 router.register(r"login-events", LoginEventViewSet, basename="login-event")
 router.register(r"webhooks", WebhookViewSet, basename="webhook")
 router.register(r"integrations", IntegrationConfigViewSet, basename="integration")
+router.register(r"changelog-subscriptions", ChangelogSubscriptionViewSet, basename="changelog-subscription")
 router.register(r"changelog", ChangelogEntryViewSet, basename="changelog")
 router.register(r"roadmap", RoadmapItemViewSet, basename="roadmap")
 

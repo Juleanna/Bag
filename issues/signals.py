@@ -221,31 +221,12 @@ def _changelog_entry_saved(sender, instance, created, **kwargs):
 
     Тригер: created=True І is_published=True. Чернетки (is_published=False)
     не повідомляють підписників — навіть якщо їх пізніше опублікують.
-    Це навмисно: edit існуючого запису не дзвонить листи повторно.
+    Edit існуючого запису не дзвонить листи повторно — для цього є ручна
+    кнопка «Розіслати» у адмін-UI (action notify_subscribers).
     """
     if not created or not instance.is_published:
         return
-    try:
-        from django.conf import settings
-        from django.core.mail import EmailMessage
+    from .changelog_notify import send_release_email
 
-        subs = list(
-            ChangelogSubscription.objects.filter(is_active=True).values_list(
-                "email", flat=True
-            )
-        )
-        if not subs:
-            return
-        subject = f"BugTracker · v{instance.version}: {instance.title}"
-        type_labels = {"new": "Нове", "imp": "Покращено", "fix": "Виправлено", "sec": "Безпека"}
-        lines = [instance.summary, ""]
-        for c in instance.changes or []:
-            if isinstance(c, dict) and c.get("text"):
-                lines.append(f"• {type_labels.get(c.get('type'), '')}: {c['text']}")
-        body = "\n".join(lines).strip() or "Деталі — на сторінці Changelog."
-        from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@bugtracker.local")
-        # bcc, щоб підписники не бачили одне одного
-        EmailMessage(subject, body, from_email, to=[], bcc=subs).send(fail_silently=True)
-    except Exception:
-        logger.exception("Не вдалося розіслати changelog-нотифікації")
+    send_release_email(instance)
 

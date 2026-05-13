@@ -184,6 +184,30 @@ export function ChangelogPage() {
     [entries, filter]
   )
 
+  const notifySubscribers = async (entry: ChangelogEntry) => {
+    const ok = await confirm({
+      title: `Розіслати v${entry.version}?`,
+      message:
+        'Всі активні підписники отримають email з цим записом. Дія не відмінна.',
+      confirmText: 'Розіслати',
+    })
+    if (!ok) return
+    try {
+      const res = await api.notifyChangelogSubscribers(entry.id)
+      toast.show(
+        res.sent === 0
+          ? 'Немає активних підписників'
+          : `Надіслано ${res.sent} ${res.sent === 1 ? 'лист' : 'листів'}`,
+        res.sent === 0 ? 'info' : 'success'
+      )
+    } catch (e) {
+      toast.show(
+        e instanceof Error ? e.message : 'Не вдалося розіслати',
+        'error'
+      )
+    }
+  }
+
   const removeEntry = async (entry: ChangelogEntry) => {
     const ok = await confirm({
       title: `Видалити v${entry.version}?`,
@@ -240,9 +264,18 @@ export function ChangelogPage() {
             <Ic.Github sz={12} /> Дорожня карта
           </button>
           {isAdmin && (
-            <button className="btn primary" onClick={() => setCreating(true)}>
-              <Ic.Plus sz={12} /> Новий запис
-            </button>
+            <>
+              <button
+                className="btn"
+                onClick={() => navigate('/changelog/subscriptions')}
+                title="Керування підписками"
+              >
+                <Ic.Users sz={12} /> Підписки
+              </button>
+              <button className="btn primary" onClick={() => setCreating(true)}>
+                <Ic.Plus sz={12} /> Новий запис
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -402,6 +435,14 @@ export function ChangelogPage() {
                       </span>
                       {isAdmin && (
                         <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            type="button"
+                            className="btn sm"
+                            onClick={() => notifySubscribers(r)}
+                            title="Розіслати цей запис підписникам"
+                          >
+                            <Ic.Mail sz={11} />
+                          </button>
                           <button
                             type="button"
                             className="btn sm"

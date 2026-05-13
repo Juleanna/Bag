@@ -1098,6 +1098,21 @@ class ChangelogEntryViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
+        permission_classes=[permissions.IsAdminUser],
+    )
+    def notify_subscribers(self, request, pk=None):
+        """Ручна розсилка цього запису всім активним підпискам. Корисно
+        для повторної розсилки відредагованого запису або якщо автоматична
+        не пройшла (наприклад, SMTP не був налаштований при створенні)."""
+        entry = self.get_object()
+        from .changelog_notify import send_release_email
+
+        sent = send_release_email(entry)
+        return Response({"sent": sent})
+
+    @action(
+        detail=True,
+        methods=["post"],
         permission_classes=[permissions.IsAuthenticated],
     )
     def helpful(self, request, pk=None):
@@ -1118,6 +1133,16 @@ class ChangelogEntryViewSet(viewsets.ModelViewSet):
             is_now = True
         count = entry.reactions.filter(kind="helpful").count()
         return Response({"helpful_count": count, "is_helpful_by_me": is_now})
+
+
+class ChangelogSubscriptionViewSet(viewsets.ModelViewSet):
+    """Адмін-керування підписками на Changelog. Звичайні юзери підписуються
+    через окремий публічний endpoint /api/changelog/subscribe/."""
+
+    serializer_class = ChangelogSubscriptionSerializer
+    queryset = ChangelogSubscription.objects.all()
+    permission_classes = [permissions.IsAdminUser]
+    pagination_class = StandardResultsSetPagination
 
 
 class RoadmapItemViewSet(viewsets.ModelViewSet):

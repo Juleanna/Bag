@@ -173,6 +173,13 @@ export interface RoadmapItem {
   updated_at: string
 }
 
+export interface ChangelogSubscriptionRow {
+  id: number
+  email: string
+  is_active: boolean
+  created_at: string
+}
+
 export interface ChangelogEntry {
   id: number
   version: string
@@ -339,6 +346,24 @@ export const api = {
       `/changelog/${id}/helpful/`,
       {}
     ),
+  notifyChangelogSubscribers: (id: number) =>
+    apiPost<{ sent: number }>(`/changelog/${id}/notify_subscribers/`, {}),
+
+  // Адмін-керування підписками
+  listChangelogSubscriptions: async () =>
+    unwrap(
+      await apiGet<PaginatedResponse<ChangelogSubscriptionRow>>(
+        '/changelog-subscriptions/?page_size=500'
+      )
+    ),
+  updateChangelogSubscription: (
+    id: number,
+    data: { is_active: boolean }
+  ) =>
+    apiPatch<ChangelogSubscriptionRow>(`/changelog-subscriptions/${id}/`, data),
+  deleteChangelogSubscription: (id: number) =>
+    apiDelete(`/changelog-subscriptions/${id}/`),
+
   subscribeChangelog: (email: string) =>
     apiPost<{ ok: boolean; created: boolean; email: string }>(
       '/changelog/subscribe/',

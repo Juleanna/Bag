@@ -23,6 +23,7 @@ import { NewTestPage } from './pages/NewTest'
 import { EditTestPage } from './pages/EditTest'
 import { TestCaseDetailPage } from './pages/TestCaseDetail'
 import { ChangelogPage } from './pages/ChangelogPage'
+import { ChangelogSubscriptionsPage } from './pages/ChangelogSubscriptionsPage'
 import { RoadmapPage } from './pages/RoadmapPage'
 import { SprintsPage } from './pages/Sprints'
 import { WebhooksPage } from './pages/Webhooks'
@@ -140,6 +141,7 @@ export function App() {
         <Route path="inbox" element={<InboxPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="changelog" element={<ChangelogPage />} />
+        <Route path="changelog/subscriptions" element={<ChangelogSubscriptionsPage />} />
         <Route path="roadmap" element={<RoadmapPage />} />
       </Route>
 
