@@ -22,14 +22,22 @@ export interface WorkflowStatus {
   is_done: boolean
 }
 
+// Кольори токенів і додатково — щоб охопити основні відтінки.
+// label був раніше невідповідним (var(--st-progress-dot)=#D4951F називався
+// «Синій»), виправлено.
 const PALETTE = [
-  { value: 'var(--st-open-dot)', label: 'Червоний' },
-  { value: 'var(--st-progress-dot)', label: 'Синій' },
-  { value: 'var(--st-blocked-dot)', label: 'Фіолетовий' },
-  { value: 'var(--st-resolved-dot)', label: 'Зелений' },
-  { value: 'var(--st-closed-dot)', label: 'Сірий' },
-  { value: '#D4951F', label: 'Жовтий' },
+  { value: '#E04B43', label: 'Червоний' },
   { value: '#D97757', label: 'Помаранчевий' },
+  { value: '#D4951F', label: 'Жовтий' },
+  { value: '#4CA85C', label: 'Зелений' },
+  { value: '#10B981', label: 'Смарагдовий' },
+  { value: '#0EA5E9', label: 'Бірюзовий' },
+  { value: '#3B82F6', label: 'Синій' },
+  { value: '#5E6AD2', label: 'Indigo' },
+  { value: '#9665C9', label: 'Фіолетовий' },
+  { value: '#EC4899', label: 'Рожевий' },
+  { value: '#6B7280', label: 'Сірий' },
+  { value: '#1F2937', label: 'Чорний' },
 ]
 
 const DEFAULT_STATUSES: Array<Omit<WorkflowStatus, 'id' | 'project'>> = [
