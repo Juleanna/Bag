@@ -120,6 +120,17 @@ def request_password_reset(request):
     Надсилає лист зі скиданням пароля.
     З міркувань privacy завжди повертаємо ok=True (не розкриваємо, чи існує email).
     """
+    # Throttle (password_reset scope, ~3/година) — щоб атакувальник не міг
+    # масово розсилати reset-лист чужим юзерам.
+    from .views_auth import _check_throttle
+
+    ok, wait = _check_throttle(request, "password_reset")
+    if not ok:
+        return JsonResponse(
+            {"ok": False, "error": f"Зачекайте {int(wait)} секунд"},
+            status=429,
+        )
+
     payload = _parse_json(request)
     email = (payload.get("email") or "").strip()
     if not email:

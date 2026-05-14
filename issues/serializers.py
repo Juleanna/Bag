@@ -64,6 +64,11 @@ class LabelSerializer(serializers.ModelSerializer):
 
 
 class WorkflowStatusSerializer(serializers.ModelSerializer):
+    # IDOR-захист: обмежуємо queryset до проєктів, що належать поточному
+    # користувачу (заповнюється у __init__). Інакше будь-який залогінений
+    # юзер міг би через POST/PATCH перепризначити статус у чужий проєкт.
+    project = serializers.PrimaryKeyRelatedField(queryset=Project.objects.none())
+
     class Meta:
         model = WorkflowStatus
         fields = [
@@ -79,6 +84,12 @@ class WorkflowStatusSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user_projects = self.context.get("user_projects")
+        if user_projects is not None:
+            self.fields["project"].queryset = user_projects
 
 
 class RegionSerializer(serializers.ModelSerializer):
@@ -606,7 +617,7 @@ class SupportSettingsSerializer(serializers.ModelSerializer):
 
 class SupportTicketSerializer(serializers.ModelSerializer):
     submitted_by_name = serializers.CharField(
-        source="submitted_by.username", read_only=True
+        source="submitted_by.username", read_only=True, default=None
     )
 
     class Meta:
@@ -631,9 +642,22 @@ class SupportTicketSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    def validate_category(self, value: str) -> str:
+        """Не дозволяємо створювати тікети з фантомною категорією, якої
+        немає у SupportSettings — інакше нікому з агентів не буде доступу."""
+        settings = SupportSettings.get_solo()
+        valid_keys = {c.get("key") for c in (settings.categories or []) if c.get("key")}
+        if value not in valid_keys:
+            raise serializers.ValidationError(
+                f"Невідома категорія «{value}». Доступні: {', '.join(sorted(valid_keys))}"
+            )
+        return value
+
 
 class SupportCommentSerializer(serializers.ModelSerializer):
-    author_name = serializers.CharField(source="author.username", read_only=True)
+    author_name = serializers.CharField(
+        source="author.username", read_only=True, default=None
+    )
 
     class Meta:
         model = SupportComment
@@ -788,7 +812,7 @@ class TestCaseSerializer(serializers.ModelSerializer):
 class TestResultSerializer(serializers.ModelSerializer):
     case_title = serializers.CharField(source="test_case.title", read_only=True)
     executed_by_name = serializers.CharField(
-        source="executed_by.username", read_only=True
+        source="executed_by.username", read_only=True, default=None
     )
 
     class Meta:

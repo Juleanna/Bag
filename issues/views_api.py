@@ -138,7 +138,18 @@ class UserListView(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         from django.contrib.auth import get_user_model
         User = get_user_model()
-        qs = User.objects.filter(is_active=True).order_by("username")
+        user = self.request.user
+        # Адмін бачить усіх; решта — лише користувачів зі спільних проєктів
+        # або просторів. Запобігає enumeration усієї user-бази.
+        if user.is_staff:
+            qs = User.objects.filter(is_active=True)
+        else:
+            user_projects = _user_projects_cached(self.request)
+            qs = User.objects.filter(is_active=True).filter(
+                Q(projects__in=user_projects)
+                | Q(workspaces__in=user.workspaces.all() if hasattr(user, "workspaces") else [])
+            ).distinct()
+        qs = qs.order_by("username")
         # Простий пошук: ?q=foo шукає у username, email, first_name, last_name
         q = self.request.query_params.get("q")
         if q:
@@ -149,7 +160,7 @@ class UserListView(viewsets.ReadOnlyModelViewSet):
                 | Q(last_name__icontains=q)
             )
         # Виключаємо самого себе
-        return qs.exclude(pk=self.request.user.pk)
+        return qs.exclude(pk=user.pk)
 
 
 class IsStaffOrReadOnly(permissions.BasePermission):
@@ -187,6 +198,12 @@ class WorkflowStatusViewSet(viewsets.ModelViewSet):
         if project_id:
             qs = qs.filter(project_id=project_id)
         return qs.order_by("sort_order", "id")
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        # Обмежуємо доступний project queryset членством юзера — захист від IDOR
+        ctx["user_projects"] = _user_projects_cached(self.request)
+        return ctx
 
 
 class WorkspaceViewSet(viewsets.ModelViewSet):
@@ -1637,7 +1654,11 @@ def reports_summary(request):
         ).count()
         days.append({"day": day_iso, "created": created, "closed": closed})
 
-    closed_issues = list(issues_qs.filter(status="done")[:200])
+    # MTTR — детерміновано беремо 200 свіжих закритих (інакше SQL-планувальник
+    # повертав довільні рядки, і метрика змінювалась між запитами).
+    closed_issues = list(
+        issues_qs.filter(status="done").order_by("-updated_at")[:200]
+    )
     durations = [
         (it.updated_at - it.created_at).total_seconds() / 3600 for it in closed_issues
     ]
@@ -1767,14 +1788,31 @@ def import_issues(request):
     with transaction.atomic():
         for it in items:
             try:
+                status_key = it.get("status", "open")
                 issue = Issue.objects.create(
                     project_id=project_id,
                     title=str(it.get("title", ""))[:255] or "Untitled",
                     description=str(it.get("description", "")),
-                    status=it.get("status", "open"),
+                    status=status_key,
                     priority=it.get("priority", "medium"),
                     reporter=request.user,
                 )
+                # Привʼязуємо workflow_status, інакше канбан не покаже issue
+                ws = WorkflowStatus.objects.filter(
+                    project_id=project_id, key=status_key
+                ).first()
+                if ws is None:
+                    ws = (
+                        WorkflowStatus.objects.filter(
+                            project_id=project_id, is_default=True
+                        ).first()
+                        or WorkflowStatus.objects.filter(
+                            project_id=project_id
+                        ).order_by("sort_order").first()
+                    )
+                if ws is not None:
+                    issue.workflow_status = ws
+                    issue.save(update_fields=["workflow_status"])
                 created.append(issue.id)
             except Exception:
                 logger.exception("import_issues: failed for %s", it)

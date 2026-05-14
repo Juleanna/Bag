@@ -201,6 +201,8 @@ REST_FRAMEWORK = {
         # Окремі scope для критичних ендпоінтів — захист від bruteforce
         "login": "10/minute",
         "register": "5/hour",
+        # Скидання пароля — щоб атакувальник не міг спамити email чужому юзеру
+        "password_reset": "3/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }

@@ -6,6 +6,7 @@
 
 from django.contrib.syndication.views import Feed
 from django.urls import reverse
+from django.utils.html import escape
 
 from .models import ChangelogEntry
 
@@ -26,7 +27,7 @@ class ChangelogFeed(Feed):
     def item_description(self, item: ChangelogEntry) -> str:
         parts = []
         if item.summary:
-            parts.append(f"<p>{item.summary}</p>")
+            parts.append(f"<p>{escape(item.summary)}</p>")
         if item.changes:
             parts.append("<ul>")
             type_labels = {
@@ -38,8 +39,8 @@ class ChangelogFeed(Feed):
             for c in item.changes:
                 if not isinstance(c, dict):
                     continue
-                label = type_labels.get(c.get("type"), "")
-                text = c.get("text", "")
+                label = escape(type_labels.get(c.get("type"), ""))
+                text = escape(c.get("text", ""))
                 parts.append(f"<li><b>{label}:</b> {text}</li>")
             parts.append("</ul>")
         return "".join(parts)

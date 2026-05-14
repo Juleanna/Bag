@@ -432,6 +432,8 @@ class Notification(models.Model):
         REVIEW = "review", "Запит на ревʼю"
         FAIL = "fail", "Невдалий тест"
         CLOSED = "closed", "Закрито"
+        SUPPORT_NEW = "support_new", "Нове звернення у підтримку"
+        SUPPORT_REPLY = "support_reply", "Відповідь у зверненні"
         OTHER = "other", "Інше"
 
     user = models.ForeignKey(
