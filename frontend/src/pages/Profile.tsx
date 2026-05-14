@@ -6,7 +6,7 @@
  *  - API-токени (створення/відкликання)
  *  - Історія входів (останні 50 спроб)
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { gradientFor, initialsFor } from '../atoms/Avatar'
@@ -18,48 +18,51 @@ import { api as extras } from '../api/extras'
 import type { ApiToken, LoginEvent } from '../api/extras'
 import type { Issue, Project } from '../api/types'
 
-type TabKey = 'general' | 'security' | 'tfa' | 'tokens' | 'logins'
+type TabKey = 'account' | 'notif' | 'security' | 'integrations' | 'shortcuts' | 'billing'
+
+interface ProfileStats {
+  bugsClosed: number
+  bugsCreated: number
+  projectsCount: number
+  passRate: number | null
+}
 
 export function ProfilePage() {
   const { user, logout, refresh } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
-  const [tab, setTab] = useState<TabKey>('general')
-  const [stats, setStats] = useState<{
-    bugs: number
-    closed: number
-    projects: number
-    lastLogin: string | null
-  }>({ bugs: 0, closed: 0, projects: 0, lastLogin: null })
+  const [tab, setTab] = useState<TabKey>('account')
+  const [stats, setStats] = useState<ProfileStats>({
+    bugsClosed: 0,
+    bugsCreated: 0,
+    projectsCount: 0,
+    passRate: null,
+  })
+  const [myIssues, setMyIssues] = useState<Issue[]>([])
 
-  // Підвантажуємо легку статистику для hero-блоку
+  // Підвантажуємо метрики й активність користувача.
   useEffect(() => {
     if (!user) return
     void (async () => {
       try {
-        const [issues, projects, logins] = await Promise.all([
-          listAll<Issue>('/issues/?page_size=200').catch(() => [] as Issue[]),
-          listAll<Project>('/projects/?page_size=50').catch(() => [] as Project[]),
-          extras.listLoginEvents().catch(() => [] as LoginEvent[]),
+        const [issues, projects] = await Promise.all([
+          listAll<Issue>('/issues/?page_size=500').catch(() => [] as Issue[]),
+          listAll<Project>('/projects/?page_size=100').catch(() => [] as Project[]),
         ])
         const mine = issues.filter(i => i.reporter?.id === user.id)
+        setMyIssues(mine)
         setStats({
-          bugs: mine.length,
-          closed: mine.filter(i => i.status_is_done).length,
-          projects: projects.length,
-          lastLogin:
-            logins.find(l => l.success && l.user === user.id)?.created_at || null,
+          bugsCreated: mine.length,
+          bugsClosed: mine.filter(i => i.status_is_done).length,
+          projectsCount: projects.length,
+          // Pass rate з тест-ранів поки не рахуємо (потребує окремого ендпоінту).
+          passRate: null,
         })
       } catch {
         /* мовчки */
       }
     })()
   }, [user])
-
-  const memberSince = useMemo(() => {
-    // У UserShort немає date_joined — показуємо null, fallback на «—»
-    return null
-  }, [])
 
   if (!user) return null
 
@@ -69,127 +72,134 @@ export function ProfilePage() {
       : user.username
 
   return (
-    <div>
+    <div className="scroll-inner">
+      {/* Banner — аватар, ім'я, теги досягнень, дії */}
       <div className="profile-banner">
-        <div className="pb-bg">
-          <div className="pb-blob pb-blob-1" />
-          <div className="pb-blob pb-blob-2" />
-        </div>
         <div className="pb-row">
-          <AvatarUploader
-            user={user}
-            onChanged={() => refresh()}
-          />
+          <AvatarUploader user={user} onChanged={() => refresh()} />
           <div className="pb-meta">
             <h1>{fullName}</h1>
             <div className="pb-sub">
               <span className="pb-handle">@{user.username}</span>
-              <span style={{ margin: '0 6px', color: 'var(--fg-4)' }}>·</span>
-              <Ic.Inbox sz={11} style={{ marginRight: 4, color: 'var(--fg-3)' }} />
-              <a href={`mailto:${user.email}`} style={{ color: 'var(--fg-2)' }}>
-                {user.email}
-              </a>
+              {user.email && (
+                <>
+                  <span style={{ margin: '0 6px', color: 'var(--fg-4)' }}>·</span>
+                  <Ic.Inbox sz={11} style={{ marginRight: 4, color: 'var(--fg-3)' }} />
+                  <a href={`mailto:${user.email}`} style={{ color: 'var(--fg-2)' }}>
+                    {user.email}
+                  </a>
+                </>
+              )}
             </div>
-            {user.is_staff && (
-              <span
-                className="tag"
-                style={{
-                  marginTop: 8,
-                  background: 'var(--accent-soft)',
-                  color: 'var(--accent-soft-fg)',
-                  borderColor: 'transparent',
-                  fontWeight: 500,
-                }}
-              >
-                <Ic.Shield sz={10} style={{ marginRight: 3 }} /> Адміністратор
-              </span>
-            )}
+            <div className="pb-tags">
+              {user.is_staff && (
+                <span className="tag" style={{ background: 'var(--accent-soft)', color: 'var(--accent-soft-fg)', borderColor: 'transparent' }}>
+                  <Ic.Shield sz={10} /> Адміністратор
+                </span>
+              )}
+              {stats.bugsClosed >= 10 && (
+                <span className="tag">
+                  <Ic.Star sz={10} style={{ color: 'var(--pri-high)' }} /> {stats.bugsClosed} закритих багів
+                </span>
+              )}
+              {(user as { totp_enabled?: boolean }).totp_enabled && (
+                <span className="tag">
+                  <Ic.Shield sz={10} /> 2FA активна
+                </span>
+              )}
+            </div>
           </div>
           <div className="pb-actions">
+            <button className="btn" onClick={() => setTab('account')}>
+              <Ic.Edit sz={13} /> Редагувати профіль
+            </button>
+            <button className="btn primary" onClick={() => navigate('/bugs/new')}>
+              <Ic.Plus sz={13} /> Створити баг
+            </button>
             <button
-              className="btn"
+              className="btn ghost icon"
+              title="Вийти"
               onClick={async () => {
                 await logout()
                 navigate('/login')
               }}
             >
-              <Ic.LogOut sz={13} /> Вийти
+              <Ic.LogOut sz={13} />
             </button>
           </div>
-        </div>
-
-        <div className="pb-stats">
-          <ProfileStat
-            icon={<Ic.Bug sz={14} />}
-            label="Створено багів"
-            value={stats.bugs}
-          />
-          <ProfileStat
-            icon={<Ic.Check2 sz={14} />}
-            label="Закрито"
-            value={stats.closed}
-            tone="resolved"
-          />
-          <ProfileStat
-            icon={<Ic.Layout sz={14} />}
-            label="Проєктів"
-            value={stats.projects}
-          />
-          <ProfileStat
-            icon={<Ic.Clock sz={14} />}
-            label="Останній вхід"
-            value={stats.lastLogin ? formatRelative(stats.lastLogin) : '—'}
-            small
-          />
         </div>
       </div>
 
       <div className="page" style={{ paddingTop: 0 }}>
+        {/* Метрики (4 картки під banner) */}
+        <div className="metrics" style={{ marginBottom: 20 }}>
+          <MetricCard label="Створено багів" value={stats.bugsCreated} />
+          <MetricCard label="Закрито багів" value={stats.bugsClosed} delta={stats.bugsClosed > 0 ? `${Math.round((stats.bugsClosed / Math.max(stats.bugsCreated, 1)) * 100)}% від створених` : null} tone="down" />
+          <MetricCard label="Проєктів" value={stats.projectsCount} />
+          <MetricCard label="Pass rate" value={stats.passRate != null ? `${stats.passRate}%` : '—'} />
+        </div>
+
+        {/* Сітка: tabs (sticky) + content + side */}
         <div className="profile-grid">
-          <div className="profile-tabs">
-            <TabBtn cur={tab} k="general" onClick={setTab} icon={<Ic.User sz={13} />} label="Профіль" />
-            <TabBtn cur={tab} k="security" onClick={setTab} icon={<Ic.Lock sz={13} />} label="Пароль" />
-            <TabBtn cur={tab} k="tfa" onClick={setTab} icon={<Ic.Shield sz={13} />} label="2FA" />
-            <TabBtn cur={tab} k="tokens" onClick={setTab} icon={<Ic.Key sz={13} />} label="API-токени" />
-            <TabBtn cur={tab} k="logins" onClick={setTab} icon={<Ic.Activity sz={13} />} label="Історія входів" />
-          </div>
+          <aside className="profile-tabs">
+            <TabBtn cur={tab} k="account" onClick={setTab} icon={<Ic.User sz={14} />} label="Акаунт" />
+            <TabBtn cur={tab} k="notif" onClick={setTab} icon={<Ic.Bell sz={14} />} label="Сповіщення" />
+            <TabBtn cur={tab} k="security" onClick={setTab} icon={<Ic.Shield sz={14} />} label="Безпека" />
+            <TabBtn cur={tab} k="integrations" onClick={setTab} icon={<Ic.Github sz={14} />} label="Інтеграції" />
+            <TabBtn cur={tab} k="shortcuts" onClick={setTab} icon={<Ic.Lightning sz={14} />} label="Шорткати" />
+            <TabBtn cur={tab} k="billing" onClick={setTab} icon={<Ic.Tag sz={14} />} label="Білінг" />
+          </aside>
 
-          <div>
-            {tab === 'general' && <GeneralForm user={user} onSaved={() => refresh()} />}
+          <div className="profile-content">
+            {tab === 'account' && <GeneralForm user={user} onSaved={() => refresh()} />}
+            {tab === 'notif' && <NotificationsTab />}
             {tab === 'security' && (
-              <SecurityForm onChanged={() => toast.show('Пароль змінено', 'success')} />
+              <SecurityTab
+                onPasswordChanged={() => toast.show('Пароль змінено', 'success')}
+              />
             )}
-            {tab === 'tfa' && <TwoFactorPanel />}
-            {tab === 'tokens' && <ApiTokensPanel />}
-            {tab === 'logins' && <LoginHistoryPanel />}
+            {tab === 'integrations' && <IntegrationsTab />}
+            {tab === 'shortcuts' && <ShortcutsTab />}
+            {tab === 'billing' && <BillingTab />}
           </div>
 
-          <div className="profile-side">
-            <div className="card profile-info-card">
-              <h4>
-                <Ic.Layout sz={11} /> Інформація
-              </h4>
-              <InfoRow icon={<Ic.User sz={11} />} label="ID">
-                <span style={{ fontFamily: 'var(--font-mono)' }}>#{user.id}</span>
-              </InfoRow>
-              <InfoRow icon={<Ic.User sz={11} />} label="Логін">
-                {user.username}
-              </InfoRow>
-              <InfoRow icon={<Ic.Inbox sz={11} />} label="Пошта">
-                {user.email || '—'}
-              </InfoRow>
-              <InfoRow icon={<Ic.Shield sz={11} />} label="Роль">
-                {user.is_staff ? 'Адміністратор' : 'Користувач'}
-              </InfoRow>
-              {memberSince && (
-                <InfoRow icon={<Ic.Calendar sz={11} />} label="З нами з">
-                  {memberSince}
-                </InfoRow>
-              )}
+          <aside className="profile-side">
+            <div className="card">
+              <div className="card-head"><h3>Остання активність</h3></div>
+              <div className="card-body" style={{ paddingTop: 4 }}>
+                <RecentActivity issues={myIssues} />
+              </div>
             </div>
-          </div>
+
+            <div className="card" style={{ marginTop: 14 }}>
+              <div className="card-head"><h3>Контрибуції</h3><span className="sub">90 днів</span></div>
+              <div className="card-body" style={{ paddingTop: 4 }}>
+                <ContributionHeatmap issues={myIssues} />
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
+    </div>
+  )
+}
+
+function MetricCard({
+  label,
+  value,
+  delta,
+  tone,
+}: {
+  label: string
+  value: React.ReactNode
+  delta?: string | null
+  tone?: 'up' | 'down' | 'flat'
+}) {
+  return (
+    <div className="card metric">
+      <div className="metric-lbl">{label}</div>
+      <div className="metric-val">{value}</div>
+      {delta && <div className={`metric-delta ${tone || 'flat'}`}>{delta}</div>}
     </div>
   )
 }
@@ -308,49 +318,6 @@ function AvatarUploader({
   )
 }
 
-function ProfileStat({
-  icon,
-  label,
-  value,
-  small,
-  tone,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: React.ReactNode
-  small?: boolean
-  tone?: 'resolved'
-}) {
-  return (
-    <div className={`pb-stat ${tone || ''}`}>
-      <div className="pb-stat-ico">{icon}</div>
-      <div className="pb-stat-meta">
-        <div className="pb-stat-value" style={small ? { fontSize: 14 } : undefined}>
-          {value}
-        </div>
-        <div className="pb-stat-label">{label}</div>
-      </div>
-    </div>
-  )
-}
-
-function InfoRow({
-  icon,
-  label,
-  children,
-}: {
-  icon: React.ReactNode
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="pf-info-row">
-      <span className="pf-info-ico">{icon}</span>
-      <span className="pf-info-label">{label}</span>
-      <span className="pf-info-value">{children}</span>
-    </div>
-  )
-}
 
 function formatRelative(iso: string): string {
   const d = new Date(iso)
@@ -914,4 +881,374 @@ function formatDate(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+// =============================================================================
+// SecurityTab — об'єднує зміну пароля, 2FA і історію входів (як "Активні сесії")
+// =============================================================================
+function SecurityTab({ onPasswordChanged }: { onPasswordChanged: () => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <TwoFactorPanel />
+      <SecurityForm onChanged={onPasswordChanged} />
+      <LoginHistoryPanel />
+    </div>
+  )
+}
+
+// =============================================================================
+// IntegrationsTab — список зовнішніх сервісів + API-токени
+// =============================================================================
+function IntegrationsTab() {
+  // Поки що — статичний список з плейсхолдерами. API-токени — реальні.
+  const integrations: { Icn: typeof Ic.Github; name: string; info: string; connected: boolean; desc: string }[] = [
+    { Icn: Ic.Github, name: 'GitHub', info: 'Не підключено', connected: false, desc: 'Звʼязує PR з багами, авто-закриває по merge' },
+    { Icn: Ic.Slack, name: 'Slack', info: 'Не підключено', connected: false, desc: 'Сповіщення про критичні баги та failed runs' },
+    { Icn: Ic.AI, name: 'OpenAI', info: 'Не підключено', connected: false, desc: 'AI-підсумки та авто-теги через gpt-4o' },
+    { Icn: Ic.Calendar, name: 'Google Calendar', info: 'Не підключено', connected: false, desc: 'Синхронізує дедлайни багів та test runs' },
+  ]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="card">
+        <div className="card-head"><h3>Підключені сервіси</h3></div>
+        <div className="card-body" style={{ paddingTop: 8 }}>
+          {integrations.map((it, i) => (
+            <div
+              key={it.name}
+              className="int-row"
+              style={{ borderTop: i === 0 ? 'none' : '1px solid var(--divider)' }}
+            >
+              <div className="int-logo"><it.Icn sz={18} /></div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <b>{it.name}</b>
+                  {it.connected && (
+                    <span className="pill resolved">
+                      <span className="dot" style={{ background: 'var(--st-resolved-dot)' }} />
+                      Підключено
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginTop: 2 }}>{it.info}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--fg-4)', marginTop: 4 }}>{it.desc}</div>
+              </div>
+              <button className="btn sm" disabled title="Інтеграцію буде додано згодом">
+                Незабаром
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <ApiTokensPanel />
+    </div>
+  )
+}
+
+// =============================================================================
+// NotificationsTab — налаштування каналів сповіщень (стейт у localStorage)
+// =============================================================================
+const NOTIF_STORAGE_KEY = 'bt:profile:notif:v1'
+const NOTIF_DEFAULT: Record<string, [boolean, boolean, boolean, boolean]> = {
+  'Призначено баг': [true, true, true, true],
+  'Згадка у коментарі': [true, true, true, true],
+  'Коментар у моєму бaзі': [false, true, false, true],
+  'Зміна статусу мого бага': [false, false, false, true],
+  'Failed test у моєму ranі': [true, true, true, true],
+  'Запит на ревʼю кейса': [true, false, true, true],
+  'Тижневий дайджест': [true, false, false, false],
+}
+
+function NotificationsTab() {
+  const [prefs, setPrefs] = useState<typeof NOTIF_DEFAULT>(() => {
+    try {
+      const raw = localStorage.getItem(NOTIF_STORAGE_KEY)
+      if (raw) return JSON.parse(raw)
+    } catch { /* ignore */ }
+    return { ...NOTIF_DEFAULT }
+  })
+  const [quietOn, setQuietOn] = useState(true)
+  const [quietFrom, setQuietFrom] = useState('19:00')
+  const [quietTo, setQuietTo] = useState('09:00')
+
+  const toggle = (key: string, idx: number) => {
+    setPrefs(p => {
+      const cur = p[key] || [false, false, false, false]
+      const next = [...cur] as typeof cur
+      next[idx] = !next[idx]
+      const updated = { ...p, [key]: next }
+      try {
+        localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(updated))
+      } catch { /* ignore */ }
+      return updated
+    })
+  }
+
+  const channels = ['Email', 'Push', 'Slack', 'Інбокс']
+
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Налаштування сповіщень</h3></div>
+      <div className="card-body" style={{ paddingTop: 8 }}>
+        <table className="notif-table">
+          <thead>
+            <tr>
+              <th>Подія</th>
+              {channels.map(c => <th key={c}>{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(prefs).map(([event, vals]) => (
+              <tr key={event}>
+                <td>{event}</td>
+                {vals.map((v, i) => (
+                  <td key={i}>
+                    <span
+                      className={`toggle ${v ? 'on' : ''}`}
+                      onClick={() => toggle(event, i)}
+                      role="checkbox"
+                      aria-checked={v}
+                    >
+                      <span />
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="quiet-hours">
+          <div>
+            <b>Тихі години</b>
+            <div style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
+              Не надсилати push та Slack після робочого часу
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              className="inp"
+              value={quietFrom}
+              onChange={e => setQuietFrom(e.target.value)}
+              style={{ width: 80 }}
+            />
+            <span style={{ color: 'var(--fg-3)' }}>—</span>
+            <input
+              className="inp"
+              value={quietTo}
+              onChange={e => setQuietTo(e.target.value)}
+              style={{ width: 80 }}
+            />
+            <span
+              className={`toggle ${quietOn ? 'on' : ''}`}
+              onClick={() => setQuietOn(q => !q)}
+              role="checkbox"
+              aria-checked={quietOn}
+            >
+              <span />
+            </span>
+          </div>
+        </div>
+        <div style={{ marginTop: 12, fontSize: 11.5, color: 'var(--fg-4)' }}>
+          Налаштування зберігаються локально. Інтеграція з email / push / Slack ще не активна.
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
+// ShortcutsTab — статичний довідник клавіатурних скорочень
+// =============================================================================
+function ShortcutsTab() {
+  const sections: [string, [string, string][]][] = [
+    ['Навігація', [
+      ['Команд палітра', '⌘ K'],
+      ['Огляд', '⌘ 1'],
+      ['Список багів', '⌘ 2'],
+      ['Тест-кейси', '⌘ 3'],
+      ['Test Runs', '⌘ 4'],
+    ]],
+    ['Дії', [
+      ['Створити баг', 'C'],
+      ['Створити кейс', '⇧ C'],
+      ['Призначити мені', 'I'],
+      ['Готово', 'E'],
+      ['Архівувати', '⌘ ⌫'],
+    ]],
+    ['Список', [
+      ['Вгору / Вниз', 'J / K'],
+      ['Відкрити', '↵'],
+      ['Фільтри', 'F'],
+      ['Пошук', '/'],
+    ]],
+  ]
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Клавіатурні скорочення</h3></div>
+      <div className="card-body" style={{ paddingTop: 4 }}>
+        {sections.map(([sec, rows]) => (
+          <div key={sec} className="kbd-section">
+            <h5>{sec}</h5>
+            {rows.map(([name, keys]) => (
+              <div key={name} className="kbd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                <span style={{ fontSize: 13, color: 'var(--fg-2)' }}>{name}</span>
+                <span style={{ display: 'inline-flex', gap: 4 }}>
+                  {keys.split(' ').map((part, i) => (
+                    <span key={i} className="kbd">{part}</span>
+                  ))}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
+// BillingTab — плейсхолдер тарифного плану
+// =============================================================================
+function BillingTab() {
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Тарифний план</h3></div>
+      <div className="card-body" style={{ paddingTop: 8 }}>
+        <div className="plan-card">
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent-soft-fg)' }}>
+              Поточний план
+            </div>
+            <h2 style={{ margin: '6px 0 4px', fontSize: 22, fontWeight: 600 }}>Free</h2>
+            <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>До 5 користувачів · усі базові функції</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.02em' }}>
+              $0<span style={{ fontSize: 14, color: 'var(--fg-3)', fontWeight: 500 }}>/міс</span>
+            </div>
+            <button className="btn primary sm" style={{ marginTop: 8 }} disabled>
+              Покращити план
+            </button>
+          </div>
+        </div>
+        <div style={{ marginTop: 14, fontSize: 12.5, color: 'var(--fg-3)' }}>
+          Платні тарифи (Team / Enterprise) будуть доступні згодом.
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
+// RecentActivity — останні створені баги юзера
+// =============================================================================
+function RecentActivity({ issues }: { issues: Issue[] }) {
+  const navigate = useNavigate()
+  // Сортуємо по updated_at desc, беремо топ-7
+  const recent = [...issues]
+    .sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at))
+    .slice(0, 7)
+
+  if (recent.length === 0) {
+    return (
+      <div style={{ fontSize: 12.5, color: 'var(--fg-3)', padding: '8px 0' }}>
+        Ще немає активності
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {recent.map(it => {
+        const kind = it.status_is_done ? 'closed' : 'create'
+        return (
+          <div
+            key={it.id}
+            className="pf-act"
+            onClick={() => navigate(`/bugs/${it.id}`)}
+            style={{ cursor: 'pointer' }}
+          >
+            <span className={`pf-act-ico ${kind}`}>
+              {kind === 'closed' ? <Ic.Check sz={11} /> : <Ic.Plus sz={11} />}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: 'var(--fg)',
+                  fontWeight: 500,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span className="id-cell">BUG-{it.id}</span> {it.title}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>
+                {formatRelative(it.updated_at || it.created_at)}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+// =============================================================================
+// ContributionHeatmap — heatmap за останні 90 днів за датою створення issue
+// =============================================================================
+function ContributionHeatmap({ issues }: { issues: Issue[] }) {
+  // Рахуємо кількість issue.created_at за день за останні 91 день.
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const days: { date: Date; count: number }[] = []
+  for (let i = 90; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    days.push({ date: d, count: 0 })
+  }
+  const dayKey = (d: Date) => d.toISOString().slice(0, 10)
+  const map = new Map<string, number>()
+  for (const day of days) map.set(dayKey(day.date), 0)
+  for (const it of issues) {
+    const d = new Date(it.created_at)
+    d.setHours(0, 0, 0, 0)
+    const k = dayKey(d)
+    if (map.has(k)) map.set(k, (map.get(k) || 0) + 1)
+  }
+  days.forEach(d => { d.count = map.get(dayKey(d.date)) || 0 })
+
+  // Інтенсивність 0-4
+  const intensity = (count: number) => {
+    if (count === 0) return 0
+    if (count === 1) return 1
+    if (count <= 3) return 2
+    if (count <= 6) return 3
+    return 4
+  }
+
+  // Лейбли місяців (тільки 3, рівномірно)
+  const labels = [days[0]?.date, days[Math.floor(days.length / 2)]?.date, days[days.length - 1]?.date]
+    .filter(Boolean)
+    .map(d => d!.toLocaleDateString('uk-UA', { month: 'long' }))
+
+  return (
+    <>
+      <div className="heatmap">
+        {days.map((d, i) => (
+          <span
+            key={i}
+            className={`hm hm-${intensity(d.count)}`}
+            title={`${d.date.toLocaleDateString('uk-UA')}: ${d.count} ${d.count === 1 ? 'подія' : 'подій'}`}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: 'var(--fg-3)' }}>
+        <span>{labels[0]}</span>
+        <span>{labels[1]}</span>
+        <span>зараз</span>
+      </div>
+    </>
+  )
 }

@@ -17,9 +17,7 @@ import { Skeleton } from '../components/Skeleton'
 import { WorkflowEditor } from '../components/WorkflowEditor'
 import { useWorkflow } from '../hooks/useWorkflow'
 import { displayName } from '../utils/user'
-
-const COLORS = ['#5E6AD2', '#0EA5E9', '#10B981', '#D97757', '#9665C9', '#E04B43', '#D4951F', '#1F1E1A']
-const ICONS: Array<keyof typeof Ic> = ['Layout', 'Mobile', 'Repo', 'Globe', 'Beaker', 'Bug', 'Spark', 'Tag']
+import { PROJECT_COLORS as COLORS, PROJECT_ICONS as ICONS } from '../utils/projectAssets'
 
 const VISIBILITY_OPTIONS: Array<{
   id: ProjectVisibility

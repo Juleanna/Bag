@@ -15,6 +15,7 @@ import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import type { Project, ProjectVisibility, UserShort } from '../api/types'
 import { displayName } from '../utils/user'
+import { PROJECT_COLORS as COLORS, PROJECT_ICONS as ICONS } from '../utils/projectAssets'
 
 interface ProjectTemplate {
   id: 'blank' | 'web' | 'mobile' | 'api' | 'import'
@@ -30,9 +31,6 @@ const TEMPLATES: ProjectTemplate[] = [
   { id: 'api', name: 'API / Backend', desc: 'Контракт-тести, навантаження, безпека. Postman / pytest', icon: 'Repo' },
   { id: 'import', name: 'Імпорт з JIRA / Linear', desc: 'Перенести існуючі баги, кейси та користувачів', icon: 'Download' },
 ]
-
-const COLORS = ['#5E6AD2', '#0EA5E9', '#10B981', '#D97757', '#9665C9', '#E04B43', '#D4951F', '#1F1E1A']
-const ICONS: Array<keyof typeof Ic> = ['Layout', 'Mobile', 'Repo', 'Globe', 'Beaker', 'Bug', 'Spark', 'Tag']
 
 const VISIBILITY_OPTIONS: Array<{
   id: ProjectVisibility
