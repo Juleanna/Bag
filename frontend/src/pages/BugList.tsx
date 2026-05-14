@@ -1101,7 +1101,14 @@ function KanbanView({
                   key={b.id}
                   bug={b}
                   draggingId={dragId}
-                  onDragStart={() => setDragId(b.id)}
+                  onDragStart={e => {
+                    setDragId(b.id)
+                    // Firefox не стартує drag без dataTransfer.setData
+                    if (e.dataTransfer) {
+                      e.dataTransfer.setData('text/plain', String(b.id))
+                      e.dataTransfer.effectAllowed = 'move'
+                    }
+                  }}
                   onDragEnd={() => {
                     setDragId(null)
                     setHoverCol(null)
@@ -1156,7 +1163,7 @@ function KanbanCard({
 }: {
   bug: Issue
   draggingId: number | null
-  onDragStart: () => void
+  onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
   onOpen: () => void
 }) {

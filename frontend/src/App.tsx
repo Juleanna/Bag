@@ -155,10 +155,6 @@ export function App() {
           path="support/tickets/:id"
           element={<SupportTicketDetailPage ownerView />}
         />
-        <Route path="admin/support" element={<SupportSettingsPage />} />
-        <Route path="admin/support/tickets" element={<SupportTicketsPage />} />
-        <Route path="admin/support/tickets/:id" element={<SupportTicketDetailPage />} />
-        <Route path="admin/support/agents" element={<SupportAgentsPage />} />
       </Route>
 
       {/* Адмін-панель лендінгу — тільки для is_staff */}
@@ -169,6 +165,10 @@ export function App() {
           </RequireStaff>
         }
       >
+        <Route path="admin/support" element={<SupportSettingsPage />} />
+        <Route path="admin/support/tickets" element={<SupportTicketsPage />} />
+        <Route path="admin/support/tickets/:id" element={<SupportTicketDetailPage />} />
+        <Route path="admin/support/agents" element={<SupportAgentsPage />} />
         <Route path="admin/regions" element={<AdminRegionsPage />} />
         <Route path="admin/landing" element={<AdminLandingLayout />}>
           <Route index element={<AdminHero />} />
