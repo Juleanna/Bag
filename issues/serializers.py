@@ -567,6 +567,9 @@ class SprintSerializer(serializers.ModelSerializer):
         read_only_fields = ("created_at",)
 
     def get_issues_count(self, obj):
+        val = getattr(obj, "_issues_count", None)
+        if val is not None:
+            return val
         return obj.issues.count()
 
 
@@ -720,12 +723,20 @@ class ChangelogEntrySerializer(serializers.ModelSerializer):
         read_only_fields = ("created_at", "updated_at")
 
     def get_helpful_count(self, obj: ChangelogEntry) -> int:
+        # ViewSet робить annotate(_helpful_count=Count(...)) — без N+1
+        val = getattr(obj, "_helpful_count", None)
+        if val is not None:
+            return val
         return obj.reactions.filter(kind="helpful").count()
 
     def get_is_helpful_by_me(self, obj: ChangelogEntry) -> bool:
+        # ViewSet робить prefetch reactions_by_me — інакше fallback на query
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
+        prefetched = getattr(obj, "_my_reactions", None)
+        if prefetched is not None:
+            return any(r.user_id == request.user.id for r in prefetched)
         return obj.reactions.filter(user=request.user, kind="helpful").exists()
 
     def validate_changes(self, value):
@@ -759,6 +770,9 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         read_only_fields = ("created_at",)
 
     def get_cases_count(self, obj):
+        val = getattr(obj, "_cases_count", None)
+        if val is not None:
+            return val
         return obj.test_cases.count()
 
 
@@ -796,14 +810,28 @@ class TestCaseSerializer(serializers.ModelSerializer):
         steps = obj.steps or []
         return len(steps) if isinstance(steps, list) else 0
 
+    def _latest_result(self, obj):
+        """Повертає найсвіжіший TestResult з prefetch або БД (з кешуванням
+        у атрибуті обʼєкта, щоб уникнути дублів між get_last_result і
+        get_last_run_at)."""
+        if "_cached_latest" in obj.__dict__:
+            return obj.__dict__["_cached_latest"]
+        prefetched = getattr(obj, "_recent_results", None)
+        if prefetched is not None:
+            last = prefetched[0] if prefetched else None
+        else:
+            last = obj.results.order_by("-id").first() if hasattr(obj, "results") else None
+        obj.__dict__["_cached_latest"] = last
+        return last
+
     def get_last_result(self, obj):
         """Останній статус виконання кейса (з найновішого TestResult)."""
-        last = obj.results.order_by("-id").first() if hasattr(obj, "results") else None
+        last = self._latest_result(obj)
         return last.result if last else None
 
     def get_last_run_at(self, obj):
         """Час останнього виконання кейса (executed_at останнього TestResult)."""
-        last = obj.results.order_by("-id").first() if hasattr(obj, "results") else None
+        last = self._latest_result(obj)
         if last and last.executed_at:
             return last.executed_at.isoformat()
         return None
@@ -831,12 +859,21 @@ class TestRunSerializer(serializers.ModelSerializer):
         read_only_fields = ("created_by", "created_at")
 
     def get_cases_total(self, obj):
+        val = getattr(obj, "_cases_total", None)
+        if val is not None:
+            return val
         return obj.test_cases.count()
 
     def get_pass_count(self, obj):
+        val = getattr(obj, "_pass_count", None)
+        if val is not None:
+            return val
         return obj.results.filter(result="pass").count()
 
     def get_fail_count(self, obj):
+        val = getattr(obj, "_fail_count", None)
+        if val is not None:
+            return val
         return obj.results.filter(result="fail").count()
 
 

@@ -1032,8 +1032,14 @@ class SprintViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, FormParser]
 
     def get_queryset(self):
+        from django.db.models import Count
+
         user_projects = _user_projects_cached(self.request)
-        qs = Sprint.objects.filter(project__in=user_projects).select_related("project")
+        qs = (
+            Sprint.objects.filter(project__in=user_projects)
+            .select_related("project")
+            .annotate(_issues_count=Count("issues", distinct=True))
+        )
         project_id = self.request.query_params.get("project")
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -1114,10 +1120,30 @@ class ChangelogEntryViewSet(viewsets.ModelViewSet):
         return [permissions.IsAdminUser()]
 
     def get_queryset(self):
+        from django.db.models import Count, Prefetch, Q
+
         qs = ChangelogEntry.objects.all()
         # Звичайні користувачі бачать лише опубліковані; staff бачить усе.
         if not (self.request.user.is_authenticated and self.request.user.is_staff):
             qs = qs.filter(is_published=True)
+        # Анотуємо лічильник helpful + prefetch'имо лише власні реакції юзера —
+        # без N+1 у списку.
+        qs = qs.annotate(
+            _helpful_count=Count(
+                "reactions", filter=Q(reactions__kind="helpful"), distinct=True
+            )
+        )
+        user = self.request.user
+        if user.is_authenticated:
+            qs = qs.prefetch_related(
+                Prefetch(
+                    "reactions",
+                    queryset=ChangelogReaction.objects.filter(
+                        user=user, kind="helpful"
+                    ),
+                    to_attr="_my_reactions",
+                )
+            )
         return qs
 
     @action(
@@ -1426,8 +1452,12 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, FormParser]
 
     def get_queryset(self):
+        from django.db.models import Count
+
         user_projects = _user_projects_cached(self.request)
-        qs = TestSuite.objects.filter(project__in=user_projects)
+        qs = TestSuite.objects.filter(project__in=user_projects).annotate(
+            _cases_count=Count("test_cases", distinct=True)
+        )
         project_id = self.request.query_params.get("project")
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -1441,9 +1471,21 @@ class TestCaseViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, FormParser]
 
     def get_queryset(self):
+        from django.db.models import Prefetch
+
         user_projects = _user_projects_cached(self.request)
-        qs = TestCase.objects.filter(suite__project__in=user_projects).select_related(
-            "suite", "created_by"
+        # Prefetch найсвіжіших результатів — щоб get_last_result/get_last_run_at
+        # не робили окремий запит на кожен кейс.
+        qs = (
+            TestCase.objects.filter(suite__project__in=user_projects)
+            .select_related("suite", "created_by")
+            .prefetch_related(
+                Prefetch(
+                    "results",
+                    queryset=TestResult.objects.order_by("-id"),
+                    to_attr="_recent_results",
+                )
+            )
         )
         suite_id = self.request.query_params.get("suite")
         if suite_id:
@@ -1464,9 +1506,21 @@ class TestRunViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, FormParser]
 
     def get_queryset(self):
+        from django.db.models import Count, Q
+
         user_projects = _user_projects_cached(self.request)
-        qs = TestRun.objects.filter(project__in=user_projects).prefetch_related(
-            "test_cases", "results"
+        qs = (
+            TestRun.objects.filter(project__in=user_projects)
+            .prefetch_related("test_cases", "results")
+            .annotate(
+                _cases_total=Count("test_cases", distinct=True),
+                _pass_count=Count(
+                    "results", filter=Q(results__result="pass"), distinct=True
+                ),
+                _fail_count=Count(
+                    "results", filter=Q(results__result="fail"), distinct=True
+                ),
+            )
         )
         project_id = self.request.query_params.get("project")
         if project_id:
