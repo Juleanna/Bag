@@ -18,6 +18,7 @@ import type { SavedFilter } from '../api/extras'
 import { useToast } from '../context/ToastContext'
 import { useConfirm, usePrompt } from '../context/ConfirmContext'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
+import { useWorkflowMap } from '../hooks/useWorkflow'
 import { Skeleton } from '../components/Skeleton'
 import { displayName } from '../utils/user'
 
@@ -83,7 +84,23 @@ export function BugListPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<ViewMode>('list')
+  // Persisted у localStorage — щоб після reload/повернення з іншої сторінки
+  // канбан-вид не скидався на таблицю.
+  const [view, setView] = useState<ViewMode>(() => {
+    try {
+      const v = localStorage.getItem('bt:bugs:view')
+      return v === 'kanban' ? 'kanban' : 'list'
+    } catch {
+      return 'list'
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('bt:bugs:view', view)
+    } catch {
+      /* ignore */
+    }
+  }, [view])
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [filters, setFilters] = useState<Filters>({
     ...DEFAULT_FILTERS,
@@ -720,7 +737,13 @@ export function BugListPage() {
           columns={columns}
         />
       ) : (
-        <KanbanView issues={filtered} navigate={navigate} onReload={reload} />
+        <KanbanView
+          issues={filtered}
+          navigate={navigate}
+          onReload={reload}
+          projectFilter={filters.project}
+          projects={projects}
+        />
       )}
 
       {/* Bulk action bar */}
@@ -966,49 +989,86 @@ function KanbanView({
   issues,
   navigate,
   onReload,
+  projectFilter,
+  projects,
 }: {
   issues: Issue[]
   navigate: ReturnType<typeof useNavigate>
   onReload: () => Promise<void> | void
+  /** Активний фільтр по проєкту з шапки (number — id, 'all' — усі) */
+  projectFilter: number | 'all'
+  /** Список доступних проєктів (для підвантаження їхніх workflow) */
+  projects: Project[]
 }) {
   const toast = useToast()
   const [dragId, setDragId] = useState<number | null>(null)
   const [hoverCol, setHoverCol] = useState<string | null>(null)
 
-  // Канбан-колонки: групуємо по status (legacy key), але запам'ятовуємо
-  // workflow_status id для PATCH — щоб працювало і для кастомних статусів,
-  // ключі яких відсутні у Issue.Status.choices (інакше PATCH видасть 400).
-  const columnsMap = new Map<
-    string,
-    { label: string; color: string; wsId: number | null }
-  >()
-  for (const i of issues) {
-    const existing = columnsMap.get(i.status)
-    if (!existing) {
-      columnsMap.set(i.status, {
-        label: i.status_display || (STATUS_MAP[i.status]?.label ?? i.status),
-        color: i.status_color || STATUS_MAP[i.status]?.dot || 'var(--st-open-dot)',
-        wsId: i.workflow_status ?? null,
-      })
-    } else if (existing.wsId === null && i.workflow_status) {
-      existing.wsId = i.workflow_status
+  // Якщо обрано конкретний проєкт — використовуємо саме його workflow.
+  // Інакше беремо workflow усіх доступних проєктів і об'єднуємо.
+  const targetProjectIds = useMemo(
+    () =>
+      projectFilter === 'all'
+        ? projects.map(p => p.id)
+        : [projectFilter as number],
+    [projectFilter, projects]
+  )
+  const workflowMap = useWorkflowMap(targetProjectIds)
+
+  // Будуємо колонки з усіх workflow-статусів (НЕ лише з тих, що є серед
+  // issues), щоб користувач міг перетягнути баг у порожню колонку.
+  const columns = useMemo(() => {
+    const byKey = new Map<
+      string,
+      { label: string; color: string; wsId: number | null; sortOrder: number }
+    >()
+    for (const pid of targetProjectIds) {
+      const ws = workflowMap.get(pid) || []
+      for (const s of ws) {
+        const existing = byKey.get(s.key)
+        if (!existing) {
+          byKey.set(s.key, {
+            label: s.label,
+            color: s.color,
+            wsId: s.id > 0 ? s.id : null,
+            sortOrder: s.sort_order,
+          })
+        }
+      }
     }
-  }
-  if (columnsMap.size === 0) {
-    for (const k of ['open', 'in_progress', 'done', 'cancelled']) {
-      columnsMap.set(k, {
-        label: STATUS_MAP[k].label,
-        color: STATUS_MAP[k].dot,
-        wsId: null,
-      })
+    // Fallback: якщо workflow ще не підвантажилися — будуємо з самих issues
+    // (як раніше), щоб канбан не був пустий.
+    if (byKey.size === 0) {
+      for (const i of issues) {
+        if (!byKey.has(i.status)) {
+          byKey.set(i.status, {
+            label:
+              i.status_display || STATUS_MAP[i.status]?.label || i.status,
+            color:
+              i.status_color || STATUS_MAP[i.status]?.dot || 'var(--st-open-dot)',
+            wsId: i.workflow_status ?? null,
+            sortOrder: 999,
+          })
+        }
+      }
     }
-  }
-  const columns = Array.from(columnsMap.entries()).map(([id, meta]) => ({
-    id,
-    label: meta.label,
-    color: meta.color,
-    wsId: meta.wsId,
-  }))
+    // Догадуємось wsId для дефолтних key з даних issues (для бекенд-фоллбеку)
+    for (const i of issues) {
+      const col = byKey.get(i.status)
+      if (col && col.wsId === null && i.workflow_status) {
+        col.wsId = i.workflow_status
+      }
+    }
+    return Array.from(byKey.entries())
+      .map(([id, meta]) => ({
+        id,
+        label: meta.label,
+        color: meta.color,
+        wsId: meta.wsId,
+        sortOrder: meta.sortOrder,
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+  }, [workflowMap, targetProjectIds, issues])
 
   const handleDrop = async (
     col: { id: string; wsId: number | null }
