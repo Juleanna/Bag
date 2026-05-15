@@ -20,6 +20,7 @@ import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import type { Issue, IssuePriority, IssueStatus, Project, UserShort } from '../api/types'
 import { displayName } from '../utils/user'
+import { DuplicatePanel } from '../components/DuplicatePanel'
 
 const DRAFT_KEY = 'bt:newbug:draft'
 
@@ -298,18 +299,13 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Підказки AI-помічника на основі схожих заголовків (фронт-сайд fuzzy match,
-  // поки немає бекенд-ендпоінта для семантичного пошуку).
-  const [allIssues, setAllIssues] = useState<Issue[]>([])
+  // (історичний state allIssues видалено разом зі старим fuzzy-match;
+  // підказки тепер живуть у DuplicatePanel через /api/ai/duplicates)
 
   useEffect(() => {
     void (async () => {
-      const [ps, iss] = await Promise.all([
-        listAll<Project>('/projects/?page_size=50'),
-        listAll<Issue>('/issues/?page_size=200').catch(() => [] as Issue[]),
-      ])
+      const ps = await listAll<Project>('/projects/?page_size=50')
       setProjects(ps)
-      setAllIssues(iss)
 
       // Edit-режим: завантажити існуючий баг і заповнити форму
       if (isEdit && editId) {
@@ -473,29 +469,6 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
     setDraftSavedAt(t)
     toast.show(`Чернетку збережено о ${t}`, 'success')
   }
-
-  // AI-помічник: знайти схожі баги за збігом слів у заголовку.
-  // У edit-режимі не показуємо (це фіча для пошуку дублікатів при створенні);
-  // якби показували — мусили б принаймні виключити сам редагований баг із результатів.
-  const aiSuggestions = useMemo(() => {
-    if (isEdit) return []
-    const q = title.trim().toLowerCase()
-    if (q.length < 4) return []
-    const tokens = q.split(/\s+/).filter(t => t.length >= 3)
-    if (tokens.length === 0) return []
-    const currentId = editId ? Number(editId) : null
-    return allIssues
-      .filter(it => it.id !== currentId)
-      .map(it => {
-        const t = (it.title || '').toLowerCase()
-        const match = tokens.filter(tok => t.includes(tok)).length
-        const ratio = match / tokens.length
-        return { issue: it, ratio }
-      })
-      .filter(x => x.ratio >= 0.5)
-      .sort((a, b) => b.ratio - a.ratio)
-      .slice(0, 3)
-  }, [title, allIssues, isEdit, editId])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -696,43 +669,13 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
               <div className="hint">Стисло, як у git commit. Деталі — нижче.</div>
             </div>
 
-            {/* AI-помічник: схожі баги */}
-            {aiSuggestions.length > 0 && (
-              <div className="ai-card" style={{ marginTop: 18 }}>
-                <div className="head">
-                  <Ic.AI sz={14} style={{ color: 'var(--accent-soft-fg)' }} />
-                  <b>AI-помічник</b>
-                  <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--fg-3)' }}>
-                    Знайдено {aiSuggestions.length}{' '}
-                    {aiSuggestions.length === 1 ? 'схожий баг' : 'схожих багів'}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    marginTop: 4,
-                  }}
-                >
-                  {aiSuggestions.map(({ issue, ratio }) => (
-                    <div key={issue.id} className="ai-suggest">
-                      <span className="id-cell">BUG-{issue.id}</span>
-                      <span style={{ flex: 1 }}>{issue.title}</span>
-                      <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                        {Math.round(ratio * 100)}% збіг
-                      </span>
-                      <button
-                        type="button"
-                        className="btn sm"
-                        onClick={() => navigate(`/bugs/${issue.id}`)}
-                      >
-                        Відкрити
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* AI-помічник: схожі баги (backend pg_trgm similarity) */}
+            {!isEdit && (
+              <DuplicatePanel
+                title={title}
+                description={description}
+                project={project}
+              />
             )}
 
             {/* Опис з markdown-toolbar */}

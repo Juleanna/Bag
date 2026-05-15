@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
+import { AISummaryModal } from '../components/AISummaryModal'
+import { AITestCaseModal } from '../components/AITestCaseModal'
 import { Avatar } from '../atoms/Avatar'
 import { StatusPill, PriorityBadge, PRIORITY_MAP } from '../atoms/Status'
 import { useWorkflow } from '../hooks/useWorkflow'
@@ -147,6 +149,8 @@ export function BugDetailPage() {
   // Який рядок Властивостей зараз у режимі редагування (показуємо select замість пілки).
   const [editingField, setEditingField] = useState<null | 'status' | 'priority' | 'assignee' | 'due'>(null)
   const [starred, setStarred] = useState(false)
+  const [aiSummaryOpen, setAiSummaryOpen] = useState(false)
+  const [aiTestCaseOpen, setAiTestCaseOpen] = useState(false)
 
   const issueId = Number(id)
   const { statuses: workflowStatuses } = useWorkflow(project?.id ?? null)
@@ -411,6 +415,22 @@ export function BugDetailPage() {
               <Ic.Star sz={12} style={starred ? { fill: '#F4B400' } : undefined} />
             </button>
             <button className="btn sm" onClick={copyShareLink}><Ic.Link sz={12} /> Поділитись</button>
+            <button
+              className="btn sm"
+              onClick={() => setAiTestCaseOpen(true)}
+              title="Згенерувати тест-кейс з опису бага"
+            >
+              <Ic.AI sz={12} /> Згенерувати тест
+            </button>
+            {(comments?.length ?? 0) >= 3 && (
+              <button
+                className="btn sm"
+                onClick={() => setAiSummaryOpen(true)}
+                title="Стиснути тред у короткий конспект"
+              >
+                <Ic.AI sz={12} /> Стиснути тред
+              </button>
+            )}
             {canEdit && (
               <button
                 className="btn sm primary"
@@ -1029,6 +1049,20 @@ export function BugDetailPage() {
             {lightbox.name} — завантажити
           </a>
         </div>
+      )}
+
+      {aiSummaryOpen && (
+        <AISummaryModal
+          issueId={issue.id}
+          onClose={() => setAiSummaryOpen(false)}
+        />
+      )}
+      {aiTestCaseOpen && (
+        <AITestCaseModal
+          issueId={issue.id}
+          projectId={issue.project}
+          onClose={() => setAiTestCaseOpen(false)}
+        />
       )}
     </div>
   )

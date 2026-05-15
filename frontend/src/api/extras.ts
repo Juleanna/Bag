@@ -536,4 +536,55 @@ export const api = {
   updateSupportAgent: (id: number, data: Partial<SupportAgentPermission>) =>
     apiPatch<SupportAgentPermission>(`/support/agents/${id}/`, data),
   deleteSupportAgent: (id: number) => apiDelete(`/support/agents/${id}/`),
+
+  // AI-помічник (без зовнішніх LLM — алгоритмічні методи)
+  aiDuplicates: (data: {
+    project?: number | null
+    title: string
+    description?: string
+    exclude_id?: number
+    limit?: number
+  }) => apiPost<{ results: AIDuplicateResult[] }>('/ai/duplicates/', data),
+  aiSearch: (query: string) =>
+    apiPost<{ query: string; results: AISearchResult[] }>('/ai/search/', { query }),
+  aiGenerateTestCase: (issueId: number) =>
+    apiPost<AIGeneratedTestCase>('/ai/generate-test-case/', { issue_id: issueId }),
+  aiSummarize: (issueId: number) =>
+    apiPost<AISummaryResult>('/ai/summarize/', { issue_id: issueId }),
+}
+
+// AI-результати
+export interface AIDuplicateResult {
+  id: number
+  title: string
+  status: string
+  status_display: string
+  priority: string
+  project: number
+  created_at: string
+  score: number | null
+}
+export interface AISearchResult {
+  id: number
+  title: string
+  status: string
+  status_display: string
+  priority: string
+  project: number
+  created_at: string
+}
+export interface AIGeneratedTestCase {
+  title: string
+  preconditions: string
+  steps: { step: string; expected: string }[]
+  expected_result: string
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  type: 'manual' | 'automated'
+}
+export interface AISummaryResult {
+  summary: string
+  highlights: { text: string; author: string; when: string }[]
+  comments_total: number
+  first_author?: string
+  last_author?: string
 }

@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from . import views_auth as auth
+from . import views_ai
 from . import views_email, views_media, views_sse
 from .feeds import ChangelogFeed
 from .views_api import (
@@ -131,5 +132,10 @@ urlpatterns = [
     path("issues/import/", import_issues, name="issues-import"),
     path("issues/bulk-archive/", bulk_archive_issues, name="issues-bulk-archive"),
     path("issues/bulk-restore/", bulk_restore_issues, name="issues-bulk-restore"),
+    # AI-помічник (алгоритмічний, без LLM)
+    path("ai/duplicates/", views_ai.find_duplicates, name="ai-duplicates"),
+    path("ai/search/", views_ai.smart_search, name="ai-search"),
+    path("ai/generate-test-case/", views_ai.generate_test_case, name="ai-gen-test"),
+    path("ai/summarize/", views_ai.summarize_thread, name="ai-summarize"),
 ]
 

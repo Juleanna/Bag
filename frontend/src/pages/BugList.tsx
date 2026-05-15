@@ -19,6 +19,7 @@ import { useToast } from '../context/ToastContext'
 import { useConfirm, usePrompt } from '../context/ConfirmContext'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
 import { useWorkflowMap } from '../hooks/useWorkflow'
+import { AISearchPalette } from '../components/AISearchPalette'
 import { Skeleton } from '../components/Skeleton'
 import { displayName } from '../utils/user'
 
@@ -84,6 +85,7 @@ export function BugListPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
   const [loading, setLoading] = useState(true)
+  const [aiSearchOpen, setAiSearchOpen] = useState(false)
   // Persisted у localStorage — щоб після reload/повернення з іншої сторінки
   // канбан-вид не скидався на таблицю.
   const [view, setView] = useState<ViewMode>(() => {
@@ -451,6 +453,13 @@ export function BugListPage() {
               </>
             )}
           </button>
+          <button
+            className="btn"
+            onClick={() => setAiSearchOpen(true)}
+            title="AI-пошук природньою мовою"
+          >
+            <Ic.AI sz={13} /> AI-пошук
+          </button>
           <button className="btn" onClick={exportCSV} disabled={filtered.length === 0}>
             <Ic.Download sz={13} /> Експорт CSV
           </button>
@@ -795,6 +804,7 @@ export function BugListPage() {
           </button>
         </div>
       )}
+      {aiSearchOpen && <AISearchPalette onClose={() => setAiSearchOpen(false)} />}
     </>
   )
 }
