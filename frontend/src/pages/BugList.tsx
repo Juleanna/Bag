@@ -1071,7 +1071,7 @@ function KanbanView({
   }, [workflowMap, targetProjectIds, issues])
 
   const handleDrop = async (
-    col: { id: string; wsId: number | null }
+    col: { id: string; label: string; wsId: number | null }
   ) => {
     const issueId = dragId
     setDragId(null)
@@ -1091,7 +1091,7 @@ function KanbanView({
         : ({ status: col.id } as Partial<Issue>)
     try {
       await apiPatch<Issue>(`/issues/${issueId}/`, payload)
-      toast.show(`BUG-${issueId} → ${col.id}`, 'success')
+      toast.show(`BUG-${issueId} → ${col.label}`, 'success')
       void onReload()
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Не вдалося перенести', 'error')
