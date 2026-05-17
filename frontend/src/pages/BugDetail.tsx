@@ -748,24 +748,28 @@ export function BugDetailPage() {
               Історія змін <span className="count">{activities.length}</span>
             </h3>
             <div className="history">
-              {activities.map(a => (
-                <div key={a.id} className="h-row">
-                  <div className="ico">
-                    <Ic.Activity sz={11} />
+              {activities.map(a => {
+                const oldV = prettifyActivityValue(a.field, a.old_value)
+                const newV = prettifyActivityValue(a.field, a.new_value)
+                return (
+                  <div key={a.id} className="h-row">
+                    <div className="ico">
+                      <Ic.Activity sz={11} />
+                    </div>
+                    <div>
+                      <b>{displayName(a.user)}</b> {actionLabel(a.action)}
+                      {(oldV || newV) && (
+                        <>
+                          {' '}— <span style={{ color: 'var(--fg-3)' }}>
+                            {oldV && <>з «{oldV}»</>} {newV && <>→ «{newV}»</>}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <span className="when">{formatWhen(a.created_at)}</span>
                   </div>
-                  <div>
-                    <b>{displayName(a.user)}</b> {actionLabel(a.action)}
-                    {(a.old_value || a.new_value) && (
-                      <>
-                        {' '}— <span style={{ color: 'var(--fg-3)' }}>
-                          {a.old_value && <>з «{a.old_value}»</>} {a.new_value && <>→ «{a.new_value}»</>}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <span className="when">{formatWhen(a.created_at)}</span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -1066,6 +1070,28 @@ export function BugDetailPage() {
       )}
     </div>
   )
+}
+
+// Legacy-маппінг ключів status/priority у людиночитані лейбли (для старих записів
+// activity, де зберігся сирий ключ). Нові записи вже містять лейбли.
+const ACTIVITY_LEGACY_LABELS: Record<string, string> = {
+  open: 'Відкрито',
+  in_progress: 'В процесі',
+  blocked: 'Заблоковано',
+  done: 'Готово',
+  cancelled: 'Скасовано',
+  low: 'Низький',
+  medium: 'Середній',
+  high: 'Високий',
+  critical: 'Критичний',
+}
+
+function prettifyActivityValue(field: string, value: string): string {
+  if (!value) return value
+  if (field === 'status' || field === 'priority') {
+    return ACTIVITY_LEGACY_LABELS[value] || value
+  }
+  return value
 }
 
 function actionLabel(action: string): string {

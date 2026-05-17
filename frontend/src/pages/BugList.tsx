@@ -936,16 +936,14 @@ function ListView({
               >
                 <td
                   className="checkbox-col"
-                  onClick={e => {
-                    e.stopPropagation()
-                    onToggleSelect(b.id)
-                  }}
+                  onClick={e => e.stopPropagation()}
                 >
                   <input
                     type="checkbox"
                     className="cb"
                     checked={isSelected}
                     onChange={() => onToggleSelect(b.id)}
+                    onClick={e => e.stopPropagation()}
                   />
                 </td>
                 {columns.includes('id') && <td className="id-cell">BUG-{b.id}</td>}

@@ -182,17 +182,41 @@ function formatWhen(iso: string): string {
   return `${Math.floor(diff / 86400)} дн тому`
 }
 
+// Резолвить legacy-ключі статусу/пріоритету у людиночитані лейбли.
+// Нові записи вже містять лейбли (бекенд так логує), а старі — сирі ключі.
+const LEGACY_LABELS: Record<string, string> = {
+  open: 'Відкрито',
+  in_progress: 'В процесі',
+  blocked: 'Заблоковано',
+  done: 'Готово',
+  cancelled: 'Скасовано',
+  low: 'Низький',
+  medium: 'Середній',
+  high: 'Високий',
+  critical: 'Критичний',
+}
+
+function prettifyValue(field: string, value: string): string {
+  if (!value) return value
+  if (field === 'status' || field === 'priority') {
+    return LEGACY_LABELS[value] || value
+  }
+  return value
+}
+
 function ActivityRow({ a }: { a: IssueActivity }) {
+  const oldV = prettifyValue(a.field, a.old_value)
+  const newV = prettifyValue(a.field, a.new_value)
   return (
     <div className="act-row">
       <Avatar user={a.user} />
       <div className="body">
         <b>{displayName(a.user)}</b> {actionLabel(a.action)}{' '}
         <span className="lnk">#{a.issue}</span>
-        {(a.old_value || a.new_value) && (
+        {(oldV || newV) && (
           <div style={{ color: 'var(--fg-3)', fontSize: 12, marginTop: 2 }}>
-            {a.old_value && <>з «{a.old_value}»</>}{' '}
-            {a.new_value && <>→ «{a.new_value}»</>}
+            {oldV && <>з «{oldV}»</>}{' '}
+            {newV && <>→ «{newV}»</>}
           </div>
         )}
       </div>

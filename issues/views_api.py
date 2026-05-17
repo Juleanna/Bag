@@ -85,6 +85,23 @@ def _user_projects_cached(request, include_archived: bool = False):
     return cached
 
 
+def _status_label(project_id, status_key):
+    """Резолвить лейбл статусу для проєкту: спершу за WorkflowStatus, інакше — за
+    Issue.Status.choices. Повертає сам key, якщо не знайдено (щоб не падати)."""
+    if not status_key:
+        return status_key
+    try:
+        ws = WorkflowStatus.objects.filter(project_id=project_id, key=status_key).first()
+        if ws:
+            return ws.label
+    except Exception:
+        pass
+    try:
+        return dict(Issue.Status.choices).get(status_key, status_key)
+    except Exception:
+        return status_key
+
+
 def _log_activity(issue, user, action, field="", old_value="", new_value=""):
     """Створює запис у журналі активностей задачі."""
     IssueActivity.objects.create(
@@ -492,12 +509,23 @@ class IssueViewSet(viewsets.ModelViewSet):
             issue = serializer.save()
             user = self.request.user
 
-            # Фіксуємо зміни в журналі активностей
+            # Фіксуємо зміни в журналі активностей.
+            # Для статусу та пріоритету зберігаємо людиночитані labels,
+            # а не сирі ключі (open/in_progress/medium/...), щоб у feed-i це
+            # читалось як "з «Відкрито» → «В процесі»".
             if old_status != issue.status:
-                _log_activity(issue, user, "status_changed", "status", old_status, issue.status)
+                old_label = _status_label(issue.project_id, old_status)
+                new_label = _status_label(issue.project_id, issue.status)
+                _log_activity(issue, user, "status_changed", "status", old_label, new_label)
             if old_priority != issue.priority:
+                pri_map = dict(Issue._meta.get_field("priority").choices)
                 _log_activity(
-                    issue, user, "priority_changed", "priority", old_priority, issue.priority
+                    issue,
+                    user,
+                    "priority_changed",
+                    "priority",
+                    pri_map.get(old_priority, old_priority),
+                    pri_map.get(issue.priority, issue.priority),
                 )
             if old_assignee_id != issue.assignee_id:
                 new_name = issue.assignee.username if issue.assignee else "—"
