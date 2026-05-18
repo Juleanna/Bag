@@ -1245,7 +1245,11 @@ class ChangelogEntry(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-release_date", "-id"]
+        # Сортуємо по даті ДОДАВАННЯ запису, не release_date — інакше
+        # запис з пізнішою release_date (наприклад, у майбутньому) пхається
+        # вище за справді останній доданий. Користувачі очікують «що
+        # додав останнім — те і зверху», як у соцмережах/changelog'ах.
+        ordering = ["-created_at", "-id"]
 
     def __str__(self) -> str:
         return f"v{self.version} · {self.title}"
