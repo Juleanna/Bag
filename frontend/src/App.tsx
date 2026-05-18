@@ -16,6 +16,7 @@ import { ProjectArchivePage } from './pages/ProjectArchive'
 import { NewWorkspacePage } from './pages/NewWorkspace'
 import { EditWorkspacePage } from './pages/EditWorkspace'
 import { TestsPage } from './pages/Tests'
+import { TestSuitesPage } from './pages/TestSuitesPage'
 import { TestRunsPage } from './pages/TestRuns'
 import { TestRunDetailPage } from './pages/TestRunDetail'
 import { ReportsPage } from './pages/Reports'
@@ -136,6 +137,7 @@ export function App() {
         <Route path="workspaces/:id/edit" element={<EditWorkspacePage />} />
         <Route path="tests" element={<TestsPage />} />
         <Route path="tests/new" element={<NewTestPage />} />
+        <Route path="tests/suites" element={<TestSuitesPage />} />
         <Route path="tests/:id" element={<TestCaseDetailPage />} />
         <Route path="tests/:id/edit" element={<EditTestPage />} />
         <Route path="runs" element={<TestRunsPage />} />

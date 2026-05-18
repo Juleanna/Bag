@@ -376,6 +376,20 @@ export function TestsPage() {
         <button type="button" className="chip" onClick={addSuite}>
           <Ic.Plus sz={11} /> Набір
         </button>
+        <button
+          type="button"
+          className="chip"
+          onClick={() =>
+            navigate(
+              projectId
+                ? `/tests/suites?project=${projectId}`
+                : '/tests/suites'
+            )
+          }
+          title="Керування наборами (з описами і видаленням)"
+        >
+          <Ic.Folder sz={11} /> Керувати наборами
+        </button>
 
         <div className="spacer" />
 

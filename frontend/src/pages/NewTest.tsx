@@ -520,9 +520,23 @@ export function NewTestPage() {
                       className="btn sm"
                       onClick={() => setCreatingSuite(true)}
                       disabled={!projectId}
-                      title={projectId ? 'Створити новий suite' : 'Спершу оберіть проєкт'}
+                      title={projectId ? 'Створити новий suite (швидко)' : 'Спершу оберіть проєкт'}
                     >
                       <Ic.Plus sz={11} /> Новий
+                    </button>
+                    <button
+                      type="button"
+                      className="btn sm ghost"
+                      onClick={() =>
+                        navigate(
+                          projectId
+                            ? `/tests/suites?project=${projectId}`
+                            : '/tests/suites'
+                        )
+                      }
+                      title="Відкрити сторінку керування наборами (з описами)"
+                    >
+                      <Ic.Folder sz={11} />
                     </button>
                   </div>
                 )}
