@@ -358,6 +358,14 @@ function GeneralForm({
   const [saving, setSaving] = useState(false)
   const toast = useToast()
 
+  // Синхронізуємо локальний стейт після refresh() — інакше після очищення
+  // полів і збереження user оновлюється, а форма показує старі значення.
+  useEffect(() => {
+    setFirst(user.first_name || '')
+    setLast(user.last_name || '')
+    setEmail(user.email || '')
+  }, [user.first_name, user.last_name, user.email])
+
   const save = async () => {
     setSaving(true)
     try {

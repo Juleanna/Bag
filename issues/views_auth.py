@@ -261,8 +261,13 @@ def update_profile(request):
         changed = True
     if "email" in payload:
         new_email = (payload["email"] or "").strip()
-        if new_email and new_email != user.email:
-            # Валідація формату email
+        if not new_email:
+            # Дозволяємо очистити email — інакше тестери скаржаться, що
+            # після очищення поля і refresh email повертається.
+            if user.email:
+                user.email = ""
+                changed = True
+        elif new_email != user.email:
             try:
                 validate_email(new_email)
             except ValidationError:
