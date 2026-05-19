@@ -633,13 +633,18 @@ class IssueViewSet(viewsets.ModelViewSet):
                     issue.due_date = update_data["due_date"] or None
                     fields.append("due_date")
                 if fields:
+                    # auto_now не спрацьовує, коли поля передані через
+                    # update_fields і там нема самого updated_at — мусимо
+                    # додати його явно, інакше колонка «Оновлено» у списку
+                    # лишиться зі старим часом.
+                    fields.append("updated_at")
                     issue.save(update_fields=fields)
                     updated += 1
                     _log_activity(
                         issue,
                         request.user,
                         "bulk_updated",
-                        field=",".join(fields),
+                        field=",".join(f for f in fields if f != "updated_at"),
                         old_value="",
                         new_value=str(update_data),
                     )
