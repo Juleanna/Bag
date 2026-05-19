@@ -221,6 +221,33 @@ export function BugListPage() {
     return m
   }, [projects])
 
+  // Проєкти обраних багів — використовуємо для побудови dropdown статусів
+  // у bulk-edit, щоб показувати лише ті статуси, які існують у відповідних
+  // проєктах (включно з кастомними «Заблоковано» тощо).
+  const selectedProjectIds = useMemo(() => {
+    const set = new Set<number>()
+    for (const i of issues) {
+      if (selected.has(i.id)) set.add(i.project)
+    }
+    return Array.from(set)
+  }, [issues, selected])
+  const bulkWorkflowMap = useWorkflowMap(selectedProjectIds)
+
+  // Унікалізовані по key статуси з усіх проєктів обраних багів.
+  // У різних проєктах може бути той самий key — показуємо його один раз.
+  const bulkStatusOptions = useMemo(() => {
+    const byKey = new Map<string, { key: string; label: string; sort: number }>()
+    for (const pid of selectedProjectIds) {
+      const list = bulkWorkflowMap.get(pid) || []
+      for (const s of list) {
+        if (!byKey.has(s.key)) {
+          byKey.set(s.key, { key: s.key, label: s.label, sort: s.sort_order })
+        }
+      }
+    }
+    return Array.from(byKey.values()).sort((a, b) => a.sort - b.sort)
+  }, [selectedProjectIds, bulkWorkflowMap])
+
   const memberMap = useMemo(() => {
     const m = new Map<number, UserShort>()
     projects.forEach(p => {
@@ -785,8 +812,16 @@ export function BugListPage() {
                 value=""
               >
                 <option value="">Статус…</option>
-                {Object.entries(STATUS_MAP).map(([k, v]) => (
-                  <option key={k} value={k}>{v.label}</option>
+                {/* Якщо workflow ще не підвантажився — fallback на легасі-список,
+                    щоб select не був порожнім. */}
+                {(bulkStatusOptions.length > 0
+                  ? bulkStatusOptions.map(o => ({ key: o.key, label: o.label }))
+                  : Object.entries(STATUS_MAP).map(([k, v]) => ({
+                      key: k,
+                      label: v.label,
+                    }))
+                ).map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
                 ))}
               </select>
               <button className="btn sm" onClick={bulkArchive}>

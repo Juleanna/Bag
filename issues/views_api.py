@@ -559,47 +559,90 @@ class IssueViewSet(viewsets.ModelViewSet):
     def bulk_update(self, request):
         """
         Масово оновлює список задач.
-        Body: {"ids": [1, 2, 3], "status": "done"}  (або priority/assignee)
+        Body: {"ids": [1, 2, 3], "status": "blocked"} (key із workflow проєкту)
+               або {"priority": "high"}, {"assignee": <id>}, {"due_date": "..."}
         Поверне кількість оновлених записів.
+
+        `status` — це key WorkflowStatus. Для кожного issue знаходимо WS з цим
+        key у його проєкті (у різних проєктах можуть бути різні id для
+        однакового key) — тому проста qs.update() тут не підходить.
         """
         ids = request.data.get("ids") or []
         if not isinstance(ids, list) or not ids:
             return Response({"error": "Потрібен список ids"}, status=400)
 
-        # Дозволяємо лише поля, що мають сенс для масового оновлення
         allowed_fields = {"status", "priority", "assignee", "due_date"}
         update_data = {k: v for k, v in request.data.items() if k in allowed_fields}
         if not update_data:
             return Response({"error": "Немає полів для оновлення"}, status=400)
 
-        # Валідація значень choices
-        if "status" in update_data and update_data["status"] not in dict(Issue.Status.choices):
-            return Response({"error": "Невірний статус"}, status=400)
         if "priority" in update_data and update_data["priority"] not in dict(
             Issue.Priority.choices
         ):
             return Response({"error": "Невірний пріоритет"}, status=400)
+        # Свідомо НЕ валідуємо status проти Issue.Status.choices — він тримає
+        # лише дефолтні ключі, а проєкти можуть мати власні (напр. "blocked").
 
-        # Обмежуємо коло задач лише доступними користувачу
         user_projects = _user_projects_cached(request)
-        qs = Issue.objects.filter(id__in=ids, project__in=user_projects)
+        qs = (
+            Issue.objects.filter(id__in=ids, project__in=user_projects)
+            .select_related("project")
+        )
 
-        # Заміна assignee на ідентифікатор поля
-        if "assignee" in update_data:
-            update_data["assignee_id"] = update_data.pop("assignee")
+        status_key = update_data.get("status")
+        # Кешуємо знайдені WorkflowStatus per (project_id, key), щоб не робити
+        # повторні запити в циклі.
+        ws_cache: dict[tuple[int, str], WorkflowStatus] = {}
 
+        def _get_ws(project_id: int, key: str) -> WorkflowStatus:
+            cache_key = (project_id, key)
+            if cache_key not in ws_cache:
+                ws = WorkflowStatus.objects.filter(
+                    project_id=project_id, key=key
+                ).first()
+                if ws is None:
+                    # Створюємо тимчасовий статус — це покриває рідкісний
+                    # випадок, коли у проєкті немає такого key (наприклад,
+                    # вибрали status з іншого проєкту через мульти-projект).
+                    ws = WorkflowStatus.objects.create(
+                        project_id=project_id,
+                        key=key,
+                        label=key.replace("_", " ").title(),
+                        sort_order=99,
+                        is_done=key in ("done", "cancelled"),
+                    )
+                ws_cache[cache_key] = ws
+            return ws_cache[cache_key]
+
+        updated = 0
         with transaction.atomic():
-            updated = qs.update(**update_data)
-            # Реєструємо bulk дію в журналі для кожної задачі
             for issue in qs:
-                _log_activity(
-                    issue,
-                    request.user,
-                    "bulk_updated",
-                    field=",".join(update_data.keys()),
-                    old_value="",
-                    new_value=str(update_data),
-                )
+                fields = []
+                if status_key is not None:
+                    ws = _get_ws(issue.project_id, status_key)
+                    issue.workflow_status = ws
+                    issue.status = ws.key
+                    fields.extend(["workflow_status", "status"])
+                if "priority" in update_data:
+                    issue.priority = update_data["priority"]
+                    fields.append("priority")
+                if "assignee" in update_data:
+                    issue.assignee_id = update_data["assignee"]
+                    fields.append("assignee")
+                if "due_date" in update_data:
+                    issue.due_date = update_data["due_date"] or None
+                    fields.append("due_date")
+                if fields:
+                    issue.save(update_fields=fields)
+                    updated += 1
+                    _log_activity(
+                        issue,
+                        request.user,
+                        "bulk_updated",
+                        field=",".join(fields),
+                        old_value="",
+                        new_value=str(update_data),
+                    )
         return Response({"updated": updated})
 
     @action(detail=False, methods=["get"], url_path="export")
