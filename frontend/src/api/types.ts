@@ -85,12 +85,23 @@ export interface Issue {
   sprint?: number | null
 }
 
+export interface CommentAttachment {
+  id: number
+  comment: number
+  name: string
+  url: string
+  content_type: string
+  uploader: number
+  created_at: string
+}
+
 export interface Comment {
   id: number
   issue: number
   author: UserShort
   body: string
   created_at: string
+  attachments?: CommentAttachment[]
 }
 
 export interface Label {

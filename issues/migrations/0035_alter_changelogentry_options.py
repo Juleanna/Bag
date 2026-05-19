@@ -12,6 +12,6 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AlterModelOptions(
             name="changelogentry",
-            options={"ordering": ["-created_at", "-id"]},
+            options={"ordering": ["-release_date", "-id"]},
         ),
     ]

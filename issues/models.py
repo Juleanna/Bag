@@ -18,12 +18,24 @@ ALLOWED_FILE_EXTENSIONS = [
 # Максимальний розмір вкладення (10 МБ)
 MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
 
+# Лімит для вкладень у коментарі — більший, бо тестери прикріплюють короткі
+# скрін-кастинги (mp4/webm), 10 МБ для цього замало.
+MAX_COMMENT_ATTACHMENT_SIZE = 50 * 1024 * 1024
+
 
 def validate_file_size(value):
     """Перевіряє, що розмір файлу не перевищує MAX_ATTACHMENT_SIZE."""
     if value.size > MAX_ATTACHMENT_SIZE:
         raise ValidationError(
             f"Розмір файлу не може перевищувати {MAX_ATTACHMENT_SIZE // (1024 * 1024)} МБ."
+        )
+
+
+def validate_comment_file_size(value):
+    """Лімит для вкладень у коментарі (50 МБ — допускає короткі скрін-касти)."""
+    if value.size > MAX_COMMENT_ATTACHMENT_SIZE:
+        raise ValidationError(
+            f"Розмір файлу не може перевищувати {MAX_COMMENT_ATTACHMENT_SIZE // (1024 * 1024)} МБ."
         )
 
 
@@ -306,6 +318,46 @@ class Attachment(models.Model):
 
     def __str__(self) -> str:
         return self.name or f"Вкладення #{self.pk}"
+
+
+class CommentAttachment(models.Model):
+    """Вкладення (зображення/відео/документ) до коментаря під багом.
+
+    Окрема модель, щоб не порушувати наявний потік `Attachment` для багів
+    (де `issue` обов'язковий). У коментарі дозволяємо більші файли — тестери
+    часто прикріплюють короткі скрін-кастинги.
+    """
+
+    comment = models.ForeignKey(
+        Comment, on_delete=models.CASCADE, related_name="attachments", db_index=True
+    )
+    file = models.FileField(
+        upload_to="comment_attachments/%Y/%m/%d/",
+        validators=[
+            FileExtensionValidator(allowed_extensions=ALLOWED_FILE_EXTENSIONS),
+            validate_comment_file_size,
+        ],
+    )
+    name = models.CharField(max_length=255, blank=True)
+    # MIME-тип зберігаємо при завантаженні — фронт використовує для рендеру
+    # (image/* → <img>, video/* → <video>, інше → іконка-посилання).
+    content_type = models.CharField(max_length=100, blank=True)
+    uploader = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="uploaded_comment_attachments"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        indexes = [models.Index(fields=["comment", "created_at"])]
+
+    def save(self, *args, **kwargs):
+        if not self.name and self.file:
+            self.name = getattr(self.file, "name", self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return self.name or f"Медіа коментаря #{self.pk}"
 
 
 class ProjectMembership(models.Model):
@@ -1245,11 +1297,10 @@ class ChangelogEntry(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # Сортуємо по даті ДОДАВАННЯ запису, не release_date — інакше
-        # запис з пізнішою release_date (наприклад, у майбутньому) пхається
-        # вище за справді останній доданий. Користувачі очікують «що
-        # додав останнім — те і зверху», як у соцмережах/changelog'ах.
-        ordering = ["-created_at", "-id"]
+        # У UI відображається release_date — тому сортуємо саме по ньому
+        # (від новішої версії до старішої). -id як tie-breaker, якщо в один
+        # день вийшло кілька релізів.
+        ordering = ["-release_date", "-id"]
 
     def __str__(self) -> str:
         return f"v{self.version} · {self.title}"

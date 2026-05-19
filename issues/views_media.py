@@ -19,7 +19,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Attachment
+from .models import Attachment, CommentAttachment
 from .views_api import _user_projects_qs
 
 
@@ -61,4 +61,49 @@ def serve_attachment(request, pk: int):
         open(file_path, "rb"),
         as_attachment=True,
         filename=attachment.name or os.path.basename(file_path),
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def serve_comment_attachment(request, pk: int):
+    """
+    Віддає медіа-вкладення коментаря лише членам проєкту.
+    URL: /api/comment-attachments/<pk>/download/
+
+    На відміну від `serve_attachment` віддає файл inline (а не as_attachment),
+    щоб <img>/<video> у фронті могли його відобразити прямо в коментарі.
+    """
+    attachment = get_object_or_404(
+        CommentAttachment.objects.select_related("comment__issue__project"), pk=pk
+    )
+
+    user_projects = _user_projects_qs(request.user)
+    if not user_projects.filter(pk=attachment.comment.issue.project_id).exists():
+        raise Http404("Вкладення не знайдено")
+
+    file_path = attachment.file.path
+    if not os.path.exists(file_path):
+        raise Http404("Файл відсутній на диску")
+
+    content_type = attachment.content_type or (
+        mimetypes.guess_type(attachment.name)[0] or "application/octet-stream"
+    )
+
+    if getattr(settings, "USE_X_ACCEL_REDIRECT", False):
+        from django.http import HttpResponse
+
+        response = HttpResponse(content_type=content_type)
+        response["X-Accel-Redirect"] = f"/protected/{attachment.file.name}"
+        # inline — щоб image/video рендерились у браузері
+        response["Content-Disposition"] = (
+            f'inline; filename="{attachment.name}"'
+        )
+        return response
+
+    return FileResponse(
+        open(file_path, "rb"),
+        as_attachment=False,
+        filename=attachment.name or os.path.basename(file_path),
+        content_type=content_type,
     )

@@ -16,6 +16,7 @@ from .models import (
     Attachment,
     ChecklistItem,
     Comment,
+    CommentAttachment,
     CommentReaction,
     Invitation,
     Issue,
@@ -39,6 +40,7 @@ from .permissions import (
 from .serializers import (
     AttachmentSerializer,
     ChecklistItemSerializer,
+    CommentAttachmentSerializer,
     CommentSerializer,
     InvitationSerializer,
     IssueActivitySerializer,
@@ -762,6 +764,39 @@ class AttachmentViewSet(viewsets.ModelViewSet):
         issue_id = self.request.query_params.get("issue")
         if issue_id:
             qs = qs.filter(issue_id=issue_id)
+        return qs
+
+
+class CommentAttachmentViewSet(viewsets.ModelViewSet):
+    """Медіа-вкладення (зображення/відео/файли) до коментарів під багами.
+
+    Створення — лише автором коментаря (через IsAuthorOrReadOnly: автор
+    `uploader`), читання та видалення — учасниками проєкту, до якого
+    належить issue коментаря.
+    """
+
+    serializer_class = CommentAttachmentSerializer
+    permission_classes = [IsAuthorOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
+    pagination_class = StandardResultsSetPagination
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["user_projects"] = _user_projects_cached(self.request)
+        return ctx
+
+    def get_queryset(self):
+        user_projects = _user_projects_cached(self.request)
+        qs = (
+            CommentAttachment.objects.filter(
+                comment__issue__project__in=user_projects
+            )
+            .select_related("comment", "uploader")
+            .order_by("created_at")
+        )
+        comment_id = self.request.query_params.get("comment")
+        if comment_id:
+            qs = qs.filter(comment_id=comment_id)
         return qs
 
 

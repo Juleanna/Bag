@@ -197,7 +197,21 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .comment-input .box { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 10px 12px; min-height: 80px; }
 .comment-input textarea { width: 100%; border: none; outline: none; background: transparent; resize: none; font-size: 13.5px; color: var(--fg); min-height: 36px; line-height: 1.55; }
 .comment-input .actions { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--divider); }
-.comment-input .actions .right { margin-left: auto; display: flex; gap: 6px; }
+.comment-input .actions .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+
+/* Прев'ю файлів, які ще не надіслані разом із коментарем. */
+.comment-files-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.comment-files-preview .file-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 999px; font-size: 12px; max-width: 260px; }
+.comment-files-preview .file-chip .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+.comment-files-preview .file-chip .size { color: var(--fg-3); font-size: 11px; }
+
+/* Медіа всередині опублікованого коментаря. */
+.comment-media { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.comment-media .media-thumb { padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-2); cursor: zoom-in; max-width: 220px; max-height: 160px; display: block; }
+.comment-media .media-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.comment-media .media-video { max-width: 360px; max-height: 240px; border-radius: 8px; border: 1px solid var(--border); background: #000; }
+.comment-media .media-file { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px; color: var(--fg-2); text-decoration: none; }
+.comment-media .media-file:hover { background: var(--surface-2); color: var(--fg); }
 
 .history { display: flex; flex-direction: column; }
 .h-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 7px 0; font-size: 12.5px; color: var(--fg-2); border-bottom: 1px solid var(--divider); }

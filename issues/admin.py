@@ -6,6 +6,7 @@ from .models import (
     ChangelogReaction,
     ChangelogSubscription,
     Comment,
+    CommentAttachment,
     Invitation,
     Issue,
     Label,
@@ -68,6 +69,14 @@ class AttachmentAdmin(admin.ModelAdmin):
     list_filter = ("created_at",)
     search_fields = ("name", "issue__title")
     readonly_fields = ("created_at",)
+
+
+@admin.register(CommentAttachment)
+class CommentAttachmentAdmin(admin.ModelAdmin):
+    list_display = ("name", "comment", "uploader", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("name", "comment__body")
+    readonly_fields = ("created_at", "content_type")
 
 
 @admin.register(Invitation)

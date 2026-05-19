@@ -143,6 +143,9 @@ export function BugDetailPage() {
   const [relations, setRelations] = useState<IssueRelation[]>([])
   const [loading, setLoading] = useState(true)
   const [comment, setComment] = useState('')
+  // Файли, які вкладено до неподаного коментаря (preview перед submit).
+  const [commentFiles, setCommentFiles] = useState<File[]>([])
+  const [submittingComment, setSubmittingComment] = useState(false)
   const [timeMin, setTimeMin] = useState('')
   const [timeNote, setTimeNote] = useState('')
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
@@ -257,14 +260,33 @@ export function BugDetailPage() {
   }
 
   const submitComment = async () => {
-    if (!comment.trim()) return
+    // Дозволяємо відправити коментар з порожнім тілом, якщо є вкладення
+    // (тестер може просто прикріпити скріншот без тексту).
+    if (!comment.trim() && commentFiles.length === 0) return
+    setSubmittingComment(true)
     try {
-      await apiPost('/comments/', { issue: issue.id, body: comment })
+      const created = await apiPost<Comment>('/comments/', {
+        issue: issue.id,
+        body: comment,
+      })
+      // Послідовно довантажуємо вкладення — паралель змусила б сервер
+      // приймати multi-megabyte відео одночасно, і будь-який збій не дав
+      // би зрозуміти, який саме файл не пройшов.
+      for (const f of commentFiles) {
+        const fd = new FormData()
+        fd.append('comment', String(created.id))
+        fd.append('file', f)
+        fd.append('name', f.name)
+        await apiUpload('/comment-attachments/', fd)
+      }
       setComment('')
+      setCommentFiles([])
       toast.show('Коментар додано', 'success')
       void reload()
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    } finally {
+      setSubmittingComment(false)
     }
   }
 
@@ -688,17 +710,72 @@ export function BugDetailPage() {
                   onChange={e => setComment(e.target.value)}
                   placeholder="Напишіть коментар…"
                 />
+                {commentFiles.length > 0 && (
+                  <div className="comment-files-preview">
+                    {commentFiles.map((f, i) => (
+                      <div key={i} className="file-chip">
+                        {f.type.startsWith('image/') ? (
+                          <Ic.Image sz={12} />
+                        ) : f.type.startsWith('video/') ? (
+                          <Ic.Play sz={12} />
+                        ) : (
+                          <Ic.Paperclip sz={12} />
+                        )}
+                        <span className="name" title={f.name}>{f.name}</span>
+                        <span className="size">
+                          {(f.size / (1024 * 1024)).toFixed(1)} МБ
+                        </span>
+                        <button
+                          type="button"
+                          className="btn ghost icon sm"
+                          onClick={() =>
+                            setCommentFiles(commentFiles.filter((_, j) => j !== i))
+                          }
+                          title="Прибрати"
+                        >
+                          <Ic.X sz={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="actions">
                   <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>
-                    Підтримує @згадки користувачів
+                    Підтримує @згадки користувачів. До 50 МБ на файл.
                   </span>
                   <div className="right">
+                    <label
+                      className="btn ghost sm"
+                      style={{ cursor: 'pointer' }}
+                      title="Додати картинку чи відео"
+                    >
+                      <Ic.Paperclip sz={12} />
+                      <span style={{ marginLeft: 6 }}>Прикріпити</span>
+                      <input
+                        type="file"
+                        accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip"
+                        multiple
+                        hidden
+                        onChange={e => {
+                          const files = Array.from(e.target.files || [])
+                          if (files.length) {
+                            setCommentFiles([...commentFiles, ...files])
+                          }
+                          // Скидаємо input — інакше повторний вибір того ж файлу
+                          // не викличе onChange.
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
                     <button
                       className="btn primary sm"
-                      disabled={!comment.trim()}
+                      disabled={
+                        submittingComment ||
+                        (!comment.trim() && commentFiles.length === 0)
+                      }
                       onClick={submitComment}
                     >
-                      Надіслати
+                      {submittingComment ? 'Надсилання…' : 'Надіслати'}
                     </button>
                   </div>
                 </div>
@@ -735,6 +812,52 @@ export function BugDetailPage() {
                         <p key={i}>{l || ' '}</p>
                       ))}
                     </div>
+                    {c.attachments && c.attachments.length > 0 && (
+                      <div className="comment-media">
+                        {c.attachments.map(a => {
+                          const isImage = a.content_type.startsWith('image/')
+                          const isVideo = a.content_type.startsWith('video/')
+                          if (isImage) {
+                            return (
+                              <button
+                                key={a.id}
+                                type="button"
+                                className="media-thumb"
+                                onClick={() =>
+                                  setLightbox({ url: a.url, name: a.name })
+                                }
+                                title={a.name}
+                              >
+                                <img src={a.url} alt={a.name} />
+                              </button>
+                            )
+                          }
+                          if (isVideo) {
+                            return (
+                              <video
+                                key={a.id}
+                                className="media-video"
+                                src={a.url}
+                                controls
+                                preload="metadata"
+                              />
+                            )
+                          }
+                          return (
+                            <a
+                              key={a.id}
+                              href={a.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="media-file"
+                            >
+                              <Ic.Paperclip sz={14} />
+                              <span>{a.name}</span>
+                            </a>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

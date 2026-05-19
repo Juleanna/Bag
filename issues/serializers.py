@@ -13,6 +13,7 @@ from .models import (
     SupportSettings,
     SupportTicket,
     Comment,
+    CommentAttachment,
     IntegrationConfig,
     Invitation,
     Issue,
@@ -361,14 +362,62 @@ class IssueSerializer(serializers.ModelSerializer):
         return instance
 
 
+class CommentAttachmentSerializer(serializers.ModelSerializer):
+    """Медіа-вкладення до коментаря.
+
+    `url` — захищений relative path; фронт використовує content_type щоб
+    вирішити, як рендерити (image/* → <img>, video/* → <video>).
+    """
+
+    url = serializers.SerializerMethodField()
+    comment = serializers.PrimaryKeyRelatedField(queryset=Comment.objects.none())
+
+    class Meta:
+        model = CommentAttachment
+        fields = [
+            "id",
+            "comment",
+            "name",
+            "file",
+            "url",
+            "content_type",
+            "uploader",
+            "created_at",
+        ]
+        read_only_fields = ["uploader", "url", "content_type", "created_at"]
+        # `file` — write-only: на читанні віддаємо лише захищений download URL.
+        extra_kwargs = {"file": {"write_only": True}}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user_projects = self.context.get("user_projects")
+        if user_projects is not None:
+            self.fields["comment"].queryset = Comment.objects.filter(
+                issue__project__in=user_projects
+            )
+
+    def get_url(self, obj: CommentAttachment) -> str:
+        return f"/api/comment-attachments/{obj.pk}/download/"
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        validated_data["uploader"] = request.user
+        # MIME-тип беремо з uploaded-файлу (Django передає його у content_type).
+        upload = validated_data.get("file")
+        if upload is not None and hasattr(upload, "content_type"):
+            validated_data["content_type"] = upload.content_type or ""
+        return super().create(validated_data)
+
+
 class CommentSerializer(serializers.ModelSerializer):
     author = UserShortSerializer(read_only=True)
     issue = serializers.PrimaryKeyRelatedField(queryset=Issue.objects.none())
+    attachments = CommentAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Comment
-        fields = ["id", "issue", "author", "body", "created_at"]
-        read_only_fields = ["author", "created_at"]
+        fields = ["id", "issue", "author", "body", "created_at", "attachments"]
+        read_only_fields = ["author", "created_at", "attachments"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

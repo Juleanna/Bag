@@ -9,6 +9,7 @@ from .views_api import (
     ApiTokenViewSet,
     AttachmentViewSet,
     ChecklistItemViewSet,
+    CommentAttachmentViewSet,
     CommentViewSet,
     IntegrationConfigViewSet,
     InvitationViewSet,
@@ -60,6 +61,9 @@ router.register(r"workflow-statuses", WorkflowStatusViewSet, basename="workflow-
 router.register(r"projects", ProjectViewSet, basename="project")
 router.register(r"issues", IssueViewSet, basename="issue")
 router.register(r"comments", CommentViewSet, basename="comment")
+router.register(
+    r"comment-attachments", CommentAttachmentViewSet, basename="comment-attachment"
+)
 router.register(r"labels", LabelViewSet, basename="label")
 router.register(r"attachments", AttachmentViewSet, basename="attachment")
 router.register(r"memberships", ProjectMembershipViewSet, basename="membership")
@@ -119,6 +123,11 @@ urlpatterns = [
         "attachments/<int:pk>/download/",
         views_media.serve_attachment,
         name="attachment-download",
+    ),
+    path(
+        "comment-attachments/<int:pk>/download/",
+        views_media.serve_comment_attachment,
+        name="comment-attachment-download",
     ),
     path(
         "notifications/stream/",
