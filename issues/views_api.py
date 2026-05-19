@@ -1207,7 +1207,10 @@ class ChangelogEntryViewSet(viewsets.ModelViewSet):
                     to_attr="_my_reactions",
                 )
             )
-        return qs
+        # Явний order_by — Meta.ordering іноді губиться при annotate(Count(..., distinct=True))
+        # через GROUP BY у згенерованому SQL. Дублюємо тут, щоб у API завжди було
+        # «новіший release_date — зверху».
+        return qs.order_by("-release_date", "-id")
 
     @action(
         detail=True,
