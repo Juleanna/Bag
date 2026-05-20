@@ -376,10 +376,50 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
     ]
   }, [currentProject])
 
-  const addStep = () => setSteps(s => [...s, ''])
+  // Refs на input'и кроків — щоб після Enter сфокусуватись на новому кроці,
+  // а після Backspace на порожньому — повернутись до попереднього.
+  const stepRefs = useRef<(HTMLInputElement | null)[]>([])
+  // Куди сфокусуватись після наступного рендеру (індекс кроку).
+  const [focusStepIdx, setFocusStepIdx] = useState<number | null>(null)
+  useEffect(() => {
+    if (focusStepIdx === null) return
+    const el = stepRefs.current[focusStepIdx]
+    if (el) el.focus()
+    setFocusStepIdx(null)
+  }, [focusStepIdx])
+
+  const addStep = () => {
+    setSteps(s => {
+      setFocusStepIdx(s.length)
+      return [...s, '']
+    })
+  }
   const updateStep = (i: number, val: string) =>
     setSteps(s => s.map((x, idx) => (idx === i ? val : x)))
   const removeStep = (i: number) => setSteps(s => s.filter((_, idx) => idx !== i))
+
+  const handleStepKeyDown = (
+    i: number,
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // Не сабмітимо форму — лише додаємо крок під поточним і фокусуємось.
+      e.preventDefault()
+      setSteps(s => {
+        const next = [...s]
+        next.splice(i + 1, 0, '')
+        setFocusStepIdx(i + 1)
+        return next
+      })
+    } else if (e.key === 'Backspace' && steps[i] === '' && steps.length > 1) {
+      // Видаляємо порожній крок і переходимо до попереднього (або до 0,
+      // якщо видаляли перший).
+      e.preventDefault()
+      const prevIdx = Math.max(0, i - 1)
+      removeStep(i)
+      setFocusStepIdx(prevIdx)
+    }
+  }
 
   // Drag-and-drop reorder для кроків. Native HTML5 DnD, без зайвих залежностей.
   const [dragIdx, setDragIdx] = useState<number | null>(null)
@@ -763,10 +803,14 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                       {i + 1}
                     </div>
                     <input
+                      ref={el => {
+                        stepRefs.current[i] = el
+                      }}
                       className="step-inp"
                       placeholder={i === 0 ? 'Перший крок…' : 'Наступний крок…'}
                       value={s}
                       onChange={e => updateStep(i, e.target.value)}
+                      onKeyDown={e => handleStepKeyDown(i, e)}
                     />
                     {steps.length > 1 && (
                       <button
