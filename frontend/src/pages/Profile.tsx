@@ -110,11 +110,23 @@ export function ProfilePage() {
             </div>
           </div>
           <div className="pb-actions">
-            <button className="btn" onClick={() => setTab('account')}>
+            <button
+              className="btn"
+              onClick={() => {
+                // Перемикаємо вкладку, скролимо до форми і фокусуємо перший
+                // input. Раніше клік просто ставив tab='account', а оскільки
+                // вкладка й так дефолтна — тестери скаржилися «кнопка не працює».
+                setTab('account')
+                setTimeout(() => {
+                  const form = document.getElementById('profile-account-form')
+                  if (!form) return
+                  form.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  const firstInput = form.querySelector<HTMLInputElement>('input')
+                  firstInput?.focus()
+                }, 30)
+              }}
+            >
               <Ic.Edit sz={13} /> Редагувати профіль
-            </button>
-            <button className="btn primary" onClick={() => navigate('/bugs/new')}>
-              <Ic.Plus sz={13} /> Створити баг
             </button>
             <button
               className="btn ghost icon"
@@ -380,7 +392,7 @@ function GeneralForm({
   }
 
   return (
-    <div className="card" style={{ padding: 18 }}>
+    <div id="profile-account-form" className="card" style={{ padding: 18 }}>
       <h3 style={{ margin: 0, marginBottom: 14 }}>Загальна інформація</h3>
       <div className="form-grid">
         <div className="field">
