@@ -385,15 +385,31 @@ function GeneralForm({
       <div className="form-grid">
         <div className="field">
           <label>Імʼя</label>
-          <input className="inp" value={first} onChange={e => setFirst(e.target.value)} />
+          <input
+            className="inp"
+            value={first}
+            onChange={e => setFirst(e.target.value)}
+            maxLength={150}
+          />
         </div>
         <div className="field">
           <label>Прізвище</label>
-          <input className="inp" value={last} onChange={e => setLast(e.target.value)} />
+          <input
+            className="inp"
+            value={last}
+            onChange={e => setLast(e.target.value)}
+            maxLength={150}
+          />
         </div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>Пошта</label>
-          <input className="inp" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+          <input
+            className="inp"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            maxLength={254}
+          />
         </div>
       </div>
       <div style={{ marginTop: 16 }}>

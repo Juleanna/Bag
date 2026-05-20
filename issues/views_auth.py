@@ -253,11 +253,28 @@ def update_profile(request):
     user = request.user
     changed = False
 
+    # Django-поля first_name / last_name мають max_length=150. Без перевірки
+    # Postgres падає з DataError → 500. Тримаємо ту саму межу й повертаємо 400
+    # з нормальним повідомленням.
+    NAME_MAX = 150
+
     if "first_name" in payload:
-        user.first_name = (payload["first_name"] or "").strip()
+        new_first = (payload["first_name"] or "").strip()
+        if len(new_first) > NAME_MAX:
+            return JsonResponse(
+                {"ok": False, "error": f"Імʼя задовге (макс {NAME_MAX} символів)"},
+                status=400,
+            )
+        user.first_name = new_first
         changed = True
     if "last_name" in payload:
-        user.last_name = (payload["last_name"] or "").strip()
+        new_last = (payload["last_name"] or "").strip()
+        if len(new_last) > NAME_MAX:
+            return JsonResponse(
+                {"ok": False, "error": f"Прізвище задовге (макс {NAME_MAX} символів)"},
+                status=400,
+            )
+        user.last_name = new_last
         changed = True
     if "email" in payload:
         new_email = (payload["email"] or "").strip()
