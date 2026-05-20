@@ -178,6 +178,16 @@ export function CommandPalette({ open, onClose }: Props) {
             </div>
           ))}
         </div>
+        {/* Підказка з клавішами навігації — щоб користувач бачив, що
+            палітра кероване з клавіатури, без потреби читати довідку. */}
+        <div className="cp-footer">
+          <span><span className="kbd">↑</span><span className="kbd">↓</span> навігація</span>
+          <span><span className="kbd">↵</span> відкрити</span>
+          <span><span className="kbd">esc</span> закрити</span>
+          <span style={{ marginLeft: 'auto', opacity: 0.7 }}>
+            Усі шорткати — у довідці ({MOD_KEY}+/ або ?)
+          </span>
+        </div>
       </div>
     </div>
   )
