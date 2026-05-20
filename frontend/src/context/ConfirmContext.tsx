@@ -49,6 +49,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
   const [promptState, setPromptState] = useState<PromptState | null>(null)
   const [promptValue, setPromptValue] = useState('')
+  // Помилка валідації prompt'а — підсвічуємо input і показуємо текст.
+  // Раніше при required + порожньому кнопка просто стояла disabled, і
+  // тестери трактували це як «нічого не відбувається» (BUG-17).
+  const [promptError, setPromptError] = useState<string | null>(null)
 
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>(resolve => {
@@ -59,6 +63,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const prompt = useCallback((options: PromptOptions) => {
     return new Promise<string | null>(resolve => {
       setPromptValue(options.defaultValue || '')
+      setPromptError(null)
       setPromptState({ options, resolve })
     })
   }, [])
@@ -75,6 +80,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       promptState.resolve(result)
       setPromptState(null)
       setPromptValue('')
+      setPromptError(null)
     }
   }
 
@@ -92,7 +98,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const submitPrompt = () => {
     if (!promptState) return
     const v = promptValue.trim()
-    if (promptState.options.required && !v) return
+    if (promptState.options.required && !v) {
+      // Показуємо помилку замість мовчазного no-op — тестер бачить
+      // зрозумілий фідбек, чому кнопка нічого не зробила.
+      setPromptError('Поле обовʼязкове для заповнення')
+      return
+    }
     closePrompt(promptValue)
   }
 
@@ -156,20 +167,35 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               className="inp"
               type={promptState.options.inputType || 'text'}
               value={promptValue}
-              onChange={e => setPromptValue(e.target.value)}
+              onChange={e => {
+                setPromptValue(e.target.value)
+                // Скидаємо помилку як тільки користувач почав вводити.
+                if (promptError) setPromptError(null)
+              }}
               placeholder={promptState.options.placeholder}
               autoFocus
+              style={
+                promptError
+                  ? { borderColor: 'var(--pri-high)', outline: 'none' }
+                  : undefined
+              }
             />
+            {promptError && (
+              <div
+                style={{
+                  color: 'var(--pri-high)',
+                  fontSize: 12,
+                  marginTop: 4,
+                }}
+              >
+                {promptError}
+              </div>
+            )}
             <div className="confirm-actions">
               <button className="btn" type="button" onClick={() => closePrompt(null)}>
                 {promptState.options.cancelText || 'Скасувати'}
               </button>
-              <button
-                className="btn primary"
-                type="button"
-                onClick={submitPrompt}
-                disabled={promptState.options.required && !promptValue.trim()}
-              >
+              <button className="btn primary" type="button" onClick={submitPrompt}>
                 {promptState.options.confirmText || 'OK'}
               </button>
             </div>
