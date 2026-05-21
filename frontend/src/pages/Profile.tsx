@@ -111,24 +111,6 @@ export function ProfilePage() {
           </div>
           <div className="pb-actions">
             <button
-              className="btn"
-              onClick={() => {
-                // Перемикаємо вкладку, скролимо до форми і фокусуємо перший
-                // input. Раніше клік просто ставив tab='account', а оскільки
-                // вкладка й так дефолтна — тестери скаржилися «кнопка не працює».
-                setTab('account')
-                setTimeout(() => {
-                  const form = document.getElementById('profile-account-form')
-                  if (!form) return
-                  form.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  const firstInput = form.querySelector<HTMLInputElement>('input')
-                  firstInput?.focus()
-                }, 30)
-              }}
-            >
-              <Ic.Edit sz={13} /> Редагувати профіль
-            </button>
-            <button
               className="btn ghost icon"
               title="Вийти"
               onClick={async () => {
