@@ -238,6 +238,25 @@ export function BugDetailPage() {
     return project.members.find(m => m.id === issue.assignee) || null
   }, [issue, project])
 
+  // Кандидати для @-згадок: owner + members + reporter. Унікалізуємо по id,
+  // бо reporter часто збігається з owner. Бекенд парсить @username і шле
+  // нотифікації лише учасникам проєкту, тому додаткова валідація не потрібна.
+  // ВАЖЛИВО: useMemo має бути ДО раннього return, інакше при loading=true
+  // хуків менше — React error #310.
+  const mentionUsers = useMemo<UserShort[]>(() => {
+    const seen = new Set<number>()
+    const out: UserShort[] = []
+    const push = (u: UserShort | null | undefined) => {
+      if (!u || seen.has(u.id)) return
+      seen.add(u.id)
+      out.push(u)
+    }
+    if (project?.owner) push(project.owner)
+    if (project?.members) project.members.forEach(push)
+    push(issue?.reporter)
+    return out
+  }, [project, issue])
+
   if (loading || !issue) {
     return (
       <div className="bt-loading-overlay">
@@ -411,22 +430,6 @@ export function BugDetailPage() {
   }
 
   const members = project?.members || []
-  // Кандидати для @-згадок: owner + members + reporter. Унікалізуємо по id,
-  // бо reporter часто збігається з owner. Бекенд парсить @username і шле
-  // нотифікації лише учасникам проєкту, тому додаткова валідація не потрібна.
-  const mentionUsers = useMemo<UserShort[]>(() => {
-    const seen = new Set<number>()
-    const out: UserShort[] = []
-    const push = (u: UserShort | null | undefined) => {
-      if (!u || seen.has(u.id)) return
-      seen.add(u.id)
-      out.push(u)
-    }
-    if (project?.owner) push(project.owner)
-    members.forEach(push)
-    push(issue?.reporter)
-    return out
-  }, [project, members, issue])
   const canEdit = !!user
   const relationsByType: Record<string, IssueRelation[]> = {}
   relations.forEach(r => {
