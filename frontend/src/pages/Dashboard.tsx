@@ -289,10 +289,12 @@ export function DashboardPage() {
       i => i.status === 'done' && i.updated_at >= periodStart
     ).length
     const burndown = buildBurndown(src, period)
+    // Порядок як у моделі: Critical → High → Medium → Low (найгостріший зверху).
     const byPriority = [
-      { label: 'Високий', value: src.filter(i => i.priority === 'high').length, color: 'var(--pri-high)' },
-      { label: 'Середній', value: src.filter(i => i.priority === 'medium').length, color: 'var(--pri-medium)' },
-      { label: 'Низький', value: src.filter(i => i.priority === 'low').length, color: 'var(--pri-low)' },
+      { label: 'Critical', value: src.filter(i => i.priority === 'critical').length, color: 'var(--pri-critical)' },
+      { label: 'High', value: src.filter(i => i.priority === 'high').length, color: 'var(--pri-high)' },
+      { label: 'Medium', value: src.filter(i => i.priority === 'medium').length, color: 'var(--pri-medium)' },
+      { label: 'Low', value: src.filter(i => i.priority === 'low').length, color: 'var(--pri-low)' },
     ]
     return { open, done, today, closedInPeriod, burndown, byPriority }
   }, [filteredIssues, period])
@@ -471,7 +473,16 @@ export function DashboardPage() {
 
         <div className="card">
           <div className="card-head">
-            <h3>За пріоритетом</h3>
+            <h3>Розподіл за пріоритетом</h3>
+            <div className="right">
+              <button
+                className="btn sm ghost"
+                onClick={() => navigate('/bugs')}
+                title="Перейти до списку багів"
+              >
+                Деталі <Ic.Chev sz={11} />
+              </button>
+            </div>
           </div>
           <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
             <DonutChart parts={stats.byPriority} />
