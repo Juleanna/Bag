@@ -198,6 +198,18 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .comment-input .box { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 10px 12px; min-height: 80px; }
 .comment-input textarea { width: 100%; border: none; outline: none; background: transparent; resize: none; font-size: 13.5px; color: var(--fg); min-height: 36px; line-height: 1.55; }
 .comment-input .actions { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--divider); }
+
+/* Mention autocomplete popup. mention-wrap огортає textarea і позиціонує
+   dropdown під ним. Висота обмежена 5-6 рядками, далі скрол. */
+.mention-wrap { position: relative; }
+.mention-wrap textarea { width: 100%; border: none; outline: none; background: transparent; resize: none; font-size: 13.5px; color: var(--fg); min-height: 36px; line-height: 1.55; font-family: inherit; }
+.mention-popup { position: absolute; left: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md); padding: 4px; min-width: 240px; max-width: 320px; max-height: 240px; overflow-y: auto; z-index: 30; }
+.mention-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; background: transparent; border: none; width: 100%; text-align: left; }
+.mention-item .meta { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.mention-item .meta b { font-size: 12.5px; font-weight: 600; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.mention-item .meta span { font-size: 11px; color: var(--fg-3); font-family: var(--font-mono); }
+.mention-item.active, .mention-item:hover { background: var(--accent-soft); }
+.mention-item.active .meta b { color: var(--accent-soft-fg); }
 .comment-input .actions .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 
 /* Прев'ю файлів, які ще не надіслані разом із коментарем. */

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { AISummaryModal } from '../components/AISummaryModal'
 import { AITestCaseModal } from '../components/AITestCaseModal'
+import { MentionTextarea } from '../components/MentionTextarea'
 import { Avatar } from '../atoms/Avatar'
 import { StatusPill, PriorityBadge, PRIORITY_MAP } from '../atoms/Status'
 import { useWorkflow } from '../hooks/useWorkflow'
@@ -410,6 +411,22 @@ export function BugDetailPage() {
   }
 
   const members = project?.members || []
+  // Кандидати для @-згадок: owner + members + reporter. Унікалізуємо по id,
+  // бо reporter часто збігається з owner. Бекенд парсить @username і шле
+  // нотифікації лише учасникам проєкту, тому додаткова валідація не потрібна.
+  const mentionUsers = useMemo<UserShort[]>(() => {
+    const seen = new Set<number>()
+    const out: UserShort[] = []
+    const push = (u: UserShort | null | undefined) => {
+      if (!u || seen.has(u.id)) return
+      seen.add(u.id)
+      out.push(u)
+    }
+    if (project?.owner) push(project.owner)
+    members.forEach(push)
+    push(issue?.reporter)
+    return out
+  }, [project, members, issue])
   const canEdit = !!user
   const relationsByType: Record<string, IssueRelation[]> = {}
   relations.forEach(r => {
@@ -705,9 +722,10 @@ export function BugDetailPage() {
             <div className="comment-input">
               <Avatar user={user} />
               <div className="box">
-                <textarea
+                <MentionTextarea
                   value={comment}
-                  onChange={e => setComment(e.target.value)}
+                  onChange={setComment}
+                  users={mentionUsers}
                   placeholder="Напишіть коментар…"
                 />
                 {commentFiles.length > 0 && (
