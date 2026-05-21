@@ -67,7 +67,7 @@ export function DonutChart({ size = 160, parts }: { size?: number; parts: DonutP
   const total = parts.reduce((s, p) => s + p.value, 0)
   if (total === 0) {
     return (
-      <svg width={size} height={size}>
+      <svg width={size} height={size} style={{ display: 'block', flexShrink: 0 }}>
         <circle cx={size / 2} cy={size / 2} r={size / 2 - 12} fill="var(--bg-2)" />
         <text
           x={size / 2}
@@ -103,7 +103,7 @@ export function DonutChart({ size = 160, parts }: { size?: number; parts: DonutP
     }
   })
   return (
-    <svg width={size} height={size}>
+    <svg width={size} height={size} style={{ display: 'block', flexShrink: 0 }}>
       {segs.map((s, i) => (
         <path key={i} d={s.d} fill={s.color} />
       ))}

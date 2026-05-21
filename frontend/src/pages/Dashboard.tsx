@@ -485,8 +485,12 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <DonutChart parts={stats.byPriority} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+            {/* flex-shrink:0 — інакше SVG donut стискається до 0 у вузькому
+                grid-стовпчику. min-width теж потрібен для надійності. */}
+            <div style={{ flexShrink: 0, minWidth: 160 }}>
+              <DonutChart parts={stats.byPriority} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
               {stats.byPriority.map(p => (
                 <div key={p.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color }} />
