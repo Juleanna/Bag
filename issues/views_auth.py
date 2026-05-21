@@ -158,6 +158,18 @@ def register(request):
             {"ok": False, "error": "Заповніть обов'язкові поля"}, status=400
         )
 
+    # Той самий ліміт, що в update_profile — щоб не можна було через
+    # реєстрацію створити юзера з 1000-символьним прізвищем і потім
+    # ламати верстку всюди, де воно відображається.
+    if len(first_name) > 50:
+        return JsonResponse(
+            {"ok": False, "error": "Імʼя задовге (макс 50 символів)"}, status=400
+        )
+    if len(last_name) > 50:
+        return JsonResponse(
+            {"ok": False, "error": "Прізвище задовге (макс 50 символів)"}, status=400
+        )
+
     # Валідація email
     try:
         validate_email(email)
@@ -253,10 +265,10 @@ def update_profile(request):
     user = request.user
     changed = False
 
-    # Django-поля first_name / last_name мають max_length=150. Без перевірки
-    # Postgres падає з DataError → 500. Тримаємо ту саму межу й повертаємо 400
-    # з нормальним повідомленням.
-    NAME_MAX = 150
+    # Реалістичний ліміт — імена/прізвища до 50 символів покривають навіть
+    # подвійні прізвища; 150 (Django default) занадто багато і ламає верстку
+    # у sidebar / шапці бага / коментарях.
+    NAME_MAX = 50
 
     if "first_name" in payload:
         new_first = (payload["first_name"] or "").strip()

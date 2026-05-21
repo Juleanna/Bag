@@ -117,6 +117,7 @@ export function RegisterPage() {
                   onChange={e => setName(e.target.value)}
                   autoFocus
                   required
+                  maxLength={100}
                 />
               </div>
               <div className="auth-field">

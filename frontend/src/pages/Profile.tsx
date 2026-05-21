@@ -401,7 +401,7 @@ function GeneralForm({
             className="inp"
             value={first}
             onChange={e => setFirst(e.target.value)}
-            maxLength={150}
+            maxLength={50}
           />
         </div>
         <div className="field">
@@ -410,7 +410,7 @@ function GeneralForm({
             className="inp"
             value={last}
             onChange={e => setLast(e.target.value)}
-            maxLength={150}
+            maxLength={50}
           />
         </div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
