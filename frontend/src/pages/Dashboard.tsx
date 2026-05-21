@@ -46,12 +46,11 @@ function MetricCard({ icon, label, value, unit, delta, deltaKind, since, sparkDa
 }
 
 // Burndown — generujemy z історії issues (created_at vs updated_at).
-// На MVP-фазі показуємо просту версію: для кожного дня за 14 днів — скільки issues
+// На MVP-фазі показуємо просту версію: для кожного дня — скільки issues
 // було створено / закрито.
 interface BurnPoint { d: string; opened: number; closed: number; open: number }
 
-function buildBurndown(issues: Issue[]): BurnPoint[] {
-  const days = 14
+function buildBurndown(issues: Issue[], days: number): BurnPoint[] {
   const today = new Date()
   const out: BurnPoint[] = []
   let runningOpen = 0
@@ -239,13 +238,18 @@ function actionLabel(action: string): string {
   return map[action] || action
 }
 
+type Period = 7 | 14 | 30
+
 export function DashboardPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [issues, setIssues] = useState<Issue[]>([])
   const [activities, setActivities] = useState<IssueActivity[]>([])
-  const [, setProjects] = useState<Project[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
+  // Фільтри dashboard'а — період (днів) і обраний проєкт.
+  const [period, setPeriod] = useState<Period>(14)
+  const [projectFilter, setProjectFilter] = useState<number | 'all'>('all')
 
   useEffect(() => {
     void (async () => {
@@ -264,24 +268,36 @@ export function DashboardPage() {
     })()
   }, [])
 
-  const stats = useMemo(() => {
-    const open = issues.filter(i => i.status === 'open' || i.status === 'in_progress').length
-    const done = issues.filter(i => i.status === 'done').length
-    const today = new Date().toISOString().slice(0, 10)
-    const week = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
-    const closedThisWeek = issues.filter(
-      i => i.status === 'done' && i.updated_at >= week
-    ).length
-    const burndown = buildBurndown(issues)
-    const byPriority = [
-      { label: 'Високий', value: issues.filter(i => i.priority === 'high').length, color: 'var(--pri-high)' },
-      { label: 'Середній', value: issues.filter(i => i.priority === 'medium').length, color: 'var(--pri-medium)' },
-      { label: 'Низький', value: issues.filter(i => i.priority === 'low').length, color: 'var(--pri-low)' },
-    ]
-    return { open, done, today, closedThisWeek, burndown, byPriority }
-  }, [issues])
+  // Відфільтрований за вибраним проєктом і періодом список — основа всіх метрик.
+  const filteredIssues = useMemo(() => {
+    const periodStart = new Date(Date.now() - period * 86400000).toISOString().slice(0, 10)
+    return issues.filter(i => {
+      if (projectFilter !== 'all' && i.project !== projectFilter) return false
+      // Період впливає лише на «закриті за період» і burndown; для відкритих
+      // показуємо все, бо вони актуальні незалежно від дати створення.
+      return i.created_at >= periodStart || i.status !== 'done'
+    })
+  }, [issues, projectFilter, period])
 
-  const hottest = issues
+  const stats = useMemo(() => {
+    const src = filteredIssues
+    const open = src.filter(i => i.status === 'open' || i.status === 'in_progress').length
+    const done = src.filter(i => i.status === 'done').length
+    const today = new Date().toISOString().slice(0, 10)
+    const periodStart = new Date(Date.now() - period * 86400000).toISOString().slice(0, 10)
+    const closedInPeriod = src.filter(
+      i => i.status === 'done' && i.updated_at >= periodStart
+    ).length
+    const burndown = buildBurndown(src, period)
+    const byPriority = [
+      { label: 'Високий', value: src.filter(i => i.priority === 'high').length, color: 'var(--pri-high)' },
+      { label: 'Середній', value: src.filter(i => i.priority === 'medium').length, color: 'var(--pri-medium)' },
+      { label: 'Низький', value: src.filter(i => i.priority === 'low').length, color: 'var(--pri-low)' },
+    ]
+    return { open, done, today, closedInPeriod, burndown, byPriority }
+  }, [filteredIssues, period])
+
+  const hottest = filteredIssues
     .filter(i => i.status === 'open' || i.status === 'in_progress')
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .slice(0, 5)
@@ -323,13 +339,74 @@ export function DashboardPage() {
           </h1>
           <div className="sub">
             <b style={{ color: 'var(--fg)' }}>{stats.open}</b> відкритих ·{' '}
-            {stats.closedThisWeek} закрито за тиждень
+            {stats.closedInPeriod} закрито за період
           </div>
         </div>
-        <div className="right">
-          <button className="btn primary" onClick={() => navigate('/bugs/new')}>
-            <Ic.Plus sz={14} /> Новий баг
-          </button>
+        <div className="right" style={{ display: 'flex', gap: 8 }}>
+          <label
+            className="btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              paddingRight: 6,
+            }}
+          >
+            <Ic.Calendar sz={13} />
+            <select
+              value={period}
+              onChange={e => setPeriod(Number(e.target.value) as Period)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontSize: 13,
+                color: 'var(--fg)',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value={7}>Останні 7 днів</option>
+              <option value={14}>Останні 14 днів</option>
+              <option value={30}>Останні 30 днів</option>
+            </select>
+          </label>
+          <label
+            className="btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              paddingRight: 6,
+            }}
+          >
+            <Ic.Folder sz={13} />
+            <select
+              value={projectFilter}
+              onChange={e =>
+                setProjectFilter(
+                  e.target.value === 'all' ? 'all' : Number(e.target.value),
+                )
+              }
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontSize: 13,
+                color: 'var(--fg)',
+                outline: 'none',
+                cursor: 'pointer',
+                maxWidth: 180,
+              }}
+            >
+              <option value="all">Усі проєкти</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -345,9 +422,9 @@ export function DashboardPage() {
         />
         <MetricCard
           icon={<Ic.Check2 sz={13} />}
-          label="Закриті за тиждень"
-          value={stats.closedThisWeek}
-          delta={stats.closedThisWeek > 0 ? '🎉 робота йде' : '—'}
+          label={`Закриті за ${period} днів`}
+          value={stats.closedInPeriod}
+          delta={stats.closedInPeriod > 0 ? '🎉 робота йде' : '—'}
           deltaKind="down"
           sparkData={stats.burndown.map(b => b.closed)}
           sparkColor="var(--st-resolved-dot)"
@@ -373,7 +450,7 @@ export function DashboardPage() {
         <div className="card">
           <div className="card-head">
             <h3>Burndown · відкриті баги</h3>
-            <span className="sub">останні 14 днів</span>
+            <span className="sub">останні {period} днів</span>
             <div className="right">
               <span className="tag" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ width: 8, height: 8, background: 'var(--st-open-dot)', borderRadius: 2, opacity: 0.7 }} />{' '}
