@@ -361,6 +361,12 @@ function GeneralForm({
   }, [user.first_name, user.last_name, user.email])
 
   const save = async () => {
+    // Принаймні одне з імені/прізвища обовʼязкове — щоб у UI завжди було
+    // людиночитане displayName замість @machine-нікa.
+    if (!first.trim() && !last.trim()) {
+      toast.show('Вкажіть імʼя або прізвище', 'error')
+      return
+    }
     setSaving(true)
     try {
       await apiPatch('/auth/profile/', { first_name: first, last_name: last, email })

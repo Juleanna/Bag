@@ -158,6 +158,18 @@ def register(request):
             {"ok": False, "error": "Заповніть обов'язкові поля"}, status=400
         )
 
+    # Принаймні одне з імені/прізвища має бути — щоб у UI завжди було
+    # людиночитане displayName, а не machine-нік. Інакше @-mentions і
+    # підписи коментарів виглядають як «@baterfield17».
+    if not first_name and not last_name:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Вкажіть імʼя або прізвище",
+            },
+            status=400,
+        )
+
     # Той самий ліміт, що в update_profile — щоб не можна було через
     # реєстрацію створити юзера з 1000-символьним прізвищем і потім
     # ламати верстку всюди, де воно відображається.
@@ -269,6 +281,23 @@ def update_profile(request):
     # подвійні прізвища; 150 (Django default) занадто багато і ламає верстку
     # у sidebar / шапці бага / коментарях.
     NAME_MAX = 50
+
+    # Спочатку перевіряємо «одне з двох обовʼязкове» — підраховуємо фінальні
+    # значення з урахуванням payload, а потім, якщо обидва порожні, відмова.
+    final_first = (
+        (payload.get("first_name") or "").strip()
+        if "first_name" in payload
+        else user.first_name
+    )
+    final_last = (
+        (payload.get("last_name") or "").strip()
+        if "last_name" in payload
+        else user.last_name
+    )
+    if ("first_name" in payload or "last_name" in payload) and not final_first and not final_last:
+        return JsonResponse(
+            {"ok": False, "error": "Вкажіть імʼя або прізвище"}, status=400
+        )
 
     if "first_name" in payload:
         new_first = (payload["first_name"] or "").strip()

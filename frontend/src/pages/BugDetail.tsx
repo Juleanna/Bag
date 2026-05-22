@@ -72,6 +72,38 @@ function attachGradient(name: string): string {
 }
 
 /** Мінімальний парсер маркдауну: `### Заг.`, **bold**, `code`, порожні рядки = новий абзац. */
+/**
+ * Розбирає рядок на текстові й @-mention частини. Для кожного `@username`
+ * шукає user у мапі — якщо знайшов, рендерить `@displayName`; якщо ні —
+ * лишає як `@username` (можливо це згадка людини поза проєктом, або просто
+ * текст з символом @).
+ */
+function renderWithMentions(
+  text: string,
+  usersByUsername: Map<string, UserShort>,
+): React.ReactNode[] {
+  if (!text) return []
+  const nodes: React.ReactNode[] = []
+  const re = /@(\w+)/g
+  let lastIdx = 0
+  let match: RegExpExecArray | null
+  let key = 0
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIdx) nodes.push(text.slice(lastIdx, match.index))
+    const user = usersByUsername.get(match[1].toLowerCase())
+    if (user) {
+      nodes.push(
+        <span key={key++} className="mention-tag">@{displayName(user)}</span>,
+      )
+    } else {
+      nodes.push(match[0])
+    }
+    lastIdx = match.index + match[0].length
+  }
+  if (lastIdx < text.length) nodes.push(text.slice(lastIdx))
+  return nodes
+}
+
 function renderMarkdown(text: string) {
   if (!text) return null
   const lines = text.split('\n')
@@ -254,8 +286,18 @@ export function BugDetailPage() {
     if (project?.owner) push(project.owner)
     if (project?.members) project.members.forEach(push)
     push(issue?.reporter)
+    // Додаємо також авторів коментарів — щоб старі згадки рендерились
+    // з ім'ям, навіть якщо людина вже не member.
+    comments.forEach(c => push(c.author))
     return out
-  }, [project, issue])
+  }, [project, issue, comments])
+
+  // Швидкий пошук user за username для рендеру @-mention як ім'я.
+  const usersByUsername = useMemo(() => {
+    const m = new Map<string, UserShort>()
+    for (const u of mentionUsers) m.set(u.username.toLowerCase(), u)
+    return m
+  }, [mentionUsers])
 
   if (loading || !issue) {
     return (
@@ -830,7 +872,9 @@ export function BugDetailPage() {
                     </div>
                     <div className="body">
                       {c.body.split('\n').map((l, i) => (
-                        <p key={i}>{l || ' '}</p>
+                        <p key={i}>
+                          {l ? renderWithMentions(l, usersByUsername) : ' '}
+                        </p>
                       ))}
                     </div>
                     {c.attachments && c.attachments.length > 0 && (

@@ -210,6 +210,11 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .mention-item .meta span { font-size: 11px; color: var(--fg-3); font-family: var(--font-mono); }
 .mention-item.active, .mention-item:hover { background: var(--accent-soft); }
 .mention-item.active .meta b { color: var(--accent-soft-fg); }
+
+/* @-згадка всередині рендериного коментаря. У БД зберігається як @username,
+   а у UI відображається @ + displayName(user) — щоб тестер бачив справжнє
+   ім'я, а не машинний нік. */
+.mention-tag { color: var(--accent-soft-fg); background: var(--accent-soft); padding: 0 4px; border-radius: 4px; font-weight: 500; }
 .comment-input .actions .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 
 /* Прев'ю файлів, які ще не надіслані разом із коментарем. */
