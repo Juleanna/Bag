@@ -838,94 +838,12 @@ export function BugDetailPage() {
           )}
         </div>
 
-        {/* Коментарі */}
+        {/* Коментарі — список зверху, форма вводу внизу (за прототипом). */}
         <div className="section">
           <h3>
             Коментарі <span className="count">{comments.length}</span>
           </h3>
-          {user && (
-            <div className="comment-input">
-              <Avatar user={user} />
-              <div className="box">
-                <MentionTextarea
-                  value={comment}
-                  onChange={setComment}
-                  users={mentionUsers}
-                  placeholder="Напишіть коментар…"
-                />
-                {commentFiles.length > 0 && (
-                  <div className="comment-files-preview">
-                    {commentFiles.map((f, i) => (
-                      <div key={i} className="file-chip">
-                        {f.type.startsWith('image/') ? (
-                          <Ic.Image sz={12} />
-                        ) : f.type.startsWith('video/') ? (
-                          <Ic.Play sz={12} />
-                        ) : (
-                          <Ic.Paperclip sz={12} />
-                        )}
-                        <span className="name" title={f.name}>{f.name}</span>
-                        <span className="size">
-                          {(f.size / (1024 * 1024)).toFixed(1)} МБ
-                        </span>
-                        <button
-                          type="button"
-                          className="btn ghost icon sm"
-                          onClick={() =>
-                            setCommentFiles(commentFiles.filter((_, j) => j !== i))
-                          }
-                          title="Прибрати"
-                        >
-                          <Ic.X sz={10} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="actions">
-                  <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>
-                    Підтримує @згадки користувачів. До 50 МБ на файл.
-                  </span>
-                  <div className="right">
-                    <label
-                      className="btn ghost sm"
-                      style={{ cursor: 'pointer' }}
-                      title="Додати картинку чи відео"
-                    >
-                      <Ic.Paperclip sz={12} />
-                      <span style={{ marginLeft: 6 }}>Прикріпити</span>
-                      <input
-                        type="file"
-                        accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip"
-                        multiple
-                        hidden
-                        onChange={e => {
-                          const files = Array.from(e.target.files || [])
-                          if (files.length) {
-                            setCommentFiles([...commentFiles, ...files])
-                          }
-                          // Скидаємо input — інакше повторний вибір того ж файлу
-                          // не викличе onChange.
-                          e.target.value = ''
-                        }}
-                      />
-                    </label>
-                    <button
-                      className="btn primary sm"
-                      disabled={
-                        submittingComment ||
-                        (!comment.trim() && commentFiles.length === 0)
-                      }
-                      onClick={submitComment}
-                    >
-                      {submittingComment ? 'Надсилання…' : 'Надіслати'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 8 }}>
             {comments.length === 0 ? (
               <div className="empty">
                 <Ic.Comment sz={28} />
@@ -941,8 +859,7 @@ export function BugDetailPage() {
                       <span className="when">{formatWhen(c.created_at)}</span>
                       {user && c.author.id === user.id && (
                         <button
-                          className="btn ghost icon sm"
-                          style={{ marginLeft: 'auto' }}
+                          className="btn ghost icon sm comment-delete"
                           onClick={() => removeComment(c.id)}
                           title="Видалити"
                         >
@@ -1008,6 +925,121 @@ export function BugDetailPage() {
               ))
             )}
           </div>
+
+          {/* Форма вводу коментаря — за прототипом унизу під списком.
+              Toolbar з трьох іконок (📎 файл / 🖼 картинка-відео / @ згадка)
+              ліворуч, дії праворуч. Ctrl/Cmd+Enter — submit. */}
+          {user && (
+            <div className="comment-input" style={{ marginTop: 16 }}>
+              <Avatar user={user} />
+              <div className="box">
+                <MentionTextarea
+                  value={comment}
+                  onChange={setComment}
+                  users={mentionUsers}
+                  placeholder="Напишіть коментар або /команду…"
+                  onSubmit={submitComment}
+                />
+                {commentFiles.length > 0 && (
+                  <div className="comment-files-preview">
+                    {commentFiles.map((f, i) => (
+                      <div key={i} className="file-chip">
+                        {f.type.startsWith('image/') ? (
+                          <Ic.Image sz={12} />
+                        ) : f.type.startsWith('video/') ? (
+                          <Ic.Play sz={12} />
+                        ) : (
+                          <Ic.Paperclip sz={12} />
+                        )}
+                        <span className="name" title={f.name}>{f.name}</span>
+                        <span className="size">
+                          {(f.size / (1024 * 1024)).toFixed(1)} МБ
+                        </span>
+                        <button
+                          type="button"
+                          className="btn ghost icon sm"
+                          onClick={() =>
+                            setCommentFiles(commentFiles.filter((_, j) => j !== i))
+                          }
+                          title="Прибрати"
+                        >
+                          <Ic.X sz={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="actions">
+                  <div className="toolbar">
+                    <label className="btn ghost icon sm" title="Прикріпити файл">
+                      <Ic.Paperclip sz={13} />
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt,.zip,.log,.json,.csv"
+                        multiple
+                        hidden
+                        onChange={e => {
+                          const files = Array.from(e.target.files || [])
+                          if (files.length) setCommentFiles([...commentFiles, ...files])
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                    <label
+                      className="btn ghost icon sm"
+                      title="Додати картинку чи відео"
+                    >
+                      <Ic.Image sz={13} />
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        hidden
+                        onChange={e => {
+                          const files = Array.from(e.target.files || [])
+                          if (files.length) setCommentFiles([...commentFiles, ...files])
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn ghost icon sm"
+                      title="Згадати користувача"
+                      onClick={() => setComment(c => (c.endsWith(' ') || c === '' ? c + '@' : c + ' @'))}
+                    >
+                      <span style={{ fontWeight: 600, fontSize: 13, lineHeight: 1 }}>@</span>
+                    </button>
+                  </div>
+                  <div className="right">
+                    <button
+                      type="button"
+                      className="btn ghost sm"
+                      disabled={!comment && commentFiles.length === 0}
+                      onClick={() => {
+                        setComment('')
+                        setCommentFiles([])
+                      }}
+                    >
+                      Скасувати
+                    </button>
+                    <button
+                      className="btn primary sm"
+                      disabled={
+                        submittingComment ||
+                        (!comment.trim() && commentFiles.length === 0)
+                      }
+                      onClick={submitComment}
+                      title="Надіслати (Ctrl+Enter)"
+                    >
+                      {submittingComment ? 'Надсилання…' : 'Надіслати'}
+                      <span className="hint">⌘↵</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {activities.length > 0 && (

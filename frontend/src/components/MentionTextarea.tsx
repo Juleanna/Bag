@@ -22,6 +22,9 @@ interface Props {
   className?: string
   /** Скільки максимум варіантів показувати у dropdown. */
   maxResults?: number
+  /** Submit shortcut — спрацьовує на Ctrl/Cmd+Enter (звичайний Enter
+      переноситься на новий рядок). Викликається лише коли mention popup закритий. */
+  onSubmit?: () => void
 }
 
 interface MentionState {
@@ -38,6 +41,7 @@ export function MentionTextarea({
   placeholder,
   className,
   maxResults = 6,
+  onSubmit,
 }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null)
   const [mention, setMention] = useState<MentionState | null>(null)
@@ -101,6 +105,14 @@ export function MentionTextarea({
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Cmd/Ctrl+Enter — submit. Перевіряємо перш ніж дивитися popup,
+    // бо це глобальний shortcut, а звичайний Enter всередині popup
+    // обробляється нижче як «вставити обраний @-варіант».
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      onSubmit?.()
+      return
+    }
     if (!showPopup) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
