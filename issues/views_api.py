@@ -707,14 +707,19 @@ class CommentViewSet(viewsets.ModelViewSet):
             issue = comment.issue
             notified_user_ids = {self.request.user.id}
 
-            # Сповіщення для @mentions у тілі коментаря (учасників проєкту)
+            # Сповіщення для @mentions у тілі коментаря.
+            # Шукаємо серед members проєкту (через through-модель) АБО серед
+            # owner'а проєкту — раніше owner не потрапляв сюди, бо у нього
+            # окремий FK owned_projects, а не M2M через ProjectMembership.
             mentioned = set(re.findall(r"@(\w+)", comment.body or ""))
             if mentioned:
                 from django.contrib.auth import get_user_model
+                from django.db.models import Q
 
                 UserModel = get_user_model()
                 project_users = UserModel.objects.filter(
-                    projects=issue.project, username__in=mentioned
+                    Q(projects=issue.project) | Q(owned_projects=issue.project),
+                    username__in=mentioned,
                 ).distinct()
                 for u in project_users:
                     if u.id in notified_user_ids:
