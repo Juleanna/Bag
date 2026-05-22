@@ -21,20 +21,32 @@
  * Виносимо в utils, щоб NewBug (форма редагування) і BugDetail (рендер)
  * мали спільне джерело істини щодо формату.
  */
-export function parseDescription(md: string): {
+export interface ParsedDescription {
   preamble: string
   steps: string[]
-} {
-  if (!md) return { preamble: '', steps: [] }
+  /** Очікуваний результат — з секції «### Очікуваний результат». */
+  expectedResult: string
+  /** Фактичний результат — з секції «### Фактичний результат». */
+  actualResult: string
+}
+
+export function parseDescription(md: string): ParsedDescription {
+  if (!md) {
+    return { preamble: '', steps: [], expectedResult: '', actualResult: '' }
+  }
   const lines = md.split('\n')
   const preambleLines: string[] = []
   const steps: string[] = []
-  let section: 'preamble' | 'steps' | 'other' = 'preamble'
+  const expectedLines: string[] = []
+  const actualLines: string[] = []
+  let section: 'preamble' | 'steps' | 'expected' | 'actual' | 'other' = 'preamble'
   for (const raw of lines) {
     const h = raw.match(/^###\s+(.*)$/)
     if (h) {
       const title = h[1].trim().toLowerCase()
       if (title.includes('крок')) section = 'steps'
+      else if (title.includes('очікуван')) section = 'expected'
+      else if (title.includes('фактичн')) section = 'actual'
       else section = 'other'
       continue
     }
@@ -43,7 +55,16 @@ export function parseDescription(md: string): {
     } else if (section === 'steps') {
       const m = raw.match(/^\s*\d+\.\s*(.*)$/)
       if (m && m[1].trim()) steps.push(m[1].trim())
+    } else if (section === 'expected') {
+      expectedLines.push(raw)
+    } else if (section === 'actual') {
+      actualLines.push(raw)
     }
   }
-  return { preamble: preambleLines.join('\n').trim(), steps }
+  return {
+    preamble: preambleLines.join('\n').trim(),
+    steps,
+    expectedResult: expectedLines.join('\n').trim(),
+    actualResult: actualLines.join('\n').trim(),
+  }
 }

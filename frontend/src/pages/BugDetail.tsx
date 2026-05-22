@@ -560,7 +560,20 @@ export function BugDetailPage() {
             Витягуємо preamble + кроки окремо: preamble лишається markdown'ом,
             а кроки рендеримо як карточки за прототипом. */}
         {(() => {
-          const { preamble, steps } = parseDescription(issue.description || '')
+          const parsed = parseDescription(issue.description || '')
+          const { preamble, steps } = parsed
+          // custom_fields має пріоритет — на випадок якщо опис був редагований
+          // вручну і секції перейменовано, а форма зберегла експ/факт окремо.
+          const cf = (issue.custom_fields || {}) as {
+            expected_result?: unknown
+            actual_result?: unknown
+          }
+          const expected =
+            (typeof cf.expected_result === 'string' && cf.expected_result.trim()) ||
+            parsed.expectedResult
+          const actual =
+            (typeof cf.actual_result === 'string' && cf.actual_result.trim()) ||
+            parsed.actualResult
           return (
             <>
               <div className="section">
@@ -600,21 +613,47 @@ export function BugDetailPage() {
                       // підрядком (як на прототипі).
                       const expMatch = s.match(/^(.*?)\n?\s*Очікується:\s*(.*)$/is)
                       const main = expMatch ? expMatch[1].trim() : s
-                      const expected = expMatch ? expMatch[2].trim() : null
+                      const exp = expMatch ? expMatch[2].trim() : null
                       return (
                         <div key={i} className="repro-step">
                           <div className="num">{i + 1}</div>
                           <div className="body">
                             <div className="main">{main}</div>
-                            {expected && (
+                            {exp && (
                               <div className="expected">
-                                <span className="lbl">Очікується:</span> {expected}
+                                <span className="lbl">Очікується:</span> {exp}
                               </div>
                             )}
                           </div>
                         </div>
                       )
                     })}
+                  </div>
+                </div>
+              )}
+
+              {(expected || actual) && (
+                <div className="section">
+                  <h3>Очікуваний і фактичний результат</h3>
+                  <div className="repro-steps">
+                    {expected && (
+                      <div className="repro-step result-expected">
+                        <div className="num">✓</div>
+                        <div className="body">
+                          <div className="lbl">Очікувано</div>
+                          <div className="main">{expected}</div>
+                        </div>
+                      </div>
+                    )}
+                    {actual && (
+                      <div className="repro-step result-actual">
+                        <div className="num">✗</div>
+                        <div className="body">
+                          <div className="lbl">Фактично</div>
+                          <div className="main">{actual}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
