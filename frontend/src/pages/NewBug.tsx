@@ -826,7 +826,16 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                     Додати крок…
                   </span>
                 </div>
-                <div className="step-edit expected">
+              </div>
+            </div>
+
+            {/* Окремий блок: бажаний і фактичний результат — раніше були
+                всередині списку кроків, що плутало тестерів. Тепер це
+                власна секція з двома полями і власними label'ами. */}
+            <div className="form-section">
+              <label className="form-lbl">Очікуваний і фактичний результат</label>
+              <div className="result-fields">
+                <div className="step-edit">
                   <div
                     className="num"
                     style={{
@@ -834,6 +843,7 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                       color: 'var(--st-resolved-fg)',
                       borderColor: 'transparent',
                     }}
+                    title="Очікуваний результат"
                   >
                     ✓
                   </div>
@@ -844,7 +854,7 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                     onChange={e => setExpectedResult(e.target.value)}
                   />
                 </div>
-                <div className="step-edit expected">
+                <div className="step-edit">
                   <div
                     className="num"
                     style={{
@@ -852,6 +862,7 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                       color: 'var(--st-open-fg)',
                       borderColor: 'transparent',
                     }}
+                    title="Фактичний результат"
                   >
                     ✗
                   </div>

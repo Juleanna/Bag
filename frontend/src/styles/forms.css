@@ -28,6 +28,9 @@
 .step-edit { display: flex; align-items: center; gap: 8px; }
 .step-edit .num { width: 24px; height: 24px; border-radius: 6px; background: var(--bg-2); color: var(--fg-2); font-size: 12px; font-weight: 600; display: grid; place-items: center; flex-shrink: 0; border: 1px solid var(--border); }
 .step-edit.expected { margin-top: 4px; }
+/* Окремий блок «Очікуваний + Фактичний результат» у формі бага —
+   виокремлений із списку кроків, бо плутав тестерів. */
+.result-fields { display: flex; flex-direction: column; gap: 6px; }
 .step-inp { flex: 1; border: 1px solid transparent; background: var(--bg); padding: 7px 10px; border-radius: 6px; font: inherit; font-size: 13px; color: var(--fg); outline: none; min-width: 0; }
 .step-inp:hover { border-color: var(--border); }
 .step-inp:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-soft); }
