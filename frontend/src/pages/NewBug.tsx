@@ -20,6 +20,7 @@ import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import type { Issue, IssuePriority, IssueStatus, Project, UserShort } from '../api/types'
 import { displayName } from '../utils/user'
+import { parseDescription } from '../utils/description'
 import { DuplicatePanel } from '../components/DuplicatePanel'
 
 const DRAFT_KEY = 'bt:newbug:draft'
@@ -222,34 +223,8 @@ function formatBytes(b: number): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-/**
- * Зворот `buildDescription` — розпарсити markdown-опис на компоненти.
- * Виокремлюємо preamble (текст до першого ###) і список кроків з блоку "### Кроки відтворення".
- * Решта блоків (Очікуваний/Фактичний/Середовище) ігноруються — вони є в custom_fields.
- */
-function parseDescription(md: string): { preamble: string; steps: string[] } {
-  if (!md) return { preamble: '', steps: [] }
-  const lines = md.split('\n')
-  const preambleLines: string[] = []
-  const steps: string[] = []
-  let section: 'preamble' | 'steps' | 'other' = 'preamble'
-  for (const raw of lines) {
-    const h = raw.match(/^###\s+(.*)$/)
-    if (h) {
-      const title = h[1].trim().toLowerCase()
-      if (title.includes('крок')) section = 'steps'
-      else section = 'other'
-      continue
-    }
-    if (section === 'preamble') {
-      preambleLines.push(raw)
-    } else if (section === 'steps') {
-      const m = raw.match(/^\s*\d+\.\s*(.*)$/)
-      if (m && m[1].trim()) steps.push(m[1].trim())
-    }
-  }
-  return { preamble: preambleLines.join('\n').trim(), steps }
-}
+// parseDescription винесений у utils/description.ts — спільне джерело
+// істини з BugDetail (де він використовується для відображення).
 
 interface BugFormPageProps {
   mode?: 'new' | 'edit'

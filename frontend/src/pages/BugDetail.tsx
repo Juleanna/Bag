@@ -14,6 +14,7 @@ import { useConfirm } from '../context/ConfirmContext'
 import { useGlobalShortcut } from '../hooks/useGlobalShortcut'
 import { api as extras } from '../api/extras'
 import { displayName } from '../utils/user'
+import { parseDescription } from '../utils/description'
 import type { TimeLog } from '../api/extras'
 import type {
   Attachment,
@@ -555,31 +556,71 @@ export function BugDetailPage() {
           )}
         </div>
 
-        {/* Опис — read-only, редагування на /bugs/:id/edit */}
-        <div className="section">
-          <h3>Опис</h3>
-          <div className="prose">
-            {issue.description ? (
-              renderMarkdown(issue.description)
-            ) : canEdit ? (
-              <p style={{ color: 'var(--fg-3)' }}>
-                Опис не задано.{' '}
-                <a
-                  href={`/bugs/${issue.id}/edit`}
-                  onClick={e => {
-                    e.preventDefault()
-                    navigate(`/bugs/${issue.id}/edit`)
-                  }}
-                  style={{ color: 'var(--accent-soft-fg)' }}
-                >
-                  Додати опис
-                </a>
-              </p>
-            ) : (
-              <p style={{ color: 'var(--fg-3)' }}>Опис не задано</p>
-            )}
-          </div>
-        </div>
+        {/* Опис — read-only, редагування на /bugs/:id/edit.
+            Витягуємо preamble + кроки окремо: preamble лишається markdown'ом,
+            а кроки рендеримо як карточки за прототипом. */}
+        {(() => {
+          const { preamble, steps } = parseDescription(issue.description || '')
+          return (
+            <>
+              <div className="section">
+                <h3>Опис</h3>
+                <div className="prose">
+                  {preamble ? (
+                    renderMarkdown(preamble)
+                  ) : canEdit ? (
+                    <p style={{ color: 'var(--fg-3)' }}>
+                      Опис не задано.{' '}
+                      <a
+                        href={`/bugs/${issue.id}/edit`}
+                        onClick={e => {
+                          e.preventDefault()
+                          navigate(`/bugs/${issue.id}/edit`)
+                        }}
+                        style={{ color: 'var(--accent-soft-fg)' }}
+                      >
+                        Додати опис
+                      </a>
+                    </p>
+                  ) : (
+                    <p style={{ color: 'var(--fg-3)' }}>Опис не задано</p>
+                  )}
+                </div>
+              </div>
+
+              {steps.length > 0 && (
+                <div className="section">
+                  <h3>
+                    Кроки відтворення{' '}
+                    <span className="count">{steps.length} крок{steps.length === 1 ? '' : steps.length < 5 ? 'и' : 'ів'}</span>
+                  </h3>
+                  <div className="repro-steps">
+                    {steps.map((s, i) => {
+                      // Якщо у тексті кроку є «Очікується:» — виділяємо його
+                      // підрядком (як на прототипі).
+                      const expMatch = s.match(/^(.*?)\n?\s*Очікується:\s*(.*)$/is)
+                      const main = expMatch ? expMatch[1].trim() : s
+                      const expected = expMatch ? expMatch[2].trim() : null
+                      return (
+                        <div key={i} className="repro-step">
+                          <div className="num">{i + 1}</div>
+                          <div className="body">
+                            <div className="main">{main}</div>
+                            {expected && (
+                              <div className="expected">
+                                <span className="lbl">Очікується:</span> {expected}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
+          )
+        })()}
 
         {/* Вкладення — у вигляді сітки тайлів */}
         <div className="section">
