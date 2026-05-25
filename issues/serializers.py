@@ -418,6 +418,11 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ["id", "issue", "author", "body", "created_at", "attachments"]
         read_only_fields = ["author", "created_at", "attachments"]
+        # body можна лишити порожнім, якщо коментар містить лише вкладення —
+        # наприклад тестер прикріплює скрін-каст без коментаря. Інакше DRF
+        # повертає 400 «Це поле не може бути порожнім», а кнопка «Надіслати»
+        # «не реагує» з точки зору тестера.
+        extra_kwargs = {"body": {"allow_blank": True, "required": False}}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
