@@ -192,8 +192,8 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .comment .head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; min-width: 0; }
 .comment .head b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%; }
 .comment .head .when { color: var(--fg-3); font-size: 11.5px; flex-shrink: 0; }
-.comment .body { color: var(--fg-2); line-height: 1.55; font-size: 13.5px; }
-.comment .body p { margin: 0 0 6px; }
+.comment .body { color: var(--fg-2); line-height: 1.55; font-size: 13.5px; overflow-wrap: anywhere; min-width: 0; }
+.comment .body p { margin: 0 0 6px; overflow-wrap: anywhere; }
 .comment-input { display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: start; }
 .comment-input .box { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 10px 12px; min-height: 80px; }
 .comment-input textarea { width: 100%; border: none; outline: none; background: transparent; resize: none; font-size: 13.5px; color: var(--fg); min-height: 36px; line-height: 1.55; }
@@ -222,7 +222,7 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 /* @-згадка всередині рендериного коментаря. У БД зберігається як @username,
    а у UI відображається @ + displayName(user) — щоб тестер бачив справжнє
    ім'я, а не машинний нік. */
-.mention-tag { color: var(--accent-soft-fg); background: var(--accent-soft); padding: 0 4px; border-radius: 4px; font-weight: 500; }
+.mention-tag { color: var(--accent-soft-fg); background: var(--accent-soft); padding: 0 4px; border-radius: 4px; font-weight: 500; overflow-wrap: anywhere; }
 
 /* Картки кроків відтворення у read-only вигляді бага (BugDetail).
    Прототип: один крок = картка з круглим номером ліворуч і текстом
@@ -257,8 +257,9 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .comment-media .media-file:hover { background: var(--surface-2); color: var(--fg); }
 
 .history { display: flex; flex-direction: column; }
-.h-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 7px 0; font-size: 12.5px; color: var(--fg-2); border-bottom: 1px solid var(--divider); }
+.h-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 0; font-size: 12.5px; color: var(--fg-2); border-bottom: 1px solid var(--divider); }
 .h-row:last-child { border-bottom: none; }
+.h-row > div { min-width: 0; overflow-wrap: anywhere; }
 .h-row .ico { width: 22px; height: 22px; border-radius: 50%; background: var(--bg-2); display: grid; place-items: center; color: var(--fg-3); }
 .h-row .when { color: var(--fg-3); font-size: 11.5px; }
 .h-row b { font-weight: 600; color: var(--fg); }
