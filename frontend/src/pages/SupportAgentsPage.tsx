@@ -196,11 +196,17 @@ export function SupportAgentsPage() {
                 }
               >
                 <option value="">— оберіть —</option>
-                {availableUsers.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.username} {u.email ? `(${u.email})` : ''}
-                  </option>
-                ))}
+                {availableUsers.map(u => {
+                  const full = `${u.username}${u.email ? ` (${u.email})` : ''}`
+                  // Нативний select popup розширюється до найдовшого option-
+                  // тексту — обрізаємо, щоб довгі email/нікнейми не ламали ширину.
+                  const short = full.length > 40 ? full.slice(0, 39) + '…' : full
+                  return (
+                    <option key={u.id} value={u.id} title={full}>
+                      {short}
+                    </option>
+                  )
+                })}
               </select>
             </div>
             <label

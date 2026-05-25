@@ -19,7 +19,7 @@ import { apiGet, apiPatch, apiPost, apiUpload, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import type { Issue, IssuePriority, IssueStatus, Project, UserShort } from '../api/types'
-import { displayName } from '../utils/user'
+import { displayName, truncateDisplayName } from '../utils/user'
 import { parseDescription } from '../utils/description'
 import { DuplicatePanel } from '../components/DuplicatePanel'
 
@@ -1019,8 +1019,8 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
                 >
                   <option value="">Не призначено</option>
                   {members.map(m => (
-                    <option key={m.id} value={m.id}>
-                      {displayName(m)}
+                    <option key={m.id} value={m.id} title={displayName(m)}>
+                      {truncateDisplayName(m)}
                     </option>
                   ))}
                 </select>
