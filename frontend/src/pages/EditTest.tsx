@@ -18,7 +18,7 @@ import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { useAuth } from '../context/AuthContext'
 import { Skeleton } from '../components/Skeleton'
-import { displayName } from '../utils/user'
+import { displayName, truncateDisplayName } from '../utils/user'
 
 type CaseType = 'manual' | 'automated'
 type CasePriority = 'critical' | 'high' | 'medium' | 'low'
@@ -517,10 +517,14 @@ export function EditTestPage() {
                   }
                 >
                   <option value="">Не призначено</option>
-                  {user && <option value={user.id}>{displayName(user)} (ви)</option>}
+                  {user && (
+                    <option value={user.id} title={`${displayName(user)} (ви)`}>
+                      {truncateDisplayName(user)} (ви)
+                    </option>
+                  )}
                   {users.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {displayName(u)}
+                    <option key={u.id} value={u.id} title={displayName(u)}>
+                      {truncateDisplayName(u)}
                     </option>
                   ))}
                 </select>

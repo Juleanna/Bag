@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { useGlobalShortcut } from '../hooks/useGlobalShortcut'
 import { api as extras } from '../api/extras'
-import { displayName } from '../utils/user'
+import { displayName, truncateDisplayName } from '../utils/user'
 import { parseDescription } from '../utils/description'
 import type { TimeLog } from '../api/extras'
 import type {
@@ -1156,7 +1156,9 @@ export function BugDetailPage() {
                   >
                     <option value="">Не призначено</option>
                     {members.map((m: UserShort) => (
-                      <option key={m.id} value={m.id}>{displayName(m)}</option>
+                      <option key={m.id} value={m.id} title={displayName(m)}>
+                        {truncateDisplayName(m)}
+                      </option>
                     ))}
                   </select>
                 ) : assignee ? (

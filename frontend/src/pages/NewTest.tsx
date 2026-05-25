@@ -16,7 +16,7 @@ import { api } from '../api/extras'
 import type { TestSuite } from '../api/extras'
 import { listAll } from '../api/client'
 import type { IssuePriority, Project, UserShort } from '../api/types'
-import { displayName } from '../utils/user'
+import { displayName, truncateDisplayName } from '../utils/user'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 
@@ -592,10 +592,14 @@ export function NewTestPage() {
                   value={authorId ?? ''}
                   onChange={e => setAuthorId(e.target.value ? Number(e.target.value) : null)}
                 >
-                  {user && <option value={user.id}>{displayName(user)} (ви)</option>}
+                  {user && (
+                    <option value={user.id} title={`${displayName(user)} (ви)`}>
+                      {truncateDisplayName(user)} (ви)
+                    </option>
+                  )}
                   {users.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {displayName(u)}
+                    <option key={u.id} value={u.id} title={displayName(u)}>
+                      {truncateDisplayName(u)}
                     </option>
                   ))}
                 </select>
@@ -718,10 +722,14 @@ export function NewTestPage() {
                   }
                 >
                   <option value="">Не призначено</option>
-                  {user && <option value={user.id}>{displayName(user)} (ви)</option>}
+                  {user && (
+                    <option value={user.id} title={`${displayName(user)} (ви)`}>
+                      {truncateDisplayName(user)} (ви)
+                    </option>
+                  )}
                   {users.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {displayName(u)}
+                    <option key={u.id} value={u.id} title={displayName(u)}>
+                      {truncateDisplayName(u)}
                     </option>
                   ))}
                 </select>
