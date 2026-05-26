@@ -18,7 +18,6 @@ import type { Issue, Project } from '../api/types'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { Skeleton } from '../components/Skeleton'
-import { StatusPill } from '../atoms/Status'
 
 type TabKey = 'active' | 'planning' | 'completed'
 
@@ -269,6 +268,9 @@ function SprintDetail({
   onDelete: () => void
   onOpenBugs: () => void
 }) {
+  const navigate = useNavigate()
+  const navToBug = (id: number) => navigate(`/bugs/${id}`)
+  const navToBugsNew = () => navigate('/bugs/new')
   const remaining = daysLeft(sprint.ends_at)
   const cat = categorize(sprint)
   const byPriority = useMemo(() => {
@@ -466,36 +468,70 @@ function SprintDetail({
         </div>
       </div>
 
-      <div className="card" style={{ padding: 18 }}>
-        <div className="card-head" style={{ padding: 0, marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>Дошка спринту</h3>
-        </div>
-        <div className="sprint-board">
-          {columns.map(col => (
-            <div key={col.key} className="sprint-col">
-              <div className="head">
-                <span className="dot" />
-                <b>{col.label}</b>
-                <span className="count">{col.issues.length}</span>
-              </div>
-              <div className="list">
-                {col.issues.length === 0 ? (
-                  <div className="empty-mini">—</div>
-                ) : (
-                  col.issues.slice(0, 8).map(it => (
-                    <div key={it.id} className="card-mini">
-                      <div className="id">BUG-{it.id}</div>
+      <div style={{ marginBottom: 8 }}>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Дошка спринту</h3>
+      </div>
+      <div className="sprint-board">
+        {columns.map(col => (
+          <div key={col.key} className="sprint-col">
+            <div className="head">
+              <span className={`dot ${col.key}`} />
+              <b>{col.label}</b>
+              <span className="count">{col.issues.length}</span>
+              <button
+                type="button"
+                className="add"
+                title="Додати у колонку"
+                onClick={() => navToBugsNew()}
+              >
+                <Ic.Plus sz={11} />
+              </button>
+            </div>
+            <div className="list">
+              {col.issues.length === 0 ? (
+                <div className="empty-mini">—</div>
+              ) : (
+                col.issues.slice(0, 8).map(it => {
+                  const cf = (it.custom_fields || {}) as Record<string, unknown>
+                  const sp =
+                    typeof cf.story_points === 'number'
+                      ? cf.story_points
+                      : typeof cf.story_points === 'string'
+                        ? Number(cf.story_points)
+                        : null
+                  return (
+                    <div
+                      key={it.id}
+                      className="card-mini"
+                      onClick={() => navToBug(it.id)}
+                    >
+                      <div className="top">
+                        <span className="id">BUG-{it.id}</span>
+                        <span
+                          className="pri-dot"
+                          style={{ background: `var(--pri-${it.priority})` }}
+                          title={`Пріоритет: ${it.priority}`}
+                        />
+                      </div>
                       <div className="title">{it.title}</div>
-                      <div className="meta">
-                        <StatusPill value={it.status} />
+                      <div className="foot">
+                        {sp != null && sp >= 0 && (
+                          <span className={`sp pri-${it.priority}`}>{sp}SP</span>
+                        )}
+                        {it.assignee && (
+                          <span className="assignee" title="Виконавець">
+                            {/* Літери з id — поки немає денормалізованого імені */}
+                            {String(it.assignee)[0]?.toUpperCase() || '?'}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  )
+                })
+              )}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </>
   )

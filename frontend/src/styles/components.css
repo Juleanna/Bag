@@ -340,10 +340,29 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .sprint-col .head .count { margin-left: auto; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .sprint-col .list { display: flex; flex-direction: column; gap: 6px; }
 .sprint-col .empty-mini { padding: 12px; text-align: center; color: var(--fg-4); font-size: 12px; }
-.sprint-col .card-mini { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
-.sprint-col .card-mini .id { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); margin-bottom: 2px; }
+.sprint-col .card-mini { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; transition: border-color 0.12s, box-shadow 0.12s; }
+.sprint-col .card-mini:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.sprint-col .card-mini .top { display: flex; align-items: center; justify-content: space-between; }
+.sprint-col .card-mini .id { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+.sprint-col .card-mini .pri-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .sprint-col .card-mini .title { font-size: 12.5px; color: var(--fg); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.sprint-col .card-mini .meta { margin-top: 6px; }
+.sprint-col .card-mini .foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sprint-col .card-mini .sp { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; background: var(--bg-2); color: var(--fg-2); }
+.sprint-col .card-mini .sp::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-3); }
+.sprint-col .card-mini .sp.pri-critical::before { background: var(--pri-critical); }
+.sprint-col .card-mini .sp.pri-high::before { background: var(--pri-high); }
+.sprint-col .card-mini .sp.pri-medium::before { background: var(--pri-medium); }
+.sprint-col .card-mini .sp.pri-low::before { background: var(--pri-low); }
+.sprint-col .card-mini .assignee { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; font-size: 10px; font-weight: 600; display: grid; place-items: center; }
+
+/* Кольорова точка статусу в шапці колонки + кнопка «+» праворуч. */
+.sprint-col .head .dot.open { background: var(--st-open-dot); }
+.sprint-col .head .dot.in_progress { background: var(--st-progress-dot); }
+.sprint-col .head .dot.review { background: var(--accent); }
+.sprint-col .head .dot.done { background: var(--st-resolved-dot); }
+.sprint-col .head .add { margin-left: auto; width: 22px; height: 22px; border: none; background: transparent; color: var(--fg-3); border-radius: 6px; cursor: pointer; display: grid; place-items: center; }
+.sprint-col .head .add:hover { background: var(--bg); color: var(--fg); }
+.sprint-col .head .count { margin-left: 0; }
 
 /* Планування спринта — беклог-кандидати + ємність команди (2 колонки). */
 .planning-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; }
