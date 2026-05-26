@@ -169,23 +169,48 @@ export function SprintsPage() {
           <Skeleton height={200} />
           <Skeleton height={300} />
         </div>
+      ) : tab === 'completed' ? (
+        <CompletedList
+          sprints={filteredSprints}
+          issues={issues}
+          onOpen={s => navigate(`/bugs?sprint=${s.id}`)}
+        />
+      ) : tab === 'planning' ? (
+        focusedSprint ? (
+          <PlanningView
+            sprint={focusedSprint}
+            project={projects.find(p => p.id === projectId) || null}
+            backlog={issues.filter(i => i.sprint == null)}
+            onLaunch={async () => {
+              try {
+                const updated = await extras.updateSprint(focusedSprint.id, { is_active: true })
+                setSprints(sl => sl.map(x => (x.id === updated.id ? updated : x)))
+                setTab('active')
+                toast.show('Спринт запущено', 'success')
+              } catch (e) {
+                toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+              }
+            }}
+          />
+        ) : (
+          <div className="empty" style={{ marginTop: 60 }}>
+            <Ic.Calendar sz={36} />
+            <h4>Немає запланованих спринтів</h4>
+            <p>Створіть нову ітерацію наперед — і вона зʼявиться тут.</p>
+            <button
+              className="btn primary"
+              style={{ marginTop: 12 }}
+              onClick={() => navigate('/sprints/new')}
+            >
+              <Ic.Plus sz={13} /> Новий спринт
+            </button>
+          </div>
+        )
       ) : !focusedSprint ? (
         <div className="empty" style={{ marginTop: 60 }}>
           <Ic.Calendar sz={36} />
-          <h4>
-            {tab === 'active'
-              ? 'Немає активного спринту'
-              : tab === 'planning'
-                ? 'Немає запланованих'
-                : 'Немає завершених'}
-          </h4>
-          <p>
-            {tab === 'active'
-              ? 'Створіть новий спринт або запустіть запланований'
-              : tab === 'planning'
-                ? 'Запланувати майбутню ітерацію'
-                : 'Завершені спринти зʼявляться тут після завершення'}
-          </p>
+          <h4>Немає активного спринту</h4>
+          <p>Створіть новий спринт або запустіть запланований</p>
           <button
             className="btn primary"
             style={{ marginTop: 12 }}
@@ -415,4 +440,282 @@ function SprintDetail({
       </div>
     </>
   )
+}
+
+// Рахуємо story_points з custom_fields; якщо не задано — рахуємо за 1 SP,
+// щоб ємність команди не була нульовою для існуючих багів.
+function spOf(i: Issue): number {
+  const cf = (i.custom_fields || {}) as Record<string, unknown>
+  const v = cf.story_points
+  if (typeof v === 'number' && v >= 0) return v
+  if (typeof v === 'string') {
+    const n = Number(v)
+    if (Number.isFinite(n) && n >= 0) return n
+  }
+  return 1
+}
+
+function PlanningView({
+  sprint,
+  project,
+  backlog,
+  onLaunch,
+}: {
+  sprint: Sprint
+  project: Project | null
+  backlog: Issue[]
+  onLaunch: () => void
+}) {
+  // Кандидати для планування — issues без спринта, відсортовані за пріоритетом.
+  const PRI_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+  const candidates = useMemo(
+    () =>
+      [...backlog].sort(
+        (a, b) =>
+          (PRI_ORDER[a.priority] ?? 9) - (PRI_ORDER[b.priority] ?? 9) ||
+          a.id - b.id,
+      ),
+    [backlog],
+  )
+  // Беремо тих, кого вже додали у спринт (тобто i.sprint === sprint.id) —
+  // окремий зріз issues приходить ззовні, тут не маємо. Тимчасово відсутньо;
+  // ємність будуємо лише на основі capacity_sp і випадково розподіленому
+  // load = 0 для нових. Точніший варіант — після драг-н-дропу в спринт.
+  const members = useMemo(() => {
+    if (!project) return [] as Array<{ id: number; first_name?: string; last_name?: string; username: string }>
+    const seen = new Set<number>()
+    const out: Array<{ id: number; first_name?: string; last_name?: string; username: string }> = []
+    if (project.owner) {
+      seen.add(project.owner.id)
+      out.push(project.owner)
+    }
+    for (const m of project.members || []) {
+      if (!seen.has(m.id)) {
+        seen.add(m.id)
+        out.push(m)
+      }
+    }
+    return out
+  }, [project])
+
+  const cap = sprint.capacity_sp ?? 0
+  const perPerson = members.length > 0 ? Math.round(cap / members.length) : cap
+  // Скільки SP уже призначено на людину з backlog'у — рахуємо тих, у кого
+  // assignee збігається.
+  const loadByUser = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const i of backlog) {
+      if (i.assignee != null) m.set(i.assignee, (m.get(i.assignee) ?? 0) + spOf(i))
+    }
+    return m
+  }, [backlog])
+  const plannedTotal = backlog.reduce((s, i) => s + spOf(i), 0)
+
+  return (
+    <>
+      <div className="sprint-head">
+        <div>
+          <h2 style={{ margin: 0 }}>Планування {sprint.name}</h2>
+          <div className="sub" style={{ marginTop: 4 }}>
+            Чернетка · початок {formatDateShort(sprint.starts_at)}
+            {cap > 0 && ` · ємність команди ~${cap} SP`}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn primary" onClick={onLaunch}>
+            <Ic.Play sz={11} /> Запустити спринт
+          </button>
+        </div>
+      </div>
+
+      <div className="planning-grid">
+        <div className="card" style={{ padding: 16 }}>
+          <div className="card-head" style={{ padding: 0, marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>
+              Беклог · кандидати
+              <span className="count" style={{ marginLeft: 8 }}>
+                {candidates.length} items
+              </span>
+            </h3>
+          </div>
+          <div className="planning-list">
+            {candidates.length === 0 ? (
+              <div className="empty-mini" style={{ padding: 24 }}>
+                У беклозі немає кандидатів
+              </div>
+            ) : (
+              candidates.slice(0, 20).map(it => (
+                <div key={it.id} className="planning-row">
+                  <span className="id">BUG-{it.id}</span>
+                  <span className="title" title={it.title}>{it.title}</span>
+                  <span className="sp">{spOf(it)}SP</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: 16 }}>
+          <div className="card-head" style={{ padding: 0, marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>Ємність</h3>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                marginBottom: 6,
+              }}
+            >
+              <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
+                Заплановано
+              </span>
+              <b style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>
+                {plannedTotal} / {cap || '—'} SP
+              </b>
+            </div>
+            <div
+              style={{
+                height: 6,
+                background: 'var(--bg-2)',
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: cap > 0 ? `${Math.min(100, (plannedTotal / cap) * 100)}%` : '0%',
+                  background:
+                    plannedTotal > cap ? 'var(--pri-high)' : 'var(--accent)',
+                  transition: 'width 0.3s ease',
+                }}
+              />
+            </div>
+          </div>
+          <div className="planning-capacity-list">
+            {members.map(m => {
+              const used = loadByUser.get(m.id) ?? 0
+              return (
+                <div key={m.id} className="row">
+                  <div
+                    className="avatar"
+                    title={displayNameLocal(m)}
+                    style={{ background: gradientForUser(m.id) }}
+                  >
+                    {initialsForUser(m)}
+                  </div>
+                  <span className="name" title={displayNameLocal(m)}>
+                    {displayNameLocal(m)}
+                  </span>
+                  <span className="cap">
+                    {used}/{perPerson || '—'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function CompletedList({
+  sprints,
+  issues,
+  onOpen,
+}: {
+  sprints: Sprint[]
+  issues: Issue[]
+  onOpen: (s: Sprint) => void
+}) {
+  if (sprints.length === 0) {
+    return (
+      <div className="empty" style={{ marginTop: 60 }}>
+        <Ic.Check sz={36} />
+        <h4>Немає завершених спринтів</h4>
+        <p>Завершені спринти зʼявляться тут після завершення.</p>
+      </div>
+    )
+  }
+  return (
+    <div>
+      <div className="sprint-head">
+        <div>
+          <h2 style={{ margin: 0 }}>Завершені спринти</h2>
+          <div className="sub" style={{ marginTop: 4 }}>
+            Тренди velocity та виконання
+          </div>
+        </div>
+      </div>
+      <div className="completed-list">
+        {sprints.map(s => {
+          const total = issues.filter(i => i.sprint === s.id).length
+          const done = issues.filter(
+            i =>
+              i.sprint === s.id && (i.status === 'done' || i.status === 'cancelled'),
+          ).length
+          const pct = total === 0 ? 0 : Math.round((done / total) * 100)
+          return (
+            <div key={s.id} className="completed-row card">
+              <div className="info">
+                <b>{s.name}</b>
+                <div className="dates">
+                  {formatDateShort(s.starts_at)} — {formatDateShort(s.ends_at)}
+                </div>
+              </div>
+              <div className="metric">
+                <span className="lbl">Velocity</span>
+                <b>{s.capacity_sp ?? '—'} SP</b>
+              </div>
+              <div className="metric">
+                <span className="lbl">Виконано</span>
+                <b>{pct}%</b>
+              </div>
+              <div className="bar">
+                <div className="fill" style={{ width: `${pct}%` }} />
+              </div>
+              <button className="btn" onClick={() => onOpen(s)}>
+                Огляд
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Локальні утиліти для avatar-кружочка в Capacity (Avatar-компонент тут зайвий —
+// він тягне свої стилі і пропси на повний UserShort).
+function displayNameLocal(u: {
+  first_name?: string
+  last_name?: string
+  username: string
+}): string {
+  const full = [u.first_name, u.last_name].filter(Boolean).join(' ').trim()
+  return full || u.username
+}
+function initialsForUser(u: {
+  first_name?: string
+  last_name?: string
+  username: string
+}): string {
+  const f = (u.first_name || '').trim()
+  const l = (u.last_name || '').trim()
+  if (f && l) return (f[0] + l[0]).toUpperCase()
+  if (f) return f.slice(0, 2).toUpperCase()
+  return u.username.slice(0, 2).toUpperCase()
+}
+function gradientForUser(id: number): string {
+  const palette = [
+    'linear-gradient(135deg, #f59e0b, #ef4444)',
+    'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    'linear-gradient(135deg, #10b981, #059669)',
+    'linear-gradient(135deg, #ec4899, #f43f5e)',
+    'linear-gradient(135deg, #06b6d4, #3b82f6)',
+  ]
+  return palette[id % palette.length]
 }
