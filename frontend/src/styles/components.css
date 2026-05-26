@@ -314,10 +314,18 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .sprint-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 @media (max-width: 1100px) { .sprint-metrics { grid-template-columns: repeat(2, 1fr); } }
 
-.sprint-priority { display: flex; flex-direction: column; gap: 8px; }
+.sprint-priority { display: flex; flex-direction: column; gap: 14px; }
 .sprint-priority .row { display: grid; grid-template-columns: 110px 1fr 32px; align-items: center; gap: 12px; font-size: 12.5px; }
+.sprint-priority .row.stacked { grid-template-columns: 1fr; gap: 6px; }
+.sprint-priority .row.stacked .head { display: flex; justify-content: space-between; align-items: baseline; }
+.sprint-priority .row.stacked .head .lbl { font-size: 13px; color: var(--fg); font-weight: 500; }
+.sprint-priority .row.stacked .head .count { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); }
 .sprint-priority .bar { height: 8px; background: var(--bg-2); border-radius: 999px; overflow: hidden; }
 .sprint-priority .bar .fill { height: 100%; transition: width 0.3s ease; }
+
+/* Розташування Burndown + Розподіл за пріоритетом у дві колонки. */
+.sprint-charts { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 1100px) { .sprint-charts { grid-template-columns: 1fr; } }
 .sprint-priority .bar .fill.critical { background: var(--pri-critical); }
 .sprint-priority .bar .fill.high { background: var(--pri-high); }
 .sprint-priority .bar .fill.medium { background: var(--pri-medium); }

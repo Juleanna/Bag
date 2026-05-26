@@ -13,12 +13,12 @@ import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { listAll } from '../api/client'
 import { api as extras } from '../api/extras'
-import type { Sprint } from '../api/extras'
+import type { Sprint, TestCase, TestRun } from '../api/extras'
 import type { Issue, Project } from '../api/types'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { Skeleton } from '../components/Skeleton'
-import { PriorityBadge, StatusPill } from '../atoms/Status'
+import { StatusPill } from '../atoms/Status'
 
 type TabKey = 'active' | 'planning' | 'completed'
 
@@ -52,6 +52,8 @@ export function SprintsPage() {
   const [projectId, setProjectId] = useState<number | null>(null)
   const [sprints, setSprints] = useState<Sprint[]>([])
   const [issues, setIssues] = useState<Issue[]>([])
+  const [testCases, setTestCases] = useState<TestCase[]>([])
+  const [testRuns, setTestRuns] = useState<TestRun[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<TabKey>('active')
 
@@ -69,10 +71,14 @@ export function SprintsPage() {
     Promise.all([
       extras.listSprints(projectId).catch(() => [] as Sprint[]),
       listAll<Issue>(`/issues/?project=${projectId}&page_size=200`).catch(() => [] as Issue[]),
+      extras.listTestCases({ project: projectId }).catch(() => [] as TestCase[]),
+      extras.listTestRuns(projectId).catch(() => [] as TestRun[]),
     ])
-      .then(([sl, il]) => {
+      .then(([sl, il, tc, tr]) => {
         setSprints(sl)
         setIssues(il)
+        setTestCases(tc)
+        setTestRuns(tr)
       })
       .finally(() => setLoading(false))
   }, [projectId])
@@ -225,6 +231,11 @@ export function SprintsPage() {
           issues={sprintIssues}
           progress={sprintProgress}
           done={sprintDone}
+          testCasesCount={testCases.length}
+          activeRunsCount={
+            testRuns.filter(r => r.status !== 'completed' && r.status !== 'aborted')
+              .length
+          }
           onEdit={() => toast.show('Редагування у плані', 'info')}
           onComplete={() => completeSprint(focusedSprint)}
           onDelete={() => removeSprint(focusedSprint)}
@@ -240,6 +251,8 @@ function SprintDetail({
   issues,
   progress,
   done,
+  testCasesCount,
+  activeRunsCount,
   onEdit,
   onComplete,
   onDelete,
@@ -249,6 +262,8 @@ function SprintDetail({
   issues: Issue[]
   progress: number
   done: number
+  testCasesCount: number
+  activeRunsCount: number
   onEdit: () => void
   onComplete: () => void
   onDelete: () => void
@@ -305,14 +320,14 @@ function SprintDetail({
         </div>
       </div>
 
-      {sprint.goal && (
-        <div className="sprint-goal">
-          <div className="lbl">
-            <Ic.Flag sz={11} /> ЦІЛЬ СПРИНТУ
-          </div>
-          <p>{sprint.goal}</p>
+      <div className="sprint-goal">
+        <div className="lbl">
+          <Ic.Flag sz={11} /> ЦІЛЬ СПРИНТУ
         </div>
-      )}
+        <p style={!sprint.goal ? { color: 'var(--fg-3)', fontStyle: 'italic' } : undefined}>
+          {sprint.goal || 'Цілі не задано — додайте через «Редагувати»'}
+        </p>
+      </div>
 
       <div className="sprint-metrics">
         <div className="card metric">
@@ -372,38 +387,82 @@ function SprintDetail({
 
         <div className="card metric">
           <div className="metric-lbl">
-            <Ic.Clock sz={13} /> <span>Залишилось</span>
+            <Ic.Beaker sz={13} /> <span>Тест-кейси</span>
           </div>
-          <div className="metric-val">
-            {remaining}<span className="unit">днів</span>
-          </div>
+          <div className="metric-val">{testCasesCount}</div>
           <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 6 }}>
-            до {formatDateShort(sprint.ends_at)}
+            {activeRunsCount} активних runs
           </div>
         </div>
       </div>
 
-      <div className="card" style={{ padding: 18, marginBottom: 16 }}>
-        <div className="card-head" style={{ padding: 0, marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>Розподіл за пріоритетом</h3>
+      <div className="sprint-charts">
+        <div className="card" style={{ padding: 18 }}>
+          <div
+            className="card-head"
+            style={{ padding: 0, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}
+          >
+            <h3 style={{ margin: 0 }}>Burndown</h3>
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-2)' }}
+            >
+              <span style={{ width: 8, height: 8, background: 'var(--accent)', borderRadius: '50%' }} />
+              Реальне
+            </span>
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-4)' }}
+            >
+              <span
+                style={{
+                  width: 12,
+                  height: 1.5,
+                  background: 'var(--fg-4)',
+                  display: 'inline-block',
+                }}
+              />
+              Ідеальне
+            </span>
+            <span
+              className="tag"
+              style={{ marginLeft: 'auto', fontSize: 11 }}
+            >
+              Story points
+            </span>
+          </div>
+          <SprintBurndown sprint={sprint} issues={issues} done={done} />
         </div>
-        <div className="sprint-priority">
-          {(['critical', 'high', 'medium', 'low'] as const).map(p => (
-            <div key={p} className="row">
-              <PriorityBadge value={p} />
-              <div className="bar">
-                <div
-                  className={`fill ${p}`}
-                  style={{
-                    width: issues.length
-                      ? `${(byPriority[p] / issues.length) * 100}%`
-                      : '0%',
-                  }}
-                />
+
+        <div className="card" style={{ padding: 18 }}>
+          <div className="card-head" style={{ padding: 0, marginBottom: 12 }}>
+            <h3 style={{ margin: 0 }}>Розподіл за пріоритетом</h3>
+          </div>
+          <div className="sprint-priority">
+            {(
+              [
+                { p: 'critical', label: 'Critical' },
+                { p: 'high', label: 'High' },
+                { p: 'medium', label: 'Medium' },
+                { p: 'low', label: 'Low' },
+              ] as const
+            ).map(o => (
+              <div key={o.p} className="row stacked">
+                <div className="head">
+                  <span className="lbl">{o.label}</span>
+                  <span className="count">{byPriority[o.p]}</span>
+                </div>
+                <div className="bar">
+                  <div
+                    className={`fill ${o.p}`}
+                    style={{
+                      width: issues.length
+                        ? `${(byPriority[o.p] / issues.length) * 100}%`
+                        : '0%',
+                    }}
+                  />
+                </div>
               </div>
-              <span className="count">{byPriority[p]}</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
@@ -718,4 +777,125 @@ function gradientForUser(id: number): string {
     'linear-gradient(135deg, #06b6d4, #3b82f6)',
   ]
   return palette[id % palette.length]
+}
+
+/**
+ * Burndown chart для спринта: вісь X — дні спринта, вісь Y — story points,
+ * що залишилось. Дві лінії:
+ *  - Реальне (синє) — totalSP мінус закриті за датами updated_at
+ *  - Ідеальне (сіре пунктирне) — лінійне зменшення від totalSP до 0
+ */
+function SprintBurndown({
+  sprint,
+  issues,
+  done,
+}: {
+  sprint: Sprint
+  issues: Issue[]
+  done: number
+}) {
+  // Будуємо дні спринта і scope. Якщо нема story_points у issues —
+  // вважаємо 1 SP per issue, щоб графік не був порожнім.
+  const totalSp = sprint.capacity_sp || issues.length || 5
+  const startMs = new Date(sprint.starts_at).getTime()
+  const endMs = new Date(sprint.ends_at).getTime()
+  const totalDays = Math.max(1, Math.round((endMs - startMs) / 86400000) + 1)
+  const days = Array.from({ length: totalDays }, (_, i) => i + 1)
+  // Реальне: для кожного дня — totalSp мінус сума SP закритих до цього дня.
+  const closedByDay = days.map(d => {
+    const cutoff = new Date(startMs + (d - 1) * 86400000)
+    cutoff.setHours(23, 59, 59, 999)
+    return issues.filter(
+      i =>
+        (i.status === 'done' || i.status === 'cancelled') &&
+        new Date(i.updated_at) <= cutoff,
+    ).length
+  })
+  // SP per issue: рівномірно totalSp/issues.length. Якщо issues порожні —
+  // лишаємо лінію плоскою.
+  const spPerIssue = issues.length > 0 ? totalSp / issues.length : 0
+  const real = closedByDay.map(c => Math.max(0, totalSp - c * spPerIssue))
+  // Доводимо лінію 'реальне' лише до сьогоднішнього дня — далі pending.
+  const today = Date.now()
+  const lastRealIdx = Math.max(
+    0,
+    Math.min(totalDays - 1, Math.floor((today - startMs) / 86400000)),
+  )
+
+  const W = 560
+  const H = 220
+  const P = { l: 32, r: 14, t: 14, b: 28 }
+  const innerW = W - P.l - P.r
+  const innerH = H - P.t - P.b
+  const max = Math.max(totalSp, 5)
+  const x = (i: number) => P.l + (i / Math.max(1, totalDays - 1)) * innerW
+  const y = (v: number) => P.t + innerH - (v / max) * innerH
+
+  const idealPath = `M${x(0)},${y(totalSp)} L${x(totalDays - 1)},${y(0)}`
+  const realPath = real
+    .slice(0, lastRealIdx + 1)
+    .map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i)},${y(v)}`)
+    .join(' ')
+  const ticks = 4
+  const tickVals = Array.from({ length: ticks + 1 }, (_, i) =>
+    Math.round((max / ticks) * i),
+  )
+
+  // Якщо done = 0 не використовуємо — просто індикатор для лінійки real.
+  void done
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+      {tickVals.map((v, i) => (
+        <g key={i}>
+          <line
+            x1={P.l}
+            x2={W - P.r}
+            y1={y(v)}
+            y2={y(v)}
+            stroke="var(--divider)"
+            strokeDasharray="2 3"
+          />
+          <text
+            x={P.l - 6}
+            y={y(v) + 3}
+            fontSize="10"
+            fill="var(--fg-3)"
+            textAnchor="end"
+            fontFamily="var(--font-mono)"
+          >
+            {v}
+          </text>
+        </g>
+      ))}
+      <path d={idealPath} stroke="var(--fg-4)" strokeWidth="1.2" strokeDasharray="3 4" fill="none" />
+      <path d={realPath} stroke="var(--accent)" strokeWidth="2" fill="none" strokeLinecap="round" />
+      {real.slice(0, lastRealIdx + 1).map((v, i) => (
+        <circle
+          key={i}
+          cx={x(i)}
+          cy={y(v)}
+          r={i === lastRealIdx ? 4 : 2.5}
+          fill="var(--accent)"
+          stroke="var(--surface)"
+          strokeWidth="1.5"
+        />
+      ))}
+      {days.map((d, i) =>
+        i % Math.max(1, Math.floor(totalDays / 8)) === 0 ? (
+          <text
+            key={i}
+            x={x(i)}
+            y={H - 10}
+            fontSize="10"
+            fill="var(--fg-3)"
+            textAnchor="middle"
+            fontFamily="var(--font-mono)"
+          >
+            Д{d}
+          </text>
+        ) : null,
+      )}
+    </svg>
+  )
 }
