@@ -280,6 +280,52 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .comment-media .media-file { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px; color: var(--fg-2); text-decoration: none; }
 .comment-media .media-file:hover { background: var(--surface-2); color: var(--fg); }
 
+/* === Sprints =================================================== */
+.sprint-tabs { display: flex; align-items: center; gap: 4px; }
+.sprint-tab { padding: 6px 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--fg-3); font-size: 13px; font-weight: 500; cursor: pointer; }
+.sprint-tab:hover { color: var(--fg); background: var(--bg-2); }
+.sprint-tab.active { background: var(--surface); border-color: var(--border); color: var(--fg); box-shadow: var(--shadow-sm); }
+.sprint-proj { margin-left: 12px; min-width: 160px; padding: 6px 10px; font-size: 13px; }
+
+.sprint-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.sprint-head h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+
+.sprint-goal { background: var(--accent-soft); border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; }
+.sprint-goal .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--accent-soft-fg); margin-bottom: 6px; display: inline-flex; align-items: center; gap: 6px; }
+.sprint-goal p { margin: 0; font-size: 13.5px; color: var(--fg); line-height: 1.55; }
+
+.sprint-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 1100px) { .sprint-metrics { grid-template-columns: repeat(2, 1fr); } }
+
+.sprint-priority { display: flex; flex-direction: column; gap: 8px; }
+.sprint-priority .row { display: grid; grid-template-columns: 110px 1fr 32px; align-items: center; gap: 12px; font-size: 12.5px; }
+.sprint-priority .bar { height: 8px; background: var(--bg-2); border-radius: 999px; overflow: hidden; }
+.sprint-priority .bar .fill { height: 100%; transition: width 0.3s ease; }
+.sprint-priority .bar .fill.critical { background: var(--pri-critical); }
+.sprint-priority .bar .fill.high { background: var(--pri-high); }
+.sprint-priority .bar .fill.medium { background: var(--pri-medium); }
+.sprint-priority .bar .fill.low { background: var(--pri-low); }
+.sprint-priority .count { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg-2); font-weight: 500; }
+
+.sprint-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .sprint-board { grid-template-columns: repeat(2, 1fr); } }
+.sprint-col { background: var(--bg-2); border-radius: 10px; padding: 10px; min-height: 120px; }
+.sprint-col .head { display: flex; align-items: center; gap: 6px; padding: 4px 4px 8px; font-size: 12.5px; }
+.sprint-col .head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-3); }
+.sprint-col .head .count { margin-left: auto; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.sprint-col .list { display: flex; flex-direction: column; gap: 6px; }
+.sprint-col .empty-mini { padding: 12px; text-align: center; color: var(--fg-4); font-size: 12px; }
+.sprint-col .card-mini { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.sprint-col .card-mini .id { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); margin-bottom: 2px; }
+.sprint-col .card-mini .title { font-size: 12.5px; color: var(--fg); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sprint-col .card-mini .meta { margin-top: 6px; }
+
+/* Шаблон тривалості — кнопки 1/2/3 тиж/Власна */
+.duration-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.duration-opt { padding: 12px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg-2); font-size: 13px; cursor: pointer; }
+.duration-opt:hover { border-color: var(--border-strong); }
+.duration-opt.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-soft-fg); font-weight: 500; }
+
 .history { display: flex; flex-direction: column; }
 .h-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 0; font-size: 12.5px; color: var(--fg-2); border-bottom: 1px solid var(--divider); }
 .h-row:last-child { border-bottom: none; }

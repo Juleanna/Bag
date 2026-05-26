@@ -13,6 +13,7 @@ export interface Sprint {
   starts_at: string
   ends_at: string
   is_active: boolean
+  capacity_sp: number | null
   created_at: string
   issues_count: number
 }

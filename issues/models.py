@@ -639,6 +639,9 @@ class Sprint(models.Model):
     starts_at = models.DateField()
     ends_at = models.DateField()
     is_active = models.BooleanField(default=False)
+    # Story-points: планова ємність команди на спринт. nullable, щоб старі
+    # записи лишилися без значення (а не нуль, що було б оманою).
+    capacity_sp = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

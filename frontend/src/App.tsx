@@ -33,6 +33,7 @@ import { SupportTicketDetailPage } from './pages/SupportTicketDetailPage'
 import { SupportAgentsPage } from './pages/SupportAgentsPage'
 import { MyTicketsPage } from './pages/MyTicketsPage'
 import { SprintsPage } from './pages/Sprints'
+import { NewSprintPage } from './pages/NewSprint'
 import { WebhooksPage } from './pages/Webhooks'
 import { TemplatesPage } from './pages/Templates'
 import { AdminLandingLayout } from './pages/admin/AdminLandingLayout'
@@ -144,6 +145,7 @@ export function App() {
         <Route path="runs/:id" element={<TestRunDetailPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="sprints" element={<SprintsPage />} />
+        <Route path="sprints/new" element={<NewSprintPage />} />
         <Route path="webhooks" element={<WebhooksPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="inbox" element={<InboxPage />} />
