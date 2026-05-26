@@ -324,7 +324,7 @@ function SprintDetail({
 
       <div className="sprint-goal">
         <div className="lbl">
-          <Ic.Flag sz={11} /> ЦІЛЬ СПРИНТУ
+          <Ic.Flag sz={13} /> ЦІЛЬ СПРИНТУ
         </div>
         <p style={!sprint.goal ? { color: 'var(--fg-3)', fontStyle: 'italic' } : undefined}>
           {sprint.goal || 'Цілі не задано — додайте через «Редагувати»'}

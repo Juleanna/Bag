@@ -307,9 +307,10 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .sprint-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .sprint-head h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
 
-.sprint-goal { background: var(--accent-soft); border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; }
-.sprint-goal .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--accent-soft-fg); margin-bottom: 6px; display: inline-flex; align-items: center; gap: 6px; }
-.sprint-goal p { margin: 0; font-size: 13.5px; color: var(--fg); line-height: 1.55; }
+.sprint-goal { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
+.sprint-goal .lbl { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-soft-fg); margin-bottom: 4px; display: inline-flex; align-items: center; gap: 8px; text-transform: uppercase; }
+.sprint-goal .lbl svg { color: var(--accent-soft-fg); }
+.sprint-goal p { margin: 0; font-size: 14px; color: var(--fg); line-height: 1.5; }
 
 .sprint-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 @media (max-width: 1100px) { .sprint-metrics { grid-template-columns: repeat(2, 1fr); } }
