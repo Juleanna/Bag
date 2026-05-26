@@ -344,8 +344,11 @@ export const api = {
   // Issue Templates
   listTemplates: async () =>
     unwrap(await apiGet<PaginatedResponse<IssueTemplate>>('/templates/')),
+  getTemplate: (id: number) => apiGet<IssueTemplate>(`/templates/${id}/`),
   createTemplate: (data: Partial<IssueTemplate>) =>
     apiPost<IssueTemplate>('/templates/', data),
+  updateTemplate: (id: number, data: Partial<IssueTemplate>) =>
+    apiPatch<IssueTemplate>(`/templates/${id}/`, data),
   deleteTemplate: (id: number) => apiDelete(`/templates/${id}/`),
 
   // Time logs

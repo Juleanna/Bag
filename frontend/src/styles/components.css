@@ -417,6 +417,9 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .tpl-foot .usage { margin-left: auto; font-size: 11px; color: var(--fg-3); white-space: nowrap; }
 .tpl-delete { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 0.12s; }
 .tpl-card:hover .tpl-delete { opacity: 1; }
+.tpl-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s; }
+.tpl-card:hover .tpl-actions,
+.tpl-actions:focus-within { opacity: 1; }
 
 /* NewTemplatePage — picker типу. */
 .kind-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }

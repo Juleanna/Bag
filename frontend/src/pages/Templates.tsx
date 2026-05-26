@@ -230,14 +230,25 @@ export function TemplatesPage() {
                     <Ic.Plus sz={11} /> Створити
                   </button>
                 </div>
-                {/* Кнопка видалення — на hover */}
-                <button
-                  className="tpl-delete btn ghost icon sm"
-                  onClick={() => remove(t)}
-                  title="Видалити"
-                >
-                  <Ic.Trash sz={11} />
-                </button>
+                {/* Дії — на hover. Редагувати/Видалити лишаються в одному
+                    контейнері справа зверху, щоб не плодити кнопки в нижньому
+                    рядку футера. */}
+                <div className="tpl-actions">
+                  <button
+                    className="btn ghost icon sm"
+                    onClick={() => navigate(`/templates/${t.id}/edit`)}
+                    title="Редагувати"
+                  >
+                    <Ic.Edit sz={11} />
+                  </button>
+                  <button
+                    className="btn ghost icon sm"
+                    onClick={() => remove(t)}
+                    title="Видалити"
+                  >
+                    <Ic.Trash sz={11} />
+                  </button>
+                </div>
               </div>
             )
           })}

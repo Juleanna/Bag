@@ -1167,9 +1167,27 @@ class SprintViewSet(viewsets.ModelViewSet):
 # ============================================================================
 
 
+class _TemplateOwnerOrStaff(permissions.BasePermission):
+    """Шаблони може читати будь-який автентифікований (фільтрація — у
+    get_queryset). Редагувати/видаляти — лише автор або is_staff. Це
+    дозволяє глобальним шаблонам (project=null) теж мати власника.
+    """
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated)
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return (
+            (obj.author_id is not None and obj.author_id == request.user.id)
+            or request.user.is_staff
+        )
+
+
 class IssueTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = IssueTemplateSerializer
-    permission_classes = [IsAuthenticatedAndMember]
+    permission_classes = [_TemplateOwnerOrStaff]
     parser_classes = [JSONParser, FormParser]
 
     def get_queryset(self):
@@ -1177,6 +1195,9 @@ class IssueTemplateViewSet(viewsets.ModelViewSet):
         return IssueTemplate.objects.filter(
             Q(project__isnull=True) | Q(project__in=user_projects)
         ).distinct()
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
 
 
 class TimeLogViewSet(viewsets.ModelViewSet):

@@ -150,6 +150,7 @@ export function App() {
         <Route path="webhooks" element={<WebhooksPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="templates/new" element={<NewTemplatePage />} />
+        <Route path="templates/:id/edit" element={<NewTemplatePage mode="edit" />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="changelog" element={<ChangelogPage />} />

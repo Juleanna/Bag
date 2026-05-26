@@ -8,8 +8,8 @@
  *  - Доступність (Тільки я / Простір / Публічний)
  *  - Кнопки внизу: Скасувати / Передогляд / Створити шаблон
  */
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
 import { api as extras } from '../api/extras'
 import type {
@@ -58,9 +58,11 @@ const FIELD_TYPES: { v: TemplateField['type']; label: string }[] = [
   { v: 'select', label: 'Список' },
 ]
 
-export function NewTemplatePage() {
+export function NewTemplatePage({ mode = 'create' }: { mode?: 'create' | 'edit' } = {}) {
   const navigate = useNavigate()
   const toast = useToast()
+  const { id } = useParams<{ id?: string }>()
+  const editId = mode === 'edit' && id ? Number(id) : null
   const [kind, setKind] = useState<TemplateKind>('bug')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -69,6 +71,34 @@ export function NewTemplatePage() {
   const [fields, setFields] = useState<TemplateField[]>(DEFAULT_FIELDS.bug)
   const [visibility, setVisibility] = useState<TemplateVisibility>('space')
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(editId !== null)
+
+  // Завантажуємо шаблон для редагування.
+  useEffect(() => {
+    if (editId === null) return
+    setLoading(true)
+    void extras
+      .getTemplate(editId)
+      .then(t => {
+        setKind(t.kind)
+        setName(t.name)
+        setDescription(t.description || '')
+        setTags(t.tags || [])
+        setFields(
+          (t.custom_fields_schema || []).map(f => ({
+            name: f.name,
+            label: f.label,
+            type: f.type,
+            options: f.options,
+            required: f.required,
+          })),
+        )
+        setVisibility(t.visibility || 'space')
+      })
+      .catch(() => toast.show('Не вдалося завантажити шаблон', 'error'))
+      .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId])
 
   const onKindChange = (k: TemplateKind) => {
     setKind(k)
@@ -106,15 +136,21 @@ export function NewTemplatePage() {
     }
     setSaving(true)
     try {
-      await extras.createTemplate({
+      const payload = {
         name: name.trim(),
         description: description.trim(),
         kind,
         tags,
         visibility,
         custom_fields_schema: fields.filter(f => f.label.trim()),
-      })
-      toast.show('Шаблон створено', 'success')
+      }
+      if (editId !== null) {
+        await extras.updateTemplate(editId, payload)
+        toast.show('Шаблон оновлено', 'success')
+      } else {
+        await extras.createTemplate(payload)
+        toast.show('Шаблон створено', 'success')
+      }
       navigate('/templates')
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
@@ -123,10 +159,24 @@ export function NewTemplatePage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="page">
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>
+          Завантаження…
+        </div>
+      </div>
+    )
+  }
+
+  const isEdit = editId !== null
+
   return (
     <div className="page">
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
-        <h1 style={{ marginBottom: 4 }}>Новий шаблон</h1>
+        <h1 style={{ marginBottom: 4 }}>
+          {isEdit ? 'Редагування шаблону' : 'Новий шаблон'}
+        </h1>
         <p style={{ color: 'var(--fg-3)', marginTop: 0, marginBottom: 24 }}>
           Шаблони прискорюють створення багів, тест-кейсів і runs.
         </p>
@@ -327,7 +377,8 @@ export function NewTemplatePage() {
               disabled={saving}
               onClick={submit}
             >
-              <Ic.Check sz={11} /> {saving ? 'Збереження…' : 'Створити шаблон'}
+              <Ic.Check sz={11} />{' '}
+              {saving ? 'Збереження…' : isEdit ? 'Зберегти' : 'Створити шаблон'}
             </button>
           </div>
         </div>
