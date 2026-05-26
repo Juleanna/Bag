@@ -1,65 +1,82 @@
 /**
- * Issue Templates — список шаблонів багів для швидкого створення нових,
- * з типовим описом, пріоритетом та чек-лістом.
+ * Шаблони — карткова сітка за прототипом. Пошук + фільтри типу
+ * (Усі / Баги / Тест-кейси / Test Runs) + кнопки «Імпорт» і «+ Новий шаблон».
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Ic } from '../icons/Ic'
-import { listAll } from '../api/client'
 import { api as extras } from '../api/extras'
-import type { IssueTemplate } from '../api/extras'
-import type { Project } from '../api/types'
+import type { IssueTemplate, TemplateKind } from '../api/extras'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { Skeleton } from '../components/Skeleton'
 
-const EMPTY: Partial<IssueTemplate> = {
-  name: '',
-  description_template: '',
-  default_priority: 'medium',
-  project: null,
+type FilterKind = 'all' | TemplateKind
+
+const FILTERS: { k: FilterKind; label: string; icon: keyof typeof Ic | null }[] = [
+  { k: 'all', label: 'Усі', icon: null },
+  { k: 'bug', label: 'Баги', icon: 'Bug' },
+  { k: 'test_case', label: 'Тест-кейси', icon: 'Beaker' },
+  { k: 'test_run', label: 'Test Runs', icon: 'Play' },
+]
+
+const KIND_META: Record<
+  TemplateKind,
+  { label: string; icon: keyof typeof Ic; color: string; bg: string }
+> = {
+  bug: {
+    label: 'Bug',
+    icon: 'Bug',
+    color: 'var(--st-open-fg)',
+    bg: 'var(--st-open-bg)',
+  },
+  test_case: {
+    label: 'Test case',
+    icon: 'Beaker',
+    color: 'var(--st-resolved-fg)',
+    bg: 'var(--st-resolved-bg)',
+  },
+  test_run: {
+    label: 'Run',
+    icon: 'Play',
+    color: 'var(--st-progress-fg)',
+    bg: 'var(--st-progress-bg)',
+  },
 }
 
 export function TemplatesPage() {
+  const navigate = useNavigate()
   const toast = useToast()
   const confirm = useConfirm()
   const [templates, setTemplates] = useState<IssueTemplate[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState<Partial<IssueTemplate> | null>(null)
-
-  const reload = () => {
-    setLoading(true)
-    Promise.all([
-      extras.listTemplates().catch(() => [] as IssueTemplate[]),
-      listAll<Project>('/projects/?page_size=50').catch(() => [] as Project[]),
-    ])
-      .then(([ts, ps]) => {
-        setTemplates(ts)
-        setProjects(ps)
-      })
-      .finally(() => setLoading(false))
-  }
+  const [filter, setFilter] = useState<FilterKind>('all')
+  const [query, setQuery] = useState('')
+  // Авторів витягуємо ліниво через useUsers — поки що показуємо лише name
+  // через author_id (заглушка для відображення).
 
   useEffect(() => {
-    reload()
+    setLoading(true)
+    extras
+      .listTemplates()
+      .then(setTemplates)
+      .catch(() => setTemplates([]))
+      .finally(() => setLoading(false))
   }, [])
 
-  const startEdit = (t: Partial<IssueTemplate> = EMPTY) => {
-    setEditing({ ...t })
-  }
-
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editing) return
-    try {
-      await extras.createTemplate(editing)
-      setEditing(null)
-      toast.show('Шаблон збережено', 'success')
-      reload()
-    } catch (err) {
-      toast.show(err instanceof Error ? err.message : 'Помилка', 'error')
-    }
-  }
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    return templates.filter(t => {
+      if (filter !== 'all' && t.kind !== filter) return false
+      if (q) {
+        const inName = t.name.toLowerCase().includes(q)
+        const inDesc = (t.description || '').toLowerCase().includes(q)
+        const inTags = (t.tags || []).some(x => x.toLowerCase().includes(q))
+        if (!inName && !inDesc && !inTags) return false
+      }
+      return true
+    })
+  }, [templates, filter, query])
 
   const remove = async (t: IssueTemplate) => {
     const ok = await confirm({
@@ -71,7 +88,7 @@ export function TemplatesPage() {
     if (!ok) return
     try {
       await extras.deleteTemplate(t.id)
-      reload()
+      setTemplates(arr => arr.filter(x => x.id !== t.id))
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
     }
@@ -80,160 +97,150 @@ export function TemplatesPage() {
   return (
     <div className="page">
       <div className="page-head">
-        <div>
-          <h1>Шаблони багів</h1>
-          <div className="sub">
-            Готові форми для типових типів задач — пришвидшує створення
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flex: 1,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div className="tpl-search">
+            <Ic.Search sz={12} />
+            <input
+              placeholder="Шукати шаблон…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="tpl-filters">
+            {FILTERS.map(f => {
+              const Icn = f.icon ? (Ic[f.icon] as typeof Ic.Bug) : null
+              return (
+                <button
+                  key={f.k}
+                  className={`tpl-filter ${filter === f.k ? 'active' : ''}`}
+                  onClick={() => setFilter(f.k)}
+                >
+                  {Icn && <Icn sz={12} />} {f.label}
+                </button>
+              )
+            })}
           </div>
         </div>
-        <div className="right">
-          <button className="btn primary" onClick={() => startEdit()}>
+        <div className="right" style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn"
+            onClick={() => toast.show('Імпорт у плані', 'info')}
+          >
+            <Ic.Download sz={13} /> Імпорт
+          </button>
+          <button
+            className="btn primary"
+            onClick={() => navigate('/templates/new')}
+          >
             <Ic.Plus sz={13} /> Новий шаблон
           </button>
         </div>
       </div>
 
-      {editing && (
-        <form className="card" style={{ padding: 18, marginBottom: 16 }} onSubmit={save}>
-          <h3 style={{ margin: 0, marginBottom: 12 }}>
-            {editing.id ? 'Редагування шаблону' : 'Новий шаблон'}
-          </h3>
-          <div className="admin-grid-2">
-            <div className="field">
-              <label>Назва *</label>
-              <input
-                className="inp"
-                value={editing.name || ''}
-                onChange={e => setEditing({ ...editing, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="field">
-              <label>Проєкт</label>
-              <select
-                className="inp"
-                value={editing.project ?? ''}
-                onChange={e =>
-                  setEditing({
-                    ...editing,
-                    project: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
-              >
-                <option value="">Глобальний</option>
-                {projects.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Типовий пріоритет</label>
-              <select
-                className="inp"
-                value={editing.default_priority || 'medium'}
-                onChange={e => setEditing({ ...editing, default_priority: e.target.value })}
-              >
-                <option value="low">Низький</option>
-                <option value="medium">Середній</option>
-                <option value="high">Високий</option>
-              </select>
-            </div>
-            <div className="field" style={{ gridColumn: '1 / -1' }}>
-              <label>Шаблон опису</label>
-              <textarea
-                className="inp"
-                rows={6}
-                value={editing.description_template || ''}
-                onChange={e =>
-                  setEditing({ ...editing, description_template: e.target.value })
-                }
-                placeholder={`### Кроки для відтворення\n1.\n2.\n\n### Очікувано\n\n### Фактично`}
-                style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-            <button type="button" className="btn ghost" onClick={() => setEditing(null)}>
-              Скасувати
-            </button>
-            <button type="submit" className="btn primary">
-              Зберегти
-            </button>
-          </div>
-        </form>
-      )}
+      <div style={{ marginBottom: 18 }}>
+        <h1 style={{ margin: 0 }}>Шаблони</h1>
+        <div className="sub" style={{ marginTop: 4 }}>
+          Багорепорти, тест-кейси та runs з готовою структурою ·{' '}
+          {templates.length} {templates.length === 1 ? 'шаблон' : 'шаблонів'}
+        </div>
+      </div>
 
       {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} height={56} />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} height={220} />
           ))}
         </div>
-      ) : templates.length === 0 ? (
-        <div className="empty" style={{ marginTop: 60 }}>
+      ) : filtered.length === 0 ? (
+        <div className="empty" style={{ marginTop: 40 }}>
           <Ic.Beaker sz={36} />
-          <h4>Поки немає шаблонів</h4>
-          <p>Створіть перший — заощаджуйте час на повторюваних задачах</p>
+          <h4>{query ? 'Нічого не знайдено' : 'Поки немає шаблонів'}</h4>
+          <p>
+            {query
+              ? 'Спробуйте інший пошуковий запит'
+              : 'Створіть перший — заощаджуйте час на повторюваних задачах'}
+          </p>
+          {!query && (
+            <button
+              className="btn primary"
+              style={{ marginTop: 12 }}
+              onClick={() => navigate('/templates/new')}
+            >
+              <Ic.Plus sz={13} /> Новий шаблон
+            </button>
+          )}
         </div>
       ) : (
-        <div className="card">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Назва</th>
-                <th>Проєкт</th>
-                <th>Пріоритет</th>
-                <th>Custom-поля</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {templates.map(t => (
-                <tr key={t.id}>
-                  <td>
-                    <b>{t.name}</b>
-                    {t.description_template && (
-                      <div
-                        style={{
-                          fontSize: 11.5,
-                          color: 'var(--fg-3)',
-                          maxWidth: 360,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {t.description_template.slice(0, 80)}…
-                      </div>
-                    )}
-                  </td>
-                  <td className="muted">
-                    {t.project
-                      ? projects.find(p => p.id === t.project)?.name || `#${t.project}`
-                      : 'глобальний'}
-                  </td>
-                  <td>{t.default_priority}</td>
-                  <td className="muted">{t.custom_fields_schema?.length || 0} полів</td>
-                  <td className="right">
-                    <button
-                      className="btn ghost icon sm"
-                      title="Редагувати"
-                      onClick={() => startEdit(t)}
-                    >
-                      <Ic.Edit sz={11} />
-                    </button>
-                    <button
-                      className="btn ghost icon sm"
-                      title="Видалити"
-                      onClick={() => remove(t)}
-                    >
-                      <Ic.Trash sz={11} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="tpl-grid">
+          {filtered.map(t => {
+            const meta = KIND_META[t.kind] || KIND_META.bug
+            const Icn = Ic[meta.icon] as typeof Ic.Bug
+            return (
+              <div key={t.id} className="tpl-card">
+                <div className="tpl-head">
+                  <span
+                    className="tpl-icon"
+                    style={{ background: meta.bg, color: meta.color }}
+                  >
+                    <Icn sz={14} />
+                  </span>
+                  <span
+                    className="tpl-kind"
+                    style={{ background: meta.bg, color: meta.color }}
+                  >
+                    {meta.label}
+                  </span>
+                </div>
+                <h4 className="tpl-name" title={t.name}>{t.name}</h4>
+                {t.description && (
+                  <p className="tpl-desc" title={t.description}>{t.description}</p>
+                )}
+                {t.tags?.length > 0 && (
+                  <div className="tpl-tags">
+                    {t.tags.slice(0, 3).map(x => (
+                      <span key={x} className="tag">{x}</span>
+                    ))}
+                  </div>
+                )}
+                <div className="tpl-foot">
+                  <div className="author" title="Автор шаблону">
+                    {/* Без додаткового запиту авторів — лише іконка-плейсхолдер. */}
+                    <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--bg-2)', display: 'inline-block' }} />
+                    <span>{t.author ? `#${t.author}` : '—'}</span>
+                  </div>
+                  <span className="usage">{t.usage_count}× використано</span>
+                  <button
+                    className="btn sm"
+                    onClick={() => toast.show('Використання у плані', 'info')}
+                  >
+                    <Ic.Plus sz={11} /> Створити
+                  </button>
+                </div>
+                {/* Кнопка видалення — на hover */}
+                <button
+                  className="tpl-delete btn ghost icon sm"
+                  onClick={() => remove(t)}
+                  title="Видалити"
+                >
+                  <Ic.Trash sz={11} />
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

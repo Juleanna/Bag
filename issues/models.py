@@ -661,7 +661,22 @@ class Sprint(models.Model):
 
 
 class IssueTemplate(models.Model):
-    """Шаблон задачі: 'Bug report', 'Feature request' тощо."""
+    """Шаблон задачі: 'Bug report', 'Feature request' тощо.
+
+    Розширено за прототипом тестера: підтримуємо три типи (баг/тест-кейс/
+    test run), окреме поле опису (description vs description_template),
+    UI-теги, рівень доступності, лічильник використання.
+    """
+
+    class Kind(models.TextChoices):
+        BUG = "bug", "Bug"
+        TEST_CASE = "test_case", "Test case"
+        TEST_RUN = "test_run", "Test run"
+
+    class Visibility(models.TextChoices):
+        ME = "me", "Тільки я"
+        SPACE = "space", "Простір"
+        PUBLIC = "public", "Публічний"
 
     project = models.ForeignKey(
         Project,
@@ -672,8 +687,27 @@ class IssueTemplate(models.Model):
         help_text="Якщо null — глобальний шаблон, доступний у всіх проєктах",
     )
     name = models.CharField(max_length=120)
+    # description — короткий опис для каточки на /templates; description_template
+    # — це сам markdown-вміст, який підставляється у нову задачу.
+    description = models.TextField(blank=True)
     description_template = models.TextField(
-        help_text="Markdown-шаблон для опису задачі (наприклад з кроками репро)"
+        blank=True,
+        help_text="Markdown-шаблон для опису задачі (наприклад з кроками репро)",
+    )
+    kind = models.CharField(
+        max_length=20, choices=Kind.choices, default=Kind.BUG, db_index=True
+    )
+    tags = models.JSONField(default=list, blank=True)
+    visibility = models.CharField(
+        max_length=20, choices=Visibility.choices, default=Visibility.SPACE
+    )
+    usage_count = models.PositiveIntegerField(default=0)
+    author = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="authored_templates",
     )
     default_priority = models.CharField(
         max_length=20,
@@ -685,13 +719,13 @@ class IssueTemplate(models.Model):
         default=list,
         blank=True,
         help_text=(
-            "Список полів зі схемою [{name, label, type: text|number|select, options?}]"
+            "Список полів зі схемою [{name, label, type: text|number|select, options?, required?}]"
         ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["-created_at"]
 
     def __str__(self) -> str:
         return self.name

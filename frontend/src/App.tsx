@@ -36,6 +36,7 @@ import { SprintsPage } from './pages/Sprints'
 import { NewSprintPage } from './pages/NewSprint'
 import { WebhooksPage } from './pages/Webhooks'
 import { TemplatesPage } from './pages/Templates'
+import { NewTemplatePage } from './pages/NewTemplate'
 import { AdminLandingLayout } from './pages/admin/AdminLandingLayout'
 import { AdminHero } from './pages/admin/AdminHero'
 import { AdminSettings } from './pages/admin/AdminSettings'
@@ -148,6 +149,7 @@ export function App() {
         <Route path="sprints/new" element={<NewSprintPage />} />
         <Route path="webhooks" element={<WebhooksPage />} />
         <Route path="templates" element={<TemplatesPage />} />
+        <Route path="templates/new" element={<NewTemplatePage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="changelog" element={<ChangelogPage />} />

@@ -365,6 +365,54 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .completed-row .bar { height: 8px; background: var(--bg-2); border-radius: 999px; overflow: hidden; }
 .completed-row .bar .fill { height: 100%; background: var(--st-resolved-dot); transition: width 0.3s ease; }
 
+/* === Templates ============================================== */
+.tpl-search { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; min-width: 240px; }
+.tpl-search input { border: none; background: transparent; outline: none; flex: 1; font-size: 13px; color: var(--fg); }
+.tpl-search svg { color: var(--fg-3); }
+
+.tpl-filters { display: inline-flex; gap: 2px; }
+.tpl-filter { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: transparent; border: 1px solid transparent; border-radius: 8px; font-size: 13px; color: var(--fg-3); cursor: pointer; }
+.tpl-filter:hover { color: var(--fg); background: var(--bg-2); }
+.tpl-filter.active { background: var(--surface); border-color: var(--border); color: var(--fg); }
+
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.tpl-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 200px; transition: border-color 0.12s, box-shadow 0.12s; }
+.tpl-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.tpl-head { display: flex; align-items: center; gap: 8px; }
+.tpl-icon { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+.tpl-kind { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.tpl-name { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-desc { margin: 0; font-size: 12.5px; color: var(--fg-3); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tpl-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.tpl-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding-top: 12px; border-top: 1px solid var(--divider); }
+.tpl-foot .author { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--fg-3); min-width: 0; overflow: hidden; }
+.tpl-foot .usage { margin-left: auto; font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+.tpl-delete { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 0.12s; }
+.tpl-card:hover .tpl-delete { opacity: 1; }
+
+/* NewTemplatePage — picker типу. */
+.kind-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 800px) { .kind-picker { grid-template-columns: 1fr; } }
+.kind-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; text-align: left; }
+.kind-card svg { color: var(--fg-3); }
+.kind-card b { font-size: 14px; }
+.kind-card span { font-size: 12px; color: var(--fg-3); }
+.kind-card:hover { border-color: var(--border-strong); }
+.kind-card.active { background: var(--accent-soft); border-color: var(--accent); }
+.kind-card.active svg { color: var(--accent-soft-fg); }
+
+/* Список полів шаблону. */
+.template-fields { display: flex; flex-direction: column; gap: 8px; }
+.template-field-row { display: grid; grid-template-columns: 16px 1fr 160px auto auto; gap: 8px; align-items: center; }
+.template-field-row > svg:first-child { color: var(--fg-4); cursor: grab; }
+
+/* Доступність — 3 картки. */
+.visibility-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 800px) { .visibility-cards { grid-template-columns: 1fr; } }
+.vis-card { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-size: 13.5px; color: var(--fg-2); }
+.vis-card:hover { border-color: var(--border-strong); }
+.vis-card.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-soft-fg); font-weight: 500; }
+
 /* Шаблон тривалості — кнопки 1/2/3 тиж/Власна */
 .duration-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .duration-opt { padding: 12px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg-2); font-size: 13px; cursor: pointer; }

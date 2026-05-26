@@ -18,19 +18,31 @@ export interface Sprint {
   issues_count: number
 }
 
+export type TemplateKind = 'bug' | 'test_case' | 'test_run'
+export type TemplateVisibility = 'me' | 'space' | 'public'
+
+export interface TemplateField {
+  name: string
+  label: string
+  type: 'text' | 'number' | 'select' | 'textarea'
+  options?: string[]
+  required?: boolean
+}
+
 export interface IssueTemplate {
   id: number
   project: number | null
   name: string
+  description: string
   description_template: string
+  kind: TemplateKind
+  tags: string[]
+  visibility: TemplateVisibility
+  usage_count: number
+  author: number | null
   default_priority: string
   default_labels: number[]
-  custom_fields_schema: Array<{
-    name: string
-    label: string
-    type: 'text' | 'number' | 'select'
-    options?: string[]
-  }>
+  custom_fields_schema: TemplateField[]
 }
 
 export interface TimeLog {
