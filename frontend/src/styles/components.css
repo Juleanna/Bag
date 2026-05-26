@@ -201,11 +201,18 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 .comment-input .actions .toolbar { display: flex; gap: 2px; }
 .comment-input .actions .btn .hint { font-size: 10.5px; opacity: 0.75; margin-left: 6px; font-family: var(--font-mono); letter-spacing: 0.04em; }
 
-/* Кнопка видалення власного коментаря — лише при hover на сам коментар.
-   Інакше у списку висить «корзина» біля кожної моєї репліки і відволікає. */
-.comment .comment-delete { margin-left: auto; opacity: 0; transition: opacity 0.12s; }
-.comment:hover .comment-delete,
-.comment .comment-delete:focus-visible { opacity: 1; }
+/* Кнопки дій (редагувати/видалити) над власним коментарем — лише при
+   hover на сам коментар. Інакше у списку висять іконки біля кожної
+   моєї репліки і відволікають. */
+.comment .comment-actions { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s; }
+.comment:hover .comment-actions,
+.comment .comment-actions:focus-within { opacity: 1; }
+
+/* Інлайн-форма редагування коментаря — компактніша за головну форму вводу. */
+.comment-edit { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 8px 10px; margin-top: 4px; }
+.comment-edit textarea { width: 100%; border: none; outline: none; background: transparent; resize: none; font-size: 13.5px; color: var(--fg); min-height: 36px; line-height: 1.55; font-family: inherit; }
+.comment-edit-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--divider); align-items: center; }
+.comment-edit-actions .btn .hint { font-size: 10.5px; opacity: 0.75; margin-left: 6px; font-family: var(--font-mono); letter-spacing: 0.04em; }
 
 /* Mention autocomplete popup. mention-wrap огортає textarea і позиціонує
    dropdown під ним. Висота обмежена 5-6 рядками, далі скрол. */

@@ -177,6 +177,10 @@ export function BugDetailPage() {
   const [relations, setRelations] = useState<IssueRelation[]>([])
   const [loading, setLoading] = useState(true)
   const [comment, setComment] = useState('')
+  // Інлайн-редагування коментаря: id того, що редагуємо, і чернетка тексту.
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
+  const [editingCommentText, setEditingCommentText] = useState('')
+  const [savingCommentEdit, setSavingCommentEdit] = useState(false)
   // Файли, які вкладено до неподаного коментаря (preview перед submit).
   const [commentFiles, setCommentFiles] = useState<File[]>([])
   const [submittingComment, setSubmittingComment] = useState(false)
@@ -359,6 +363,48 @@ export function BugDetailPage() {
       void reload()
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    }
+  }
+
+  const startEditComment = (c: Comment) => {
+    setEditingCommentId(c.id)
+    setEditingCommentText(c.body)
+  }
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null)
+    setEditingCommentText('')
+  }
+
+  const saveEditComment = async () => {
+    if (editingCommentId === null) return
+    // Дозволяємо порожній текст лише якщо є вкладення (як при створенні).
+    const target = comments.find(c => c.id === editingCommentId)
+    if (
+      !editingCommentText.trim() &&
+      (!target?.attachments || target.attachments.length === 0)
+    ) {
+      toast.show('Коментар не може бути порожнім', 'error')
+      return
+    }
+    setSavingCommentEdit(true)
+    try {
+      await apiPatch(`/comments/${editingCommentId}/`, {
+        body: editingCommentText,
+      })
+      // Оптимістично оновлюємо локально, потім тихо рефрешимо для синхронізації
+      // attachments/reactions, які могли змінитись з інших клієнтів.
+      setComments(arr =>
+        arr.map(c =>
+          c.id === editingCommentId ? { ...c, body: editingCommentText } : c,
+        ),
+      )
+      cancelEditComment()
+      toast.show('Коментар оновлено', 'success')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Помилка', 'error')
+    } finally {
+      setSavingCommentEdit(false)
     }
   }
 
@@ -857,23 +903,62 @@ export function BugDetailPage() {
                     <div className="head">
                       <b>{displayName(c.author)}</b>
                       <span className="when">{formatWhen(c.created_at)}</span>
-                      {user && c.author.id === user.id && (
-                        <button
-                          className="btn ghost icon sm comment-delete"
-                          onClick={() => removeComment(c.id)}
-                          title="Видалити"
-                        >
-                          <Ic.Trash sz={12} />
-                        </button>
+                      {user && c.author.id === user.id && editingCommentId !== c.id && (
+                        <div className="comment-actions">
+                          <button
+                            className="btn ghost icon sm"
+                            onClick={() => startEditComment(c)}
+                            title="Редагувати"
+                          >
+                            <Ic.Edit sz={12} />
+                          </button>
+                          <button
+                            className="btn ghost icon sm"
+                            onClick={() => removeComment(c.id)}
+                            title="Видалити"
+                          >
+                            <Ic.Trash sz={12} />
+                          </button>
+                        </div>
                       )}
                     </div>
-                    <div className="body">
-                      {c.body.split('\n').map((l, i) => (
-                        <p key={i}>
-                          {l ? renderWithMentions(l, usersByUsername) : ' '}
-                        </p>
-                      ))}
-                    </div>
+                    {editingCommentId === c.id ? (
+                      <div className="comment-edit">
+                        <MentionTextarea
+                          value={editingCommentText}
+                          onChange={setEditingCommentText}
+                          users={mentionUsers}
+                          placeholder="Текст коментаря…"
+                          onSubmit={saveEditComment}
+                        />
+                        <div className="comment-edit-actions">
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            onClick={cancelEditComment}
+                          >
+                            Скасувати
+                          </button>
+                          <button
+                            className="btn primary sm"
+                            disabled={savingCommentEdit}
+                            onClick={saveEditComment}
+                            title="Зберегти (Ctrl+Enter)"
+                          >
+                            {savingCommentEdit ? 'Збереження…' : 'Зберегти'}
+                            <span className="hint">⌘↵</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="body">
+                        {c.body.split('\n').map((l, i) => (
+                          <p key={i}>
+                            {l ? renderWithMentions(l, usersByUsername) : ' '}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                     {c.attachments && c.attachments.length > 0 && (
                       <div className="comment-media">
                         {c.attachments.map(a => {
