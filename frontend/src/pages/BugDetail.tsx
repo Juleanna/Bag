@@ -529,8 +529,9 @@ export function BugDetailPage() {
   return (
     <div className="detail">
       <div className="detail-main">
-        {/* Хлібні крихти + дії праворуч */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        {/* Хлібні крихти + дії праворуч — sticky, щоб кнопки 'Поділитись',
+            'Редагувати', 'Видалити' лишались доступні при скролі. */}
+        <div className="bug-toolbar">
           <button className="btn ghost sm" onClick={() => navigate('/bugs')}>
             <Ic.Chev sz={12} style={{ transform: 'rotate(180deg)' }} /> Усі баги
           </button>

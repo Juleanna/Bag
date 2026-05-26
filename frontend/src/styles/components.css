@@ -155,6 +155,23 @@ input[type="checkbox"].cb:checked::after { content: ''; width: 10px; height: 10p
 
 .detail { display: grid; grid-template-columns: 1fr 320px; gap: 24px; padding: 20px 24px 40px; max-width: 1480px; }
 .detail-main { min-width: 0; }
+/* Sticky-смужка з 'Поділитись / Редагувати / Видалити' на сторінці бага.
+   Тестери скаржилися: при довгому списку кроків кнопки 'Save/Delete/Share'
+   гублять видимість, треба було скролити нагору. */
+.bug-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  padding: 14px 0 10px;
+  margin-top: -20px;
+  margin-bottom: 4px;
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--divider);
+}
 .detail-side { display: flex; flex-direction: column; gap: 16px; }
 .side-section h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-4); }
 .side-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; }
