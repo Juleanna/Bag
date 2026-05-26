@@ -19,8 +19,9 @@ import { apiGet, apiPatch, apiPost, apiUpload, listAll } from '../api/client'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import type { Issue, IssuePriority, IssueStatus, Project, UserShort } from '../api/types'
-import { displayName, truncateDisplayName } from '../utils/user'
+import { displayName } from '../utils/user'
 import { parseDescription } from '../utils/description'
+import { AssigneePicker } from '../components/AssigneePicker'
 import { DuplicatePanel } from '../components/DuplicatePanel'
 
 const DRAFT_KEY = 'bt:newbug:draft'
@@ -1011,21 +1012,11 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
               </div>
               <div className="fc-row">
                 <span className="fc-lbl">Виконавець</span>
-                <select
-                  className="inp"
-                  style={{ flex: 1 }}
-                  value={assignee ?? ''}
-                  onChange={e =>
-                    setAssignee(e.target.value ? Number(e.target.value) : null)
-                  }
-                >
-                  <option value="">Не призначено</option>
-                  {members.map(m => (
-                    <option key={m.id} value={m.id} title={displayName(m)}>
-                      {truncateDisplayName(m)}
-                    </option>
-                  ))}
-                </select>
+                <AssigneePicker
+                  value={assignee}
+                  onChange={setAssignee}
+                  users={members}
+                />
               </div>
               <div className="fc-row">
                 <span className="fc-lbl">Reporter</span>
