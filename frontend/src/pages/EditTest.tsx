@@ -19,6 +19,7 @@ import { useConfirm } from '../context/ConfirmContext'
 import { useAuth } from '../context/AuthContext'
 import { Skeleton } from '../components/Skeleton'
 import { displayName, truncateDisplayName } from '../utils/user'
+import { useStepGridKeyboard } from '../hooks/useStepGridKeyboard'
 
 type CaseType = 'manual' | 'automated'
 type CasePriority = 'critical' | 'high' | 'medium' | 'low'
@@ -129,6 +130,9 @@ export function EditTestPage() {
     setSteps(s => s.map((x, idx) => (idx === i ? { ...x, ...patch } : x)))
   const removeStep = (i: number) =>
     setSteps(s => (s.length > 1 ? s.filter((_, idx) => idx !== i) : s))
+  // Enter переходить на наступне поле або додає крок; Backspace на повністю
+  // порожньому рядку — видаляє його.
+  const stepKeys = useStepGridKeyboard({ steps, setSteps })
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase()
@@ -309,18 +313,22 @@ export function EditTestPage() {
                       </td>
                       <td>
                         <input
+                          ref={stepKeys.setRef(i, 'action')}
                           className="step-inp"
                           placeholder="Дія…"
                           value={s.action}
                           onChange={e => updateStep(i, { action: e.target.value })}
+                          onKeyDown={e => stepKeys.onKeyDown(i, 'action', e)}
                         />
                       </td>
                       <td>
                         <input
+                          ref={stepKeys.setRef(i, 'expected')}
                           className="step-inp"
                           placeholder="Очікуваний результат…"
                           value={s.expected}
                           onChange={e => updateStep(i, { expected: e.target.value })}
+                          onKeyDown={e => stepKeys.onKeyDown(i, 'expected', e)}
                         />
                       </td>
                       <td>
