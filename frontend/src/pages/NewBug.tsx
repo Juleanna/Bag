@@ -378,8 +378,10 @@ export function NewBugPage({ mode = 'new' }: BugFormPageProps = {}) {
     e: React.KeyboardEvent<HTMLInputElement>,
   ) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      // Не сабмітимо форму — лише додаємо крок під поточним і фокусуємось.
+      // Не сабмітимо форму. Якщо поточний крок порожній — не плодимо ще
+      // один порожній; просто гасимо натискання, фокус лишається тут.
       e.preventDefault()
+      if (steps[i].trim() === '') return
       setSteps(s => {
         const next = [...s]
         next.splice(i + 1, 0, '')

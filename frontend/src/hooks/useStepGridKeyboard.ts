@@ -53,10 +53,19 @@ export function useStepGridKeyboard({ steps, setSteps }: Options) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         if (col === 'action') {
-          // Перейти на «Очікуваний» того ж рядка
+          // Перейти на «Очікуваний» того ж рядка. Якщо текст у «Дія»
+          // порожній — не змушуємо вводити, просто перейдемо до експ.
           setPending({ row, col: 'expected' })
         } else {
-          // Додати новий рядок під поточним і сфокусуватись на «Дія» нового
+          // Не плодимо порожні клони: якщо поточний рядок повністю
+          // порожній — Enter лишає курсор тут.
+          if (
+            steps[row]?.action.trim() === '' &&
+            steps[row]?.expected.trim() === ''
+          ) {
+            return
+          }
+          // Додати новий рядок під поточним і сфокусуватись на «Дія» нового.
           setSteps(s => {
             const next = [...s]
             next.splice(row + 1, 0, { action: '', expected: '' })
