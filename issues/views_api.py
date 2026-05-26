@@ -1617,6 +1617,35 @@ class TestCaseViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        """
+        Дозволяємо створити TestCase БЕЗ явного suite — якщо клієнт передає
+        лише project, автоматично знаходимо/створюємо suite «Без розділу»
+        у тому проєкті. Раніше тестер мав спершу робити TestSuite вручну.
+        """
+        data = (
+            request.data.copy()
+            if hasattr(request.data, "copy")
+            else dict(request.data)
+        )
+        if not data.get("suite"):
+            project_id = data.get("project")
+            if project_id:
+                from .models import TestSuite
+
+                user_projects = _user_projects_cached(request)
+                if user_projects.filter(pk=project_id).exists():
+                    suite, _ = TestSuite.objects.get_or_create(
+                        project_id=int(project_id),
+                        name="Без розділу",
+                    )
+                    data["suite"] = suite.id
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 class TestRunViewSet(viewsets.ModelViewSet):
     serializer_class = TestRunSerializer

@@ -179,8 +179,8 @@ export function NewTestPage() {
       setError('Вкажіть назву')
       return
     }
-    if (!suiteId) {
-      setError('Оберіть suite або створіть новий (кнопка «+ Новий» біля поля Suite)')
+    if (!projectId) {
+      setError('Оберіть проєкт')
       return
     }
     setSubmitting(true)
@@ -188,14 +188,21 @@ export function NewTestPage() {
       const cleanSteps = steps
         .map(s => ({ step: s.action.trim(), expected: s.expected.trim() }))
         .filter(s => s.step)
-      await api.createTestCase({
-        suite: suiteId,
+      // Якщо тестер не обрав suite — шлемо лише project, бекенд авто-створює
+      // «Без розділу» suite. Це усуває барʼєр «спершу створіть suite».
+      const payload: Record<string, unknown> = {
         title: title.trim(),
         preconditions,
         steps: cleanSteps,
         type,
         priority,
-      })
+      }
+      if (suiteId) {
+        payload.suite = suiteId
+      } else {
+        payload.project = projectId
+      }
+      await api.createTestCase(payload)
       toast.show('Кейс створено', 'success')
       navigate('/tests')
     } catch (err) {
