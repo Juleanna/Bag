@@ -367,6 +367,13 @@ function GeneralForm({
       toast.show('Вкажіть імʼя або прізвище', 'error')
       return
     }
+    // Email обовʼязковий — інакше не дійдуть нотифікації і неможливо
+    // відновити пароль. Бекенд також повертає 400, тут — для миттєвого
+    // фідбеку без зайвого round-trip.
+    if (!email.trim()) {
+      toast.show('Пошта обовʼязкова', 'error')
+      return
+    }
     setSaving(true)
     try {
       await apiPatch('/auth/profile/', { first_name: first, last_name: last, email })
@@ -402,13 +409,14 @@ function GeneralForm({
           />
         </div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
-          <label>Пошта</label>
+          <label>Пошта *</label>
           <input
             className="inp"
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             maxLength={254}
+            required
           />
         </div>
       </div>

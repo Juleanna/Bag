@@ -320,12 +320,13 @@ def update_profile(request):
     if "email" in payload:
         new_email = (payload["email"] or "").strip()
         if not new_email:
-            # Дозволяємо очистити email — інакше тестери скаржаться, що
-            # після очищення поля і refresh email повертається.
-            if user.email:
-                user.email = ""
-                changed = True
-        elif new_email != user.email:
+            # Email обовʼязковий — без нього забути пароль не вдасться
+            # і нотифікації не дійдуть. Не дозволяємо очистити.
+            return JsonResponse(
+                {"ok": False, "error": "Пошта обовʼязкова — не можна залишити порожньою"},
+                status=400,
+            )
+        if new_email != user.email:
             try:
                 validate_email(new_email)
             except ValidationError:
